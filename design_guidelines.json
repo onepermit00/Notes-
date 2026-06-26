@@ -1,0 +1,102 @@
+{
+  "design_system": {
+    "philosophy": "Airbnb-inspired: Warm, Human, Trust-First. The interface should feel like a digital home—welcoming, safe, and intuitive. Prioritize clarity over density.",
+    "typography": {
+      "font_family": "Manrope, sans-serif",
+      "headings": "font-bold tracking-tight text-stone-900",
+      "body": "font-medium text-stone-600",
+      "caption": "font-medium text-stone-400"
+    },
+    "colors": {
+      "background": {
+        "primary": "bg-stone-50",
+        "card": "bg-white",
+        "modal": "bg-white"
+      },
+      "text": {
+        "primary": "text-stone-900",
+        "secondary": "text-stone-500",
+        "tertiary": "text-stone-400"
+      },
+      "brand": {
+        "primary": "bg-rose-500",
+        "primary_hover": "hover:bg-rose-600",
+        "secondary": "bg-teal-600",
+        "accent": "bg-indigo-500"
+      },
+      "status": {
+        "success": "text-emerald-600 bg-emerald-50",
+        "warning": "text-amber-600 bg-amber-50",
+        "error": "text-rose-600 bg-rose-50",
+        "info": "text-blue-600 bg-blue-50"
+      }
+    },
+    "spacing": {
+      "container_padding": "px-6",
+      "section_gap": "gap-6",
+      "card_padding": "p-5"
+    },
+    "shapes": {
+      "card_radius": "rounded-3xl",
+      "button_radius": "rounded-full",
+      "input_radius": "rounded-2xl"
+    },
+    "shadows": {
+      "card": "shadow-[0_2px_12px_rgba(0,0,0,0.04)]",
+      "floating": "shadow-[0_8px_30px_rgba(0,0,0,0.12)]",
+      "button": "shadow-[0_4px_14px_rgba(0,0,0,0.1)]"
+    }
+  },
+  "components": {
+    "CaregiverDashboard": {
+      "layout": "Mobile-first vertical stack",
+      "sections": {
+        "offline_state": {
+          "description": "Uber-style 'GO' button interface",
+          "elements": [
+            "Large circular button (w-40 h-40) with pulse effect",
+            "Clear status text 'You are offline'",
+            "Patient context 'Ready to care for David?'"
+          ]
+        },
+        "online_state": {
+          "header": "Compact patient profile + Shift timer pill",
+          "vitals_row": "Horizontal scrollable row of soft-gradient cards (Glassmorphism lite)",
+          "tabs": "Segmented control (Today / Requests) with sliding indicator",
+          "task_list": "Vertical list of large, tappable cards with checkbox interactions"
+        }
+      }
+    },
+    "FamilyDashboard": {
+      "layout": "Feed-based timeline",
+      "sections": {
+        "header": "Warm greeting + Quick Vitals Summary",
+        "timeline": "Instagram-story style feed of care events",
+        "cards": "Rich media cards showing photos of care (meals, walks) with timestamp and caregiver attribution"
+      }
+    },
+    "Navigation": {
+      "style": "Floating bottom bar with blur effect",
+      "icons": "Lucide React (Home, MessageSquare, Clock/Activity, Settings)",
+      "active_state": "Bold icon + Label, Inactive: Grey icon"
+    }
+  },
+  "assets": {
+    "images": {
+      "patient_avatar": "https://images.unsplash.com/photo-1559839734-2b71ea86b48e?w=400&q=80",
+      "caregiver_avatar": "https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=400&q=80",
+      "task_medication": "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&q=80",
+      "task_meal": "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=400&q=80",
+      "task_walk": "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=400&q=80"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Use 'Manrope' font via Google Fonts import in index.css",
+    "Implement the 'Uber GO' button with CSS animations (pulse)",
+    "Ensure all touch targets are at least 44px",
+    "Use 'backdrop-blur-xl' for the bottom navigation and modals",
+    "Preserve all 'data-testid' attributes for testing",
+    "Do NOT modify LandingPage.jsx",
+    "Use the provided image URLs for avatars and task evidence"
+  ]
+}

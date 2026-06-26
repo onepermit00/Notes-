@@ -1,0 +1,367 @@
+import React, { useState } from 'react';
+import { UserCheck, MessageCircle, Clock, Check, LogOut, User, UtensilsCrossed, Package, Wrench, Truck, HelpCircle } from 'lucide-react';
+
+const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
+const BG     = '#FFFFFF';
+const CARD   = '#FFFFFF';
+const CARD2  = '#F7F7F7';
+const GREEN  = '#34C759';
+const BLUE   = '#FF385C';
+const ORANGE = '#FF9500';
+const BORDER = '#EBEBEB';
+const TEXT   = '#222222';
+const MUTED  = '#717171';
+const SHADOW = '0 2px 12px rgba(0,0,0,0.08)';
+
+const now = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+const STATUS_STYLES = {
+  waiting:  { bg: 'rgba(255,149,0,0.10)',   color: ORANGE, label: 'Waiting'  },
+  notified: { bg: 'rgba(255,56,92,0.10)',   color: BLUE,   label: 'Notified' },
+  departed: { bg: 'rgba(113,113,113,0.10)', color: MUTED,  label: 'Departed' },
+};
+
+const PURPOSE_CONFIG = [
+  { id: 'Personal Visit',        Icon: User,            desc: 'Friend, family, or social visit'         },
+  { id: 'Food Delivery',         Icon: UtensilsCrossed, desc: 'DoorDash, Uber Eats, Grubhub, etc.'      },
+  { id: 'Package Delivery',      Icon: Package,         desc: 'Parcel or courier drop-off'               },
+  { id: 'Service / Maintenance', Icon: Wrench,          desc: 'Contractor or home service visit'         },
+  { id: 'Moving Assistance',     Icon: Truck,           desc: 'Move-in, move-out or movers'              },
+  { id: 'Other',                 Icon: HelpCircle,      desc: 'Other reason not listed above'            },
+];
+
+function Label({ children }) {
+  return (
+    <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>
+      {children}
+    </div>
+  );
+}
+
+function WizardHeader({ title, step, totalSteps, onCancel }) {
+  return (
+    <div style={{ flexShrink: 0, background: CARD, borderBottom: `1px solid ${BORDER}` }}>
+      <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>{title}</div>
+          <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 3 }}>Step {step} of {totalSteps}</div>
+        </div>
+        <button onClick={onCancel} style={{ fontFamily: INTER, fontSize: 14, fontWeight: 600, color: MUTED, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginTop: 2 }}>
+          Cancel
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 4, padding: '0 20px 14px' }}>
+        {Array.from({ length: totalSteps }).map((_, i) => (
+          <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i < step ? BLUE : BORDER, transition: 'background 200ms' }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continueDisabled = false, isFirst = false }) {
+  return (
+    <div style={{ flexShrink: 0, padding: '12px 20px 24px', background: CARD, borderTop: `1px solid ${BORDER}`, display: 'flex', gap: 10 }}>
+      {!isFirst && (
+        <button onClick={onBack}
+          style={{ flex: 1, padding: '15px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
+          Back
+        </button>
+      )}
+      <button onClick={onContinue} disabled={continueDisabled}
+        style={{ flex: 1, padding: '15px 0', background: continueDisabled ? CARD2 : BLUE, border: continueDisabled ? `1px solid ${BORDER}` : 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: continueDisabled ? MUTED : 'white', cursor: continueDisabled ? 'not-allowed' : 'pointer', boxShadow: continueDisabled ? 'none' : `0 6px 20px ${BLUE}28` }}>
+        {continueLabel}
+      </button>
+    </div>
+  );
+}
+
+export const GuestsDashboard = ({ onActivityLogged }) => {
+  const [guests,   setGuests]   = useState([]);
+  const [view,     setView]     = useState('list');
+  const [gStep,    setGStep]    = useState(1);
+  const [form,     setForm]     = useState({ guestName: '', residentName: '', unit: '', purpose: '' });
+  const [toastId,  setToastId]  = useState(null);
+  const [toastMsg, setToastMsg] = useState('');
+
+  const showToast = (msg, guestId) => {
+    setToastId(guestId);
+    setToastMsg(msg);
+    setTimeout(() => setToastId(null), 3000);
+  };
+
+  const goBack = () => {
+    setView('list');
+    setGStep(1);
+    setForm({ guestName: '', residentName: '', unit: '', purpose: '' });
+  };
+
+  const logGuest = () => {
+    if (!form.guestName.trim() || !form.residentName.trim() || !form.unit.trim()) return;
+    const entry = {
+      id:           Date.now(),
+      guestName:    form.guestName.trim(),
+      residentName: form.residentName.trim(),
+      unit:         form.unit.trim(),
+      purpose:      form.purpose.trim(),
+      arrivedAt:    now(),
+      status:       'waiting',
+      notifiedAt:   null,
+      departedAt:   null,
+    };
+    setGuests(prev => [entry, ...prev]);
+    onActivityLogged?.({ title: `Guest arrival · ${entry.guestName} → ${entry.residentName} · Unit ${entry.unit}`, category: 'Resident Assist', notes: entry.purpose });
+    goBack();
+    showToast(`Guest logged · Notify ${entry.residentName} now`, entry.id);
+  };
+
+  const notifyResident = (id) => {
+    const guest = guests.find(g => g.id === id);
+    if (!guest) return;
+    setGuests(prev => prev.map(g => g.id === id ? { ...g, status: 'notified', notifiedAt: now() } : g));
+    showToast(`Text sent to ${guest.residentName} · Unit ${guest.unit}`, id);
+  };
+
+  const markDeparted = (id) => {
+    setGuests(prev => prev.map(g => g.id === id ? { ...g, status: 'departed', departedAt: now() } : g));
+  };
+
+  // ── LOG GUEST WIZARD ──────────────────────────────────────────────────────
+  if (view === 'form') {
+
+    // Step 1: Guest details + purpose
+    if (gStep === 1) return (
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
+        <WizardHeader title="Log Guest Arrival" step={1} totalSteps={2} onCancel={goBack} />
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+          <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
+            Who is visiting?
+          </h2>
+
+          <div>
+            <Label>Guest Name *</Label>
+            <input type="text" placeholder="Full name of visitor" value={form.guestName} onChange={e => setForm(p => ({ ...p, guestName: e.target.value }))}
+              style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+
+          <div>
+            <Label>Purpose of Visit <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {PURPOSE_CONFIG.map(({ id, Icon, desc }) => {
+                const sel = form.purpose === id;
+                return (
+                  <button key={id} onClick={() => setForm(p => ({ ...p, purpose: p.purpose === id ? '' : id }))}
+                    style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, background: sel ? 'rgba(255,56,92,0.04)' : CARD, border: `1.5px solid ${sel ? BLUE : BORDER}`, borderRadius: 16, cursor: 'pointer', textAlign: 'left', width: '100%', boxShadow: sel ? `0 0 0 3px rgba(255,56,92,0.10)` : 'none', transition: 'all 150ms' }}>
+                    <div style={{ width: 52, height: 52, borderRadius: 14, background: sel ? 'rgba(255,56,92,0.12)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 150ms' }}>
+                      <Icon size={24} color={sel ? BLUE : MUTED} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT }}>{id}</div>
+                      <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 2, lineHeight: 1.4 }}>{desc}</div>
+                    </div>
+                    {sel && (
+                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Check size={13} color="white" strokeWidth={3} />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        <WizardFooter isFirst onContinue={() => setGStep(2)} continueDisabled={!form.guestName.trim()} />
+      </div>
+    );
+
+    // Step 2: Resident details
+    return (
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
+        <WizardHeader title="Log Guest Arrival" step={2} totalSteps={2} onCancel={goBack} />
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+          <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
+            Who are they here to see?
+          </h2>
+
+          {/* Guest summary chip */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: CARD2, borderRadius: 12, border: `1px solid ${BORDER}` }}>
+            <UserCheck size={16} color={BLUE} />
+            <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 600, color: TEXT }}>{form.guestName}</span>
+            {form.purpose && (
+              <>
+                <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>·</span>
+                <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>{form.purpose}</span>
+              </>
+            )}
+          </div>
+
+          <div>
+            <Label>Resident Name *</Label>
+            <input type="text" placeholder="Name of resident being visited" value={form.residentName} onChange={e => setForm(p => ({ ...p, residentName: e.target.value }))}
+              style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+
+          <div>
+            <Label>Unit Number *</Label>
+            <input type="text" placeholder="e.g. 412" value={form.unit} onChange={e => setForm(p => ({ ...p, unit: e.target.value }))}
+              style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+
+          <div style={{ background: 'rgba(255,56,92,0.06)', border: '1px solid rgba(255,56,92,0.18)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <MessageCircle size={16} color={BLUE} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.55 }}>
+              After logging, tap <strong style={{ color: TEXT }}>Notify Resident</strong> on the guest card to send a text to {form.residentName || 'the resident'}.
+            </span>
+          </div>
+        </div>
+        <WizardFooter onBack={() => setGStep(1)} onContinue={logGuest} continueLabel="Log Guest & Notify" continueDisabled={!form.residentName.trim() || !form.unit.trim()} />
+      </div>
+    );
+  }
+
+  // ── GUEST LOG LIST VIEW ───────────────────────────────────────────────────
+  const activeGuests   = guests.filter(g => g.status !== 'departed');
+  const departedGuests = guests.filter(g => g.status === 'departed');
+  const waitingCount   = guests.filter(g => g.status === 'waiting').length;
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
+
+      {/* Toast */}
+      {toastId && (
+        <div style={{ margin: '12px 16px 0', background: TEXT, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <Check size={16} color="white" />
+          <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 600, color: 'white', flex: 1 }}>{toastMsg}</span>
+        </div>
+      )}
+
+      {/* Scrollable content */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* Empty state */}
+        {guests.length === 0 && (
+          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '48px 24px', textAlign: 'center' }}>
+            <div style={{ width: 64, height: 64, borderRadius: 18, background: 'rgba(255,56,92,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <UserCheck size={28} color={BLUE} strokeWidth={1.5} />
+            </div>
+            <p style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, margin: '0 0 5px' }}>No guests logged</p>
+            <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>Tap "Log Guest" below to document a visitor</p>
+          </div>
+        )}
+
+        {/* In Lobby section */}
+        {activeGuests.length > 0 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <UserCheck size={20} color={BLUE} />
+                <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>In Lobby</h2>
+              </div>
+              <span style={{ width: 32, height: 32, borderRadius: '50%', background: waitingCount > 0 ? 'rgba(255,149,0,0.10)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: waitingCount > 0 ? ORANGE : MUTED, fontFamily: INTER }}>
+                {activeGuests.length}
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {activeGuests.map(g => {
+                const st         = STATUS_STYLES[g.status];
+                const isWaiting  = g.status === 'waiting';
+                const isNotified = g.status === 'notified';
+                const purposeCfg = PURPOSE_CONFIG.find(p => p.id === g.purpose);
+                const GIcon      = purposeCfg?.Icon ?? UserCheck;
+                return (
+                  <div key={g.id} style={{ background: CARD, border: `1.5px solid ${isWaiting ? 'rgba(255,149,0,0.28)' : BORDER}`, borderRadius: 16, padding: 20, boxShadow: isWaiting ? '0 4px 16px rgba(255,149,0,0.08)' : '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    {/* Top row */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 14 }}>
+                      <div style={{ width: 56, height: 56, background: `${st.color}18`, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <GIcon size={26} color={st.color} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT }}>{g.guestName}</span>
+                          <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: st.color, background: st.bg, borderRadius: 6, padding: '2px 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{st.label}</span>
+                        </div>
+                        <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: '0 0 3px' }}>
+                          Visiting <span style={{ fontWeight: 600, color: TEXT }}>{g.residentName}</span> · Unit {g.unit}
+                        </p>
+                        {g.purpose && <p style={{ fontFamily: INTER, fontSize: 12, color: MUTED, margin: '0 0 4px', fontStyle: 'italic' }}>{g.purpose}</p>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                          <Clock size={11} color={MUTED} />
+                          <span style={{ fontFamily: INTER, fontSize: 12, color: MUTED }}>Arrived {g.arrivedAt}</span>
+                          {g.notifiedAt && <span style={{ fontFamily: INTER, fontSize: 12, color: MUTED }}>· Notified {g.notifiedAt}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {isWaiting && (
+                        <button onClick={() => notifyResident(g.id)}
+                          style={{ flex: 2, padding: '13px 0', background: BLUE, border: 'none', borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, boxShadow: '0 4px 14px rgba(255,56,92,0.28)' }}>
+                          <MessageCircle size={16} />Notify Resident
+                        </button>
+                      )}
+                      {isNotified && (
+                        <div style={{ flex: 2, padding: '13px 0', background: 'rgba(255,56,92,0.08)', border: `1px solid rgba(255,56,92,0.20)`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                          <Check size={15} color={BLUE} />
+                          <span style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: BLUE }}>Text Sent</span>
+                        </div>
+                      )}
+                      <button onClick={() => markDeparted(g.id)}
+                        style={{ flex: 1, padding: '13px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: MUTED, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        <LogOut size={15} />
+                        {isNotified && 'Departed'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Departed section */}
+        {departedGuests.length > 0 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <LogOut size={20} color={MUTED} />
+                <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Departed</h2>
+              </div>
+              <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED, fontFamily: INTER }}>{departedGuests.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {departedGuests.map(g => {
+                const purposeCfg = PURPOSE_CONFIG.find(p => p.id === g.purpose);
+                const GIcon      = purposeCfg?.Icon ?? UserCheck;
+                return (
+                  <div key={g.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 16, display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div style={{ width: 48, height: 48, background: CARD2, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <GIcon size={22} color={MUTED} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: TEXT, margin: '0 0 2px' }}>{g.guestName}</p>
+                      <p style={{ fontFamily: INTER, fontSize: 12, color: MUTED, margin: 0 }}>Unit {g.unit} · Departed {g.departedAt}</p>
+                    </div>
+                    <div style={{ width: 32, height: 32, borderRadius: 9, background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Check size={16} color={MUTED} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Fixed CTA */}
+      <div style={{ flexShrink: 0, padding: '12px 16px 20px', background: CARD, borderTop: `1px solid ${BORDER}` }}>
+        <button onClick={() => setView('form')}
+          style={{ width: '100%', padding: '16px 0', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 16, fontWeight: 700, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 6px 20px rgba(255,56,92,0.32)' }}>
+          <UserCheck size={20} />
+          Log Guest Arrival
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default GuestsDashboard;
