@@ -66,6 +66,8 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
   const [incidentType,     setIncidentType]     = useState(null);
   const [severity,         setSeverity]         = useState(null);
   const [description,      setDescription]      = useState('');
+  const [unitNumber,       setUnitNumber]       = useState('');
+  const [personInvolved,   setPersonInvolved]   = useState('');
   const [actionsTaken,     setActionsTaken]     = useState('');
   const [witnessNames,     setWitnessNames]     = useState('');
   const [noWitnesses,      setNoWitnesses]      = useState(false);
@@ -88,20 +90,23 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
     const newIncident = {
-      id: Date.now(), type: incidentType, severity, description, actionsTaken,
+      type: incidentType, severity, description,
+      unitNumber, personInvolved,
+      actionsTaken,
       witnesses: noWitnesses ? 'No witnesses present' : witnessNames,
-      photos, notifyFamily, followUpRequired, patientName,
-      createdAt: new Date().toLocaleString()
+      photos, notifyFamily, followUpRequired,
+      location: unitNumber ? `Unit ${unitNumber}` : '',
+      notes: actionsTaken,
     };
-    if (onAddIncident) onAddIncident(newIncident);
+    if (onAddIncident) await onAddIncident(newIncident);
     setIsSubmitting(false);
     setShowSuccess(true);
   };
 
   const resetForm = () => {
     setStep(1); setIncidentType(null); setSeverity(null); setDescription('');
+    setUnitNumber(''); setPersonInvolved('');
     setActionsTaken(''); setWitnessNames(''); setNoWitnesses(false);
     setPhotos([]); setNotifyFamily(true); setFollowUpRequired(false);
     setShowSuccess(false); setActiveView('history');
@@ -208,10 +213,33 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
                         ))}
                       </div>
                     </div>
+
+                    {/* Unit Number + Person Involved */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div>
+                        <h3 style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 10 }}>Unit Number</h3>
+                        <input
+                          value={unitNumber}
+                          onChange={e => setUnitNumber(e.target.value)}
+                          placeholder="e.g. 454"
+                          style={{ ...baseInput, border: unitNumber ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}` }}
+                        />
+                      </div>
+                      <div>
+                        <h3 style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 10 }}>Person Involved</h3>
+                        <input
+                          value={personInvolved}
+                          onChange={e => setPersonInvolved(e.target.value)}
+                          placeholder="Full name"
+                          style={{ ...baseInput, border: personInvolved ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}` }}
+                        />
+                      </div>
+                    </div>
+
                     <div>
                       <h3 style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 12 }}>What happened?</h3>
                       <textarea value={description} onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Describe the incident. Include location, unit number, parties involved, and what you observed..." rows={5}
+                        placeholder="Describe the incident — what you observed, how it started, and any other relevant details..." rows={5}
                         style={{ ...baseInput, border: description ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}` }}
                         data-testid="incident-description" />
                     </div>
@@ -306,6 +334,17 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
                             {selectedSeverity.label.toUpperCase()}
                           </span>
                         )}
+                      </div>
+                      {/* Unit + Person row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                        <div>
+                          <p style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6 }}>Unit Number</p>
+                          <p style={{ fontSize: 14, color: TEXT }}>{unitNumber || '—'}</p>
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6 }}>Person Involved</p>
+                          <p style={{ fontSize: 14, color: TEXT }}>{personInvolved || '—'}</p>
+                        </div>
                       </div>
                       {description && (
                         <div style={{ marginBottom: 14 }}>
@@ -435,9 +474,17 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
                   <div style={{ width: 48, height: 48, background: 'rgba(239,68,68,0.1)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {type && <type.icon size={24} color={RED} />}
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontWeight: 700, color: TEXT, fontSize: 16 }}>{type?.label || 'Incident'}</p>
-                    <p style={{ fontSize: 13, color: MUTED, marginTop: 2 }}>{incident.createdAt}</p>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 3 }}>
+                      {(incident.unit_number || incident.unitNumber) && (
+                        <span style={{ fontSize: 12, color: MUTED, fontWeight: 600 }}>Unit {incident.unit_number || incident.unitNumber}</span>
+                      )}
+                      {(incident.person_involved || incident.personInvolved) && (
+                        <span style={{ fontSize: 12, color: MUTED }}>· {incident.person_involved || incident.personInvolved}</span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{incident.filedAt || incident.createdAt}</p>
                   </div>
                   {sev && (
                     <span style={{ padding: '6px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, background: sev.color, color: 'white' }}>

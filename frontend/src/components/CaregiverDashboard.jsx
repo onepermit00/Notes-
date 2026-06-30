@@ -30,9 +30,10 @@ import { HistoryPage } from './pages/HistoryPage';
 import { SupportPage } from './pages/SupportPage';
 import { ChatPage } from './pages/ChatPage';
 import {
-  CONCIERGE_PROFILE, BUILDING_PROFILE, BUILDING_CONTACTS,
+  BUILDING_PROFILE, BUILDING_CONTACTS,
   BUILDING_STATUS, BUILDING_SOPS, SHIFT_HISTORY,
 } from '../services/mockData';
+import { authApi } from '../services/authApi';
 
 // ─── design tokens (Airbnb aesthetic) ─────────────────────────────────────────
 const BG      = '#FFFFFF';              // Airbnb warm light canvas
@@ -249,24 +250,21 @@ const SHIFT_DATES = new Set([
 export const CaregiverDashboard = ({
   onSignOut,
   onViewCalendar,
-  tasks = [],
-  proposedTasks = [],
-  patient,
-  onUpdateTask,
-  onAcceptTask,
-  onDeclineTask,
-  incidents = [],
-  onAddIncident,
+  authUser,
 }) => {
+  const [tasks,    setTasks]    = useState([]);
+  const [incidents, setIncidents] = useState([]);
   const [activeTab, setActiveTab]             = useState('home');
   const [activeTaskTab, setActiveTaskTab]     = useState('today');
   const [expandedTaskId, setExpandedTaskId]   = useState(null);
   const [selectedTask, setSelectedTask]       = useState(null);
   const [showCopilot, setShowCopilot]         = useState(false);
-  const [isShiftActive, setIsShiftActive]     = useState(true);
-  const [shiftStarted,  setShiftStarted]     = useState(true);
-  const [shiftStartTime, setShiftStartTime]   = useState(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+  const [isShiftActive, setIsShiftActive]     = useState(false);
+  const [shiftStarted,  setShiftStarted]     = useState(false);
+  const [shiftStartTime, setShiftStartTime]   = useState('');
   const [clockOutTime, setClockOutTime]       = useState(null);
+  const [currentShiftId, setCurrentShiftId]  = useState(null);
+  const [previousShiftData, setPreviousShiftData] = useState(undefined); // undefined = loading
   const [activePage, setActivePage]           = useState(null);
   const [historyFilter, setHistoryFilter]     = useState('all');
   const [showClockAlert, setShowClockAlert]   = useState(false);
@@ -295,16 +293,84 @@ export const CaregiverDashboard = ({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [notifCG,          setNotifCG]          = useState({ push:true, email:true, shift:true, incident:true });
   const [settingExp,       setSettingExp]       = useState(null);
-  const [editInfoCG,       setEditInfoCG]       = useState({ name: CONCIERGE_PROFILE.name, email: CONCIERGE_PROFILE.email, phone: CONCIERGE_PROFILE.phone });
+  const [editInfoCG,       setEditInfoCG]       = useState({ name: '', email: '', phone: '' });
   const [pwFormCG,         setPwFormCG]         = useState({ current:'', next:'', confirm:'' });
+  const [pwStatusCG,       setPwStatusCG]       = useState('');  // '', 'saving', 'success', 'error:...'
+  const [shiftStarting,    setShiftStarting]    = useState(false);
   const [showSearch,       setShowSearch]       = useState(false);
   const [searchQuery,      setSearchQuery]      = useState('');
-  const [shCalDate,   setShCalDate]   = useState(new Date(2026, 5, 1));
-  const [shCalView,   setShCalView]   = useState('month');
-  const [shiftDay,    setShiftDay]    = useState(TODAY_STR);
-  const [shiftsPage,  setShiftsPage]  = useState(0);
+  const [shCalDate,    setShCalDate]    = useState(new Date());
+  const [shCalView,    setShCalView]    = useState('month');
+  const [shiftDay,     setShiftDay]     = useState(null);
+  const [shiftsPage,   setShiftsPage]   = useState(0);
+  const [shiftHistory, setShiftHistory] = useState([]);
   const [viewPhoto,  setViewPhoto]  = useState(null);
   const [isMobile,      setIsMobile]      = useState(() => window.innerWidth < 768);
+
+  // Load real data + shift state on mount
+  useEffect(() => {
+    authApi.getTasks().then(list => setTasks(list)).catch(() => {});
+    authApi.getIncidents().then(list => setIncidents(list)).catch(() => {});
+    authApi.getShiftHistory().then(data => setShiftHistory(data?.shifts || [])).catch(() => {});
+
+    // Check for active shift and load previous shift concurrently
+    Promise.all([authApi.getActiveShift(), authApi.getPreviousShift()]).then(([activeRes, prevRes]) => {
+      // Restore active shift if already clocked in
+      if (activeRes?.shift) {
+        const s = activeRes.shift;
+        setCurrentShiftId(s.shift_id);
+        setIsShiftActive(true);
+        setShiftStarted(true);
+        setShiftStartTime(new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+        // Restore activities logged in this shift as selfTasks
+        const prevActivities = (s.activities || []).map(t => ({
+          id: t.task_id,
+          title: t.title,
+          category: t.category || 'Other',
+          notes: t.notes || '',
+          completedAt: t.created_at ? new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+          startedAt: t.created_at ? new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+          status: 'completed',
+        }));
+        setSelfTasks(prevActivities);
+      }
+
+      // Set previous shift for the pre-shift handoff view
+      if (prevRes?.shift) {
+        const s = prevRes.shift;
+        const clockIn  = new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        const clockOut = s.clock_out ? new Date(s.clock_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null;
+        const msElapsed = s.clock_out ? (new Date(s.clock_out) - new Date(s.clock_in)) : 0;
+        const hours = Math.floor(msElapsed / 3600000);
+        const mins  = Math.floor((msElapsed % 3600000) / 60000);
+        setPreviousShiftData({
+          concierge: { name: s.concierge_name },
+          clockIn,
+          clockOut,
+          duration: hours > 0 ? `${hours}h ${mins}m` : `${mins}m`,
+          note: '',
+          incidents: (s.incidents || []).map(i => `${i.type || ''}: ${i.description || ''}`),
+          activities: (s.activities || []).map(t => ({
+            id: t.task_id,
+            time: t.created_at ? new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+            title: t.title,
+            notes: t.notes || '',
+            category: t.category || 'Other',
+          })),
+        });
+      } else {
+        setPreviousShiftData(null); // No previous shift on record
+      }
+    }).catch(() => setPreviousShiftData(null));
+  }, []);
+
+  // Sync authUser into editInfoCG
+  useEffect(() => {
+    if (authUser) {
+      setEditInfoCG({ name: authUser.name || '', email: authUser.email || '', phone: authUser.phone || '' });
+    }
+  }, [authUser]);
+
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', onResize);
@@ -322,12 +388,12 @@ export const CaregiverDashboard = ({
     setModelUnits(p => p.map(m => m.id !== id ? m : {
       ...m, open: !m.open,
       openedAt: !m.open ? t : null,
-      openedBy: !m.open ? CONCIERGE_PROFILE.name.split(' ')[0] + ' ' + CONCIERGE_PROFILE.name.split(' ')[1][0] + '.' : null,
+      openedBy: !m.open ? (authUser?.name || 'Concierge').split(' ')[0] + ' ' + (authUser?.name || 'Concierge').split(' ')[1][0] + '.' : null,
     }));
   };
 
   const nowStr  = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  const staffId = () => { const n = CONCIERGE_PROFILE.name.split(' '); return `${n[0]} ${n[1][0]}.`; };
+  const staffId = () => { const n = (authUser?.name || 'Concierge').split(' '); return `${n[0]} ${n[1][0]}.`; };
 
   const openAmenityCount  = amenities.filter(a => a.open).length;
   const lastAudit         = pkgAudits[0] || null;
@@ -364,13 +430,27 @@ export const CaregiverDashboard = ({
     ));
   };
 
-  const submitNewTask = () => {
+  const submitNewTask = async () => {
     if (!ntForm.title) return;
     const t = nowStr();
-    setSelfTasks(p => [{ ...ntForm, id: Date.now(), startedAt: t, completedAt: t, status: 'completed' }, ...p]);
+    const localTask = { ...ntForm, id: Date.now(), startedAt: t, completedAt: t, status: 'completed' };
+    setSelfTasks(p => [localTask, ...p]);
     setNTF({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '' });
     setNtStep(1);
     setShowNewTask(false);
+    // Save to backend so manager can see it
+    try {
+      const saved = await authApi.createTask({
+        title:      ntForm.title,
+        notes:      ntForm.notes || '',
+        category:   ntForm.category || 'Other',
+        priority:   ntForm.priority === 'high' ? 'High' : ntForm.priority === 'low' ? 'Low' : 'Standard',
+        assignedTo: authUser?.name || '',
+        toId:       authUser?.user_id || '',
+        dueTime:    ntForm.dueDate || 'ASAP',
+      });
+      setTasks(p => [saved, ...p]);
+    } catch { /* already shown locally — ignore API error silently */ }
   };
   const activeElevMove   = elevatorMoves.find(m => m.elevStatus === 'in_progress');
   const reservedElevMove = elevatorMoves.find(m => m.elevStatus === 'reserved');
@@ -404,20 +484,75 @@ export const CaregiverDashboard = ({
   const handlePageChange = (page) => { window.scrollTo(0, 0); setActivePage(page); };
   const handleStartTask     = (task) => setSelectedTask(task);
   const handleCompleteTask  = (updated) => {
-    if (tasks.find(t => t.id === updated.id)) {
-      onUpdateTask?.(updated);
+    if (tasks.find(t => t.id === updated.id || t.task_id === updated.task_id)) {
+      handleUpdateTask({ ...updated, status: 'completed' });
     } else {
-      // virtual task (building status cards) — log as shift activity
       handleActivityLogged({ title: updated.title, category: updated.category || 'Administrative', notes: updated.completionNote || '', evidenceUrls: updated.evidenceUrls || [] });
     }
     setSelectedTask(null);
     setExpandedTaskId(null);
   };
-  const handleClockIn       = () => { setIsShiftActive(true); setShiftStartTime(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })); setClockOutTime(null); setClockAlertTitle('Clocked In'); setClockAlertMsg('Shift started. GPS location verified. Read the handoff notes before beginning rounds.'); setShowClockAlert(true); };
-  const handleClockOut      = () => { setIsShiftActive(false); setClockOutTime(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })); setClockAlertTitle('Clocked Out'); setClockAlertMsg('Shift ended. Make sure your Shift Handoff Report has been submitted.'); setShowClockAlert(true); };
+  const handleClockIn = async () => {
+    try {
+      const shift = await authApi.startShift();
+      setCurrentShiftId(shift.shift_id);
+      setIsShiftActive(true);
+      setSelfTasks([]);  // fresh DAR
+      setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+      setClockOutTime(null);
+      setClockAlertTitle('Clocked In');
+      setClockAlertMsg('Shift started. GPS location verified. Read the handoff notes before beginning rounds.');
+      setShowClockAlert(true);
+    } catch { /* silently ignore */ }
+  };
+  const handleClockOut = async () => {
+    try {
+      const res = await authApi.endShift();
+      setIsShiftActive(false);
+      setCurrentShiftId(null);
+      setClockOutTime(new Date(res.clock_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+      setClockAlertTitle('Clocked Out');
+      setClockAlertMsg('Shift ended. Make sure your Shift Handoff Report has been submitted.');
+      setShowClockAlert(true);
+    } catch { /* silently ignore */ }
+  };
   const handleActivityLogged = ({ title, category = '', notes = '', evidenceUrls = [] }) => {
     const t = nowStr();
-    setSelfTasks(p => [...p, { id: Date.now(), title, category, notes, evidenceUrls, location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed' }]);
+    const local = { id: Date.now(), title, category, notes, evidenceUrls, location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed' };
+    setSelfTasks(p => [...p, local]);
+    // Save activity to backend so manager sees it
+    authApi.createTask({
+      title, notes, category: category || 'Other',
+      priority: 'Standard',
+      assignedTo: authUser?.name || '',
+      toId: authUser?.user_id || '',
+      dueTime: t,
+    }).then(saved => setTasks(p => [saved, ...p])).catch(() => {});
+  };
+
+  const handleUpdateTask = async (updated) => {
+    try {
+      const taskId = updated.task_id || updated.id;
+      const saved = await authApi.updateTask(taskId, {
+        status: updated.status,
+        completion_note: updated.completionNote || updated.completion_note || '',
+      });
+      setTasks(p => p.map(t => (t.id === saved.id || t.task_id === saved.task_id) ? saved : t));
+    } catch { /* silently fail */ }
+  };
+
+  const handleAcceptRequest = async (task) => {
+    try {
+      const saved = await authApi.updateTask(task.id, { status: 'in_progress' });
+      setTasks(p => p.map(t => t.id === task.id ? { ...t, status: 'in_progress' } : t));
+    } catch {}
+  };
+
+  const handleDeclineRequest = async (taskId) => {
+    try {
+      await authApi.updateTask(taskId, { status: 'completed' });
+      setTasks(p => p.map(t => t.id === taskId ? { ...t, status: 'completed' } : t));
+    } catch {}
   };
 
   const displayTasks    = tasks.filter(t => t.status !== TaskStatus.PROPOSED);
@@ -425,7 +560,7 @@ export const CaregiverDashboard = ({
   const filteredTasks   = searchQuery
     ? pendingTasks.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : pendingTasks;
-  const pendingRequests = proposedTasks.filter(t => t.status === TaskStatus.PROPOSED);
+  const pendingRequests = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed');
   const completedCount  = displayTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
   const totalCount      = displayTasks.length;
   const progressPct     = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
@@ -439,18 +574,55 @@ export const CaregiverDashboard = ({
 
   // ── PRE-SHIFT BRIEFING ─────────────────────────────────────────────────────
   const renderPreShiftBriefing = () => {
-    const prevShift = Object.entries(SHIFT_DATA)
-      .sort(([a], [b]) => b.localeCompare(a))
-      .find(([, s]) => s.status !== 'active')?.[1];
+    const prevShift = previousShiftData;
 
+    const doStart = async () => {
+      if (shiftStarting) return;
+      setShiftStarting(true);
+      try {
+        const shift = await authApi.startShift();
+        setCurrentShiftId(shift.shift_id);
+        setIsShiftActive(true);
+        setShiftStarted(true);
+        setSelfTasks([]);
+        setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+      } finally { setShiftStarting(false); }
+    };
+
+    // On mobile: full-width bar. On desktop: centered pill button.
     const StartBtn = () => (
-      <div style={{ position: 'fixed', bottom: 0, left: isMobile ? 0 : 248, right: 0, padding: '10px 20px', background: BG, zIndex: 20 }}>
-        <button onClick={() => setShiftStarted(true)}
-          style={{ width: '100%', padding: '14px 0', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 4px 14px ${BLUE}40` }}>
-          Start My Shift
+      <div style={{
+        position: 'fixed', bottom: 0, left: isMobile ? 0 : 248, right: 0,
+        padding: isMobile ? '10px 20px 14px' : '12px 40px 16px',
+        background: BG, borderTop: `1px solid ${BORDER}`, zIndex: 20,
+        display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end',
+      }}>
+        <button
+          onClick={doStart}
+          disabled={shiftStarting}
+          style={{
+            width: isMobile ? '100%' : 'auto',
+            padding: isMobile ? '14px 0' : '13px 36px',
+            background: shiftStarting ? MUTED : BLUE,
+            border: 'none', borderRadius: 14,
+            fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white',
+            cursor: shiftStarting ? 'not-allowed' : 'pointer',
+            boxShadow: shiftStarting ? 'none' : `0 4px 14px ${BLUE}40`,
+            whiteSpace: 'nowrap',
+          }}>
+          {shiftStarting ? 'Starting…' : 'Start My Shift'}
         </button>
       </div>
     );
+
+    if (prevShift === undefined) {
+      return (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
+          <div style={{ fontFamily: INTER, fontSize: 14, color: MUTED }}>Loading handoff…</div>
+          <StartBtn />
+        </div>
+      );
+    }
 
     if (!prevShift) {
       return (
@@ -459,7 +631,7 @@ export const CaregiverDashboard = ({
             <CheckCircle size={30} color={MUTED} strokeWidth={1.75} />
           </div>
           <p style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, margin: '0 0 5px' }}>No previous shift on record</p>
-          <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: '0 0 28px' }}>You're the first one in today.</p>
+          <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: '0 0 28px' }}>You're the first one in.</p>
           <StartBtn />
         </div>
       );
@@ -574,14 +746,21 @@ export const CaregiverDashboard = ({
 
   // ── HOME tab ───────────────────────────────────────────────────────────────
   const renderHomeContent = () => {
-    const activeShift = SHIFT_DATA[TODAY_STR] || Object.values(SHIFT_DATA).find(s => s.status === 'active');
-    const activeTasks = displayTasks.filter(t => t.status !== TaskStatus.COMPLETED);
+    // Build activeShift from real state (not mock data)
+    const activeShift = isShiftActive ? {
+      concierge: { name: authUser?.name || 'Concierge' },
+      clockIn:   shiftStartTime,
+      note:      '',
+      incidents: incidents.filter(i => i.status === 'new').map(i => `${i.type || ''}: ${i.title || ''}`),
+      activities: selfTasks,
+    } : null;
+    const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed');
     const sevColor    = (sev) => sev === 'critical' || sev === 'high' ? RED : sev === 'medium' ? ORANGE : BLUE;
 
     const taskCatMap = { packages:'Delivery', mail:'Delivery', patrol:'Safety / Security', amenity:'Amenity', opening:'Administrative', coverage:'Administrative', documentation:'Administrative' };
-    const completedTaskActs = activeShift ? displayTasks.filter(t=>t.status===TaskStatus.COMPLETED&&t.completedAt).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:t.title, notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] })) : [];
+    const completedTaskActs = isShiftActive ? displayTasks.filter(t=>t.status===TaskStatus.COMPLETED&&t.completedAt).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:t.title, notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] })) : [];
     const selfTaskActs = selfTasks.map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] }));
-    const acts     = activeShift ? [...activeShift.activities, ...selfTaskActs] : [];
+    const acts     = [...selfTaskActs, ...completedTaskActs];
     const delivery = acts.filter(a=>a.category==='Delivery');
     const security = acts.filter(a=>a.category==='Safety / Security');
     const resident = acts.filter(a=>a.category==='Resident Assist');
@@ -688,7 +867,7 @@ export const CaregiverDashboard = ({
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                 <ClipboardList size={20} color={ORANGE} />
-                <h3 style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:TEXT, margin:0 }}>Active Tasks</h3>
+                <h3 style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:TEXT, margin:0 }}>Assigned by Management</h3>
               </div>
               <span style={{ width:32, height:32, borderRadius:'50%', background:activeTasks.length>0?`${ORANGE}14`:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:activeTasks.length>0?ORANGE:MUTED, flexShrink:0 }}>{activeTasks.length}</span>
             </div>
@@ -706,8 +885,8 @@ export const CaregiverDashboard = ({
                 <div style={{ width:48, height:48, borderRadius:14, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
                   <CheckCircle size={22} color={GREEN} />
                 </div>
-                <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>All tasks done</p>
-                <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>Great work, {CONCIERGE_PROFILE.name.split(' ')[0]}!</p>
+                <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>No tasks assigned</p>
+                <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>Management hasn't assigned anything yet</p>
               </div>
             )}
           </div>
@@ -783,18 +962,31 @@ export const CaregiverDashboard = ({
   // ── REQUESTS tab ───────────────────────────────────────────────────────────
   const renderRequestsContent = () => (
     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 24, background: BG }}>
-      <div style={{ padding: '16px 16px 14px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {pendingRequests.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Bell size={20} color={BLUE} />
-              <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Pending Requests</h2>
-            </div>
-            <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,59,48,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: RED, flexShrink: 0 }}>{pendingRequests.length}</span>
+      <div style={{ padding: '16px 16px 14px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        {/* Section header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Bell size={20} color={BLUE} />
+            <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Requests from Management</h2>
           </div>
-        )}
+          {pendingRequests.length > 0 && (
+            <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,56,92,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: BLUE, flexShrink: 0 }}>{pendingRequests.length}</span>
+          )}
+        </div>
+
         {pendingRequests.length > 0 ? pendingRequests.map(task => (
-          <TaskRequestCard key={task.id} task={task} onAccept={onAcceptTask} onDecline={onDeclineTask} />
+          <TaskRequestCard
+            key={task.id}
+            task={{
+              ...task,
+              scheduledTime: task.dueTime,
+              proposedBy:    task.createdBy,
+              description:   task.notes,
+            }}
+            onAccept={() => handleAcceptRequest(task)}
+            onDecline={(id) => handleDeclineRequest(task.id)}
+          />
         )) : (
           <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '40px 20px', textAlign: 'center' }}>
             <div style={{ width: 64, height: 64, background: CARD2, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
@@ -988,15 +1180,16 @@ export const CaregiverDashboard = ({
       {/* Hero — photo + name + shift status */}
       <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '28px 20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
         <div style={{ position: 'relative', marginBottom: 14 }}>
-          <img src={CONCIERGE_PROFILE.photo} alt={CONCIERGE_PROFILE.name}
-            style={{ width: 100, height: 100, borderRadius: '50%', objectFit: 'cover', border: `3px solid ${BLUE}`, display: 'block' }} />
+          <div style={{ width:100, height:100, borderRadius:'50%', background:`${BLUE}14`, border:`3px solid ${BLUE}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <span style={{ fontFamily:INTER, fontSize:32, fontWeight:800, color:BLUE }}>{(authUser?.name||'C').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span>
+          </div>
           <div style={{ position: 'absolute', bottom: 2, right: 2, width: 22, height: 22, borderRadius: '50%', background: isShiftActive ? GREEN : MUTED, border: `3px solid ${CARD}` }} />
         </div>
         <div style={{ fontFamily: INTER, fontSize: 22, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 4 }}>
-          {CONCIERGE_PROFILE.name}
+          {(authUser?.name || 'Concierge')}
         </div>
         <div style={{ fontFamily: INTER, fontSize: 14, color: MUTED, marginBottom: 10 }}>
-          {CONCIERGE_PROFILE.title} · {CONCIERGE_PROFILE.company}
+          {(authUser?.title || 'Concierge')} · {(authUser?.property_name || '')}
         </div>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: isShiftActive ? 'rgba(52,199,89,0.10)' : 'rgba(113,113,113,0.10)', borderRadius: 999, padding: '5px 12px' }}>
           <div style={{ width: 7, height: 7, borderRadius: '50%', background: isShiftActive ? GREEN : MUTED }} />
@@ -1011,9 +1204,9 @@ export const CaregiverDashboard = ({
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, background: BORDER, borderRadius: 16, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
           {[
-            { value: CONCIERGE_PROFILE.rating,          label: 'Rating',         color: '#EAB308' },
-            { value: CONCIERGE_PROFILE.yearsExperience, label: 'Yrs Experience', color: BLUE      },
-            { value: CONCIERGE_PROFILE.shiftsCompleted,  label: 'Shifts',         color: BLUE      },
+            { value: 5.0,          label: 'Rating',         color: '#EAB308' },
+            { value: 0, label: 'Yrs Experience', color: BLUE      },
+            { value: 0,  label: 'Shifts',         color: BLUE      },
           ].map(({ value, label, color }) => (
             <div key={label} style={{ background: CARD, padding: '18px 8px', textAlign: 'center' }}>
               <div style={{ fontFamily: INTER, fontSize: '1.8rem', fontWeight: 800, color, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
@@ -1026,8 +1219,8 @@ export const CaregiverDashboard = ({
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '16px 18px' }}>
           <div style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: TEXT, marginBottom: 14 }}>Contact Information</div>
           {[
-            { label: 'Email', value: CONCIERGE_PROFILE.email },
-            { label: 'Phone', value: CONCIERGE_PROFILE.phone },
+            { label: 'Email', value: (authUser?.email || '') },
+            { label: 'Phone', value: (authUser?.phone || '') },
           ].map(({ label, value }, i, arr) => (
             <div key={label} style={{ paddingBottom: i < arr.length - 1 ? 12 : 0, marginBottom: i < arr.length - 1 ? 12 : 0, borderBottom: i < arr.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
               <div style={{ fontFamily: INTER, fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
@@ -1052,7 +1245,7 @@ export const CaregiverDashboard = ({
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '16px 18px' }}>
           <div style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: TEXT, marginBottom: 12 }}>Certifications</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {CONCIERGE_PROFILE.certifications.map(cert => (
+            {['Concierge Certified'].map(cert => (
               <span key={cert} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: 'rgba(255,56,92,0.08)', border: '1px solid rgba(255,56,92,0.2)', color: BLUE, borderRadius: 999, fontFamily: INTER, fontSize: 12, fontWeight: 700 }}>
                 <Check size={13} /> {cert}
               </span>
@@ -1064,7 +1257,7 @@ export const CaregiverDashboard = ({
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '16px 18px' }}>
           <div style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: TEXT, marginBottom: 12 }}>Previous Employers</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {CONCIERGE_PROFILE.previousEmployers.map((emp, i) => (
+            {[].map((emp, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: MUTED, flexShrink: 0 }} />
                 <span style={{ fontFamily: INTER, fontSize: 14, color: MUTED }}>{emp}</span>
@@ -1132,8 +1325,8 @@ export const CaregiverDashboard = ({
             <User size={32} color={BLUE} />
           </div>
           <div>
-            <p style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT, margin:'0 0 3px', letterSpacing:'-0.02em' }}>{CONCIERGE_PROFILE.name}</p>
-            <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:'0 0 10px' }}>{CONCIERGE_PROFILE.title}</p>
+            <p style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT, margin:'0 0 3px', letterSpacing:'-0.02em' }}>{(authUser?.name || 'Concierge')}</p>
+            <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:'0 0 10px' }}>{(authUser?.title || 'Concierge')}</p>
             <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(52,199,89,0.12)', border:'1px solid rgba(52,199,89,0.25)', borderRadius:999, padding:'5px 12px' }}>
               <div style={{ width:7, height:7, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
               <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>{isShiftActive ? 'On Shift' : 'Off Shift'}</span>
@@ -1156,10 +1349,30 @@ export const CaregiverDashboard = ({
             )}
             {row('change-pw', Lock, RED, 'Change Password', 'Update your account password securely',
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                <input style={inputStyle} type="password" value={pwFormCG.current} onChange={e => setPwFormCG(f=>({...f,current:e.target.value}))} placeholder="Current password" />
-                <input style={inputStyle} type="password" value={pwFormCG.next}    onChange={e => setPwFormCG(f=>({...f,next:e.target.value}))}    placeholder="New password" />
-                <input style={inputStyle} type="password" value={pwFormCG.confirm} onChange={e => setPwFormCG(f=>({...f,confirm:e.target.value}))} placeholder="Confirm new password" />
-                <button onClick={() => { setPwFormCG({current:'',next:'',confirm:''}); setSettingExp(null); }} style={{ marginTop:4, padding:'12px', background:RED, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer' }}>Update Password</button>
+                <input style={inputStyle} type="password" value={pwFormCG.current} onChange={e => { setPwFormCG(f=>({...f,current:e.target.value})); setPwStatusCG(''); }} placeholder="Current password" />
+                <input style={inputStyle} type="password" value={pwFormCG.next}    onChange={e => { setPwFormCG(f=>({...f,next:e.target.value}));    setPwStatusCG(''); }} placeholder="New password (min 6 chars)" />
+                <input style={inputStyle} type="password" value={pwFormCG.confirm} onChange={e => { setPwFormCG(f=>({...f,confirm:e.target.value})); setPwStatusCG(''); }} placeholder="Confirm new password" />
+                {pwStatusCG.startsWith('error') && <p style={{ fontFamily:INTER, fontSize:13, color:RED, margin:0, fontWeight:600 }}>{pwStatusCG.replace('error:','')}</p>}
+                {pwStatusCG === 'success' && <p style={{ fontFamily:INTER, fontSize:13, color:GREEN, margin:0, fontWeight:600 }}>Password updated successfully.</p>}
+                <button
+                  disabled={pwStatusCG === 'saving'}
+                  onClick={async () => {
+                    if (!pwFormCG.current || !pwFormCG.next || !pwFormCG.confirm) { setPwStatusCG('error:Please fill in all fields.'); return; }
+                    if (pwFormCG.next !== pwFormCG.confirm) { setPwStatusCG('error:New passwords do not match.'); return; }
+                    if (pwFormCG.next.length < 6) { setPwStatusCG('error:New password must be at least 6 characters.'); return; }
+                    setPwStatusCG('saving');
+                    try {
+                      await authApi.changePassword(pwFormCG.current, pwFormCG.next);
+                      setPwStatusCG('success');
+                      setPwFormCG({ current:'', next:'', confirm:'' });
+                      setTimeout(() => { setPwStatusCG(''); setSettingExp(null); }, 2000);
+                    } catch (err) {
+                      setPwStatusCG('error:' + (err?.response?.data?.detail || 'Failed to update password.'));
+                    }
+                  }}
+                  style={{ marginTop:4, padding:'12px', background: pwStatusCG==='saving' ? MUTED : RED, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor: pwStatusCG==='saving' ? 'not-allowed' : 'pointer' }}>
+                  {pwStatusCG === 'saving' ? 'Updating…' : 'Update Password'}
+                </button>
               </div>
             )}
           </div>
@@ -1229,12 +1442,40 @@ export const CaregiverDashboard = ({
 
   /* ── Shift Calendar ─────────────────────────────────────────────────────────── */
   const renderShifts = () => {
+    // Convert backend shift history to display format, keyed by date
+    const shiftDatesMap = {};
+    shiftHistory.forEach(s => {
+      const dateKey = s.clock_in ? s.clock_in.split('T')[0] : null;
+      if (!dateKey) return;
+      const clockInDate  = s.clock_in  ? new Date(s.clock_in)  : null;
+      const clockOutDate = s.clock_out ? new Date(s.clock_out) : null;
+      const msElapsed    = clockInDate && clockOutDate ? clockOutDate - clockInDate : 0;
+      const hrs  = Math.floor(msElapsed / 3600000);
+      const mins = Math.floor((msElapsed % 3600000) / 60000);
+      const cname = s.concierge_name || authUser?.name || '';
+      const cinit = cname.trim().split(/\s+/).map(w => w[0]).join('').slice(0,2).toUpperCase() || 'C';
+      shiftDatesMap[dateKey] = {
+        concierge: { name: cname, init: cinit },
+        clockIn:   clockInDate  ? clockInDate.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : '',
+        clockOut:  clockOutDate ? clockOutDate.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : null,
+        status:    s.status || 'completed',
+        duration:  msElapsed > 0 ? `${hrs}h ${mins}m` : (s.status === 'active' ? 'Ongoing' : '—'),
+        activities: (s.activities || []).map(t => ({
+          id: t.task_id, time: t.created_at ? new Date(t.created_at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : '—',
+          title: t.title || '', notes: t.notes || '', category: t.category || 'Other',
+        })),
+        incidents: (s.incidents || []).map(i => `${i.type || 'Incident'}: ${i.description || i.title || ''}`),
+        note: '',
+      };
+    });
+    const shiftDatesSet = new Set(Object.keys(shiftDatesMap));
+
     const year   = shCalDate.getFullYear();
     const month  = shCalDate.getMonth();
     const cells  = getCalCells(year, month);
     const prefix = toDS(year, month, 1).slice(0, 7);
-    const monthCount = (y, m) => [...SHIFT_DATES].filter(d => d.startsWith(toDS(y, m, 1).slice(0,7))).length;
-    const selectedShift = shiftDay ? SHIFT_DATA[shiftDay] : null;
+    const monthCount = (y, m) => [...shiftDatesSet].filter(d => d.startsWith(toDS(y, m, 1).slice(0,7))).length;
+    const selectedShift = shiftDay ? shiftDatesMap[shiftDay] : null;
 
     const ShActRow = ({ a }) => {
       const CIcon = SH_CAT_ICON[a.category] ?? HelpCircle;
@@ -1351,7 +1592,7 @@ export const CaregiverDashboard = ({
       );
     };
 
-    const monthShifts = [...SHIFT_DATES].filter(d=>d.startsWith(prefix) && SHIFT_DATA[d]).sort((a,b)=>b.localeCompare(a));
+    const monthShifts = [...shiftDatesSet].filter(d=>d.startsWith(prefix)).sort((a,b)=>b.localeCompare(a));
     const totalPages  = Math.ceil(monthShifts.length / 5);
     const pageShifts  = monthShifts.slice(shiftsPage * 5, shiftsPage * 5 + 5);
 
@@ -1384,7 +1625,7 @@ export const CaregiverDashboard = ({
                     </button>
                     <div>
                       <div style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT }}>{SH_MONTHS[month]} {year}</div>
-                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED }}>{[...SHIFT_DATES].filter(d=>d.startsWith(prefix) && SHIFT_DATA[d]).length} shifts</div>
+                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED }}>{[...shiftDatesSet].filter(d=>d.startsWith(prefix)).length} shifts</div>
                     </div>
                     <button onClick={() => { setShCalDate(new Date(year, month+1, 1)); setShiftsPage(0); }} style={{ width:32, height:32, borderRadius:10, background:CARD2, border:`1px solid ${BORDER}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
                       <ChevronRight size={15} color={MUTED} />
@@ -1422,7 +1663,7 @@ export const CaregiverDashboard = ({
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
                   {cells.map((cell, i) => {
                     if (!cell) return <div key={`e-${i}`} />;
-                    const hasShift = SHIFT_DATES.has(cell.dateStr);
+                    const hasShift = shiftDatesSet.has(cell.dateStr);
                     const isToday  = cell.dateStr === TODAY_STR;
                     const isSel    = cell.dateStr === shiftDay;
                     return (
@@ -1468,7 +1709,7 @@ export const CaregiverDashboard = ({
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {pageShifts.map(dateStr => {
-                  const s = SHIFT_DATA[dateStr];
+                  const s = shiftDatesMap[dateStr];
                   const dp = dateStr.split('-');
                   const label = `${SH_MONTH_ABB[parseInt(dp[1])-1]} ${parseInt(dp[2])}`;
                   const isSel = dateStr === shiftDay;
@@ -1529,20 +1770,21 @@ export const CaregiverDashboard = ({
           <X size={18} color={MUTED} />
         </button>
         <div style={{ fontFamily: INTER, fontSize: 18, fontWeight: 700, color: TEXT, lineHeight: 1.3, letterSpacing: '-0.01em' }}>
-          Welcome,<br />{CONCIERGE_PROFILE.name}!
+          Welcome,<br />{(authUser?.name || 'Concierge')}!
         </div>
-        <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 6 }}>{CONCIERGE_PROFILE.email}</div>
+        <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 6 }}>{(authUser?.email || '')}</div>
       </div>
     ) : (
       <div style={{ padding: '14px 12px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => handleTabChange('profile')}
-          title={collapsed ? CONCIERGE_PROFILE.name : undefined}
+          title={collapsed ? (authUser?.name || 'Concierge') : undefined}
           style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 12, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', flex: 1, minWidth: 0 }}>
-          <img src={CONCIERGE_PROFILE.photo} alt={CONCIERGE_PROFILE.name}
-            style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: `2px solid ${activeTab === 'profile' ? BLUE : BORDER}` }} />
+          <div style={{ width:44, height:44, borderRadius:'50%', background:`${BLUE}14`, flexShrink:0, border:`2px solid ${activeTab==='profile'?BLUE:BORDER}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <span style={{ fontFamily:INTER, fontSize:14, fontWeight:800, color:BLUE }}>{(authUser?.name||'C').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span>
+          </div>
           {!collapsed && (
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: TEXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.01em' }}>{CONCIERGE_PROFILE.name}</div>
+              <div style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: TEXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.01em' }}>{(authUser?.name || 'Concierge')}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: isShiftActive ? GREEN : MUTED, flexShrink: 0 }} />
                 <span style={{ fontFamily: INTER, fontSize: 12, color: MUTED }}>{isShiftActive ? 'On Shift' : 'Off Shift'}</span>
@@ -1633,11 +1875,100 @@ export const CaregiverDashboard = ({
 
           {/* Search — fills all remaining space */}
           <div style={{ flex: 1, position: 'relative', marginRight: 520, marginLeft: 220 }}>
-            <Search size={14} color="#6B7280" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+            <Search size={14} color="#6B7280" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 1 }} />
             <input
-              placeholder="Search tasks, packages, guests, incidents…"
-              style={{ width: '100%', height: 34, background: '#FFFFFF', border: 'none', borderRadius: 6, paddingLeft: 36, paddingRight: 14, fontFamily: INTER, fontSize: 13, color: '#111827', outline: 'none', boxSizing: 'border-box' }}
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setShowSearch(true); }}
+              onFocus={() => setShowSearch(true)}
+              onBlur={() => setTimeout(() => setShowSearch(false), 150)}
+              onKeyDown={e => { if (e.key === 'Escape') { setSearchQuery(''); setShowSearch(false); } }}
+              placeholder="Search tasks, incidents, activities…"
+              style={{ width: '100%', height: 34, background: '#FFFFFF', border: 'none', borderRadius: 6, paddingLeft: 36, paddingRight: searchQuery ? 30 : 14, fontFamily: INTER, fontSize: 13, color: '#111827', outline: 'none', boxSizing: 'border-box' }}
             />
+            {searchQuery && (
+              <button onClick={() => { setSearchQuery(''); setShowSearch(false); }}
+                style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:2, display:'flex' }}>
+                <X size={13} color="#6B7280" />
+              </button>
+            )}
+            {/* Search results dropdown */}
+            {showSearch && searchQuery.trim().length > 0 && (() => {
+              const q = searchQuery.toLowerCase().trim();
+              const matchTask = t => (t.title||'').toLowerCase().includes(q) || (t.notes||'').toLowerCase().includes(q) || (t.category||'').toLowerCase().includes(q);
+              const matchInc  = i => (i.title||'').toLowerCase().includes(q) || (i.type||'').toLowerCase().includes(q) || (i.location||'').toLowerCase().includes(q);
+              const matchAct  = a => (a.title||'').toLowerCase().includes(q) || (a.notes||'').toLowerCase().includes(q) || (a.category||'').toLowerCase().includes(q);
+              const mgmtHits  = tasks.filter(t => t.createdByType === 'manager' && matchTask(t)).slice(0, 4);
+              const actHits   = selfTasks.filter(matchAct).slice(0, 4);
+              const incHits   = incidents.filter(matchInc).slice(0, 4);
+              const total = mgmtHits.length + actHits.length + incHits.length;
+              return (
+                <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, right:0, background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, boxShadow:'0 8px 32px rgba(0,0,0,0.14)', zIndex: 200, overflow:'hidden', maxHeight: 420, overflowY:'auto' }}>
+                  {total === 0 ? (
+                    <div style={{ padding:'24px 16px', textAlign:'center' }}>
+                      <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>No results</p>
+                      <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>Nothing matched "{searchQuery}"</p>
+                    </div>
+                  ) : (
+                    <>
+                      {mgmtHits.length > 0 && (
+                        <>
+                          <div style={{ padding:'8px 14px 4px', fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'0.10em' }}>Assigned Tasks</div>
+                          {mgmtHits.map(t => (
+                            <button key={t.id} onMouseDown={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('requests'); }}
+                              style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', borderBottom:`1px solid ${BORDER}` }}>
+                              <div style={{ width:32, height:32, borderRadius:9, background:`${ORANGE}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                <ClipboardList size={15} color={ORANGE} />
+                              </div>
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.title}</p>
+                                <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>{t.category} · Due {t.dueTime} · from {t.createdBy}</p>
+                              </div>
+                              <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color: t.status==='in_progress'?ORANGE:BLUE, background: t.status==='in_progress'?`${ORANGE}14`:`${BLUE}14`, borderRadius:6, padding:'2px 7px', flexShrink:0, textTransform:'uppercase' }}>{t.status==='in_progress'?'In Progress':'Pending'}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+                      {actHits.length > 0 && (
+                        <>
+                          <div style={{ padding:'8px 14px 4px', fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'0.10em' }}>My Activities</div>
+                          {actHits.map((a, i) => (
+                            <button key={a.id||i} onMouseDown={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('new-task'); }}
+                              style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', borderBottom:`1px solid ${BORDER}` }}>
+                              <div style={{ width:32, height:32, borderRadius:9, background:`${GREEN}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                <CheckCircle size={15} color={GREEN} />
+                              </div>
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.title}</p>
+                                <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>{a.category}{a.completedAt ? ` · ${a.completedAt}` : ''}</p>
+                              </div>
+                              <CheckCircle size={14} color={GREEN} style={{ flexShrink:0 }} />
+                            </button>
+                          ))}
+                        </>
+                      )}
+                      {incHits.length > 0 && (
+                        <>
+                          <div style={{ padding:'8px 14px 4px', fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'0.10em' }}>Incidents</div>
+                          {incHits.map(inc => (
+                            <button key={inc.id} onMouseDown={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('incident'); }}
+                              style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', borderBottom:`1px solid ${BORDER}` }}>
+                              <div style={{ width:32, height:32, borderRadius:9, background:`${RED}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                <AlertTriangle size={15} color={RED} />
+                              </div>
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{inc.title}</p>
+                                <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>{inc.type}{inc.location ? ` · ${inc.location}` : ''} · {inc.filedAt}</p>
+                              </div>
+                              <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:RED, background:`${RED}12`, borderRadius:6, padding:'2px 7px', flexShrink:0, textTransform:'uppercase' }}>{inc.severity}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Right: spacer */}
@@ -1660,15 +1991,86 @@ export const CaregiverDashboard = ({
         <>
           {/* Mobile header */}
           {!sidebarOpen && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 56, background: CARD, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', padding: '0 14px', zIndex: 48, gap: 10 }}>
-              <button onClick={() => setSidebarOpen(true)}
-                style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                <Menu size={20} color={TEXT} />
-              </button>
-              <div style={{ flex: 1, textAlign: 'center', fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>
-                {BUILDING_PROFILE.name}
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, background: CARD, borderBottom: `1px solid ${BORDER}`, zIndex: 48 }}>
+              {/* Top row */}
+              <div style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 14px', gap: 10 }}>
+                <button onClick={() => setSidebarOpen(true)}
+                  style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  <Menu size={20} color={TEXT} />
+                </button>
+                <div style={{ flex: 1, textAlign: 'center', fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>
+                  {BUILDING_PROFILE.name}
+                </div>
+                <button onClick={() => { setShowSearch(s => !s); setSearchQuery(''); }}
+                  style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: showSearch ? `${BLUE}14` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  {showSearch ? <X size={18} color={BLUE} /> : <Search size={18} color={TEXT} />}
+                </button>
               </div>
-              <div style={{ width: 36, flexShrink: 0 }} />
+              {/* Mobile search row */}
+              {showSearch && (
+                <div style={{ padding: '0 14px 10px', position: 'relative' }}>
+                  <Search size={14} color={MUTED} style={{ position:'absolute', left:26, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
+                  <input
+                    autoFocus
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Escape') { setSearchQuery(''); setShowSearch(false); } }}
+                    placeholder="Search tasks, incidents, activities…"
+                    style={{ width:'100%', height:38, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, paddingLeft:36, paddingRight:14, fontFamily:INTER, fontSize:13, color:TEXT, outline:'none', boxSizing:'border-box' }}
+                  />
+                  {/* Mobile results */}
+                  {searchQuery.trim().length > 0 && (() => {
+                    const q = searchQuery.toLowerCase().trim();
+                    const matchTask = t => (t.title||'').toLowerCase().includes(q) || (t.notes||'').toLowerCase().includes(q) || (t.category||'').toLowerCase().includes(q);
+                    const matchInc  = i => (i.title||'').toLowerCase().includes(q) || (i.type||'').toLowerCase().includes(q);
+                    const matchAct  = a => (a.title||'').toLowerCase().includes(q) || (a.category||'').toLowerCase().includes(q);
+                    const mgmtHits  = tasks.filter(t => t.createdByType === 'manager' && matchTask(t)).slice(0, 3);
+                    const actHits   = selfTasks.filter(matchAct).slice(0, 3);
+                    const incHits   = incidents.filter(matchInc).slice(0, 3);
+                    const total     = mgmtHits.length + actHits.length + incHits.length;
+                    return (
+                      <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, boxShadow:'0 8px 24px rgba(0,0,0,0.10)', marginTop:6, overflow:'hidden', maxHeight:340, overflowY:'auto' }}>
+                        {total === 0 ? (
+                          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, padding:'16px 14px', margin:0 }}>No results for "{searchQuery}"</p>
+                        ) : (
+                          <>
+                            {mgmtHits.map(t => (
+                              <button key={t.id} onClick={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('requests'); }}
+                                style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'11px 14px', background:'none', border:'none', borderBottom:`1px solid ${BORDER}`, cursor:'pointer', textAlign:'left' }}>
+                                <ClipboardList size={15} color={ORANGE} style={{ flexShrink:0 }} />
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.title}</p>
+                                  <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>Task · {t.dueTime}</p>
+                                </div>
+                              </button>
+                            ))}
+                            {incHits.map(inc => (
+                              <button key={inc.id} onClick={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('incident'); }}
+                                style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'11px 14px', background:'none', border:'none', borderBottom:`1px solid ${BORDER}`, cursor:'pointer', textAlign:'left' }}>
+                                <AlertTriangle size={15} color={RED} style={{ flexShrink:0 }} />
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{inc.title}</p>
+                                  <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>Incident · {inc.type}</p>
+                                </div>
+                              </button>
+                            ))}
+                            {actHits.map((a, i) => (
+                              <button key={a.id||i} onClick={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('new-task'); }}
+                                style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'11px 14px', background:'none', border:'none', borderBottom:`1px solid ${BORDER}`, cursor:'pointer', textAlign:'left' }}>
+                                <CheckCircle size={15} color={GREEN} style={{ flexShrink:0 }} />
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.title}</p>
+                                  <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>Activity · {a.category}</p>
+                                </div>
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           )}
           <AnimatePresence>
@@ -1702,9 +2104,9 @@ export const CaregiverDashboard = ({
           </button>
         </div>
 
-        {/* Main content */}
+        {/* Main content — pre-shift briefing until shift starts, then live DAR */}
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          {renderHomeContent()}
+          {shiftStarted ? renderHomeContent() : renderPreShiftBriefing()}
         </div>
 
         {/* ── TAB PANELS — slide in from right, same style as New Task ──── */}
@@ -1759,7 +2161,12 @@ export const CaregiverDashboard = ({
                   {activeTab === 'packages'      && <PackageDashboard onActivityLogged={handleActivityLogged} />}
                   {activeTab === 'loaners'       && <LoanersDashboard onActivityLogged={handleActivityLogged} />}
                   {activeTab === 'lockout'       && <LockoutPage      onActivityLogged={handleActivityLogged} />}
-                  {activeTab === 'incident'      && <IncidentReportPage patientName={BUILDING_PROFILE.name} incidents={incidents} onAddIncident={onAddIncident} />}
+                  {activeTab === 'incident'      && <IncidentReportPage patientName={BUILDING_PROFILE.name} incidents={incidents} onAddIncident={async (inc) => {
+                    try {
+                      const saved = await authApi.createIncident(inc);
+                      setIncidents(p => [saved, ...p]);
+                    } catch { /* ignore */ }
+                  }} />}
                   {activeTab === 'tours'         && <ToursDashboard   onActivityLogged={handleActivityLogged} />}
                   {activeTab === 'vendors'       && <VendorsDashboard onActivityLogged={handleActivityLogged} />}
                   {activeTab === 'guests'        && <GuestsDashboard  onActivityLogged={handleActivityLogged} />}
@@ -2047,8 +2454,8 @@ export const CaregiverDashboard = ({
                       <div style={{ flex: 1, background: CARD2, borderRadius: 14, border: `1px solid ${BORDER}`, padding: '14px 16px' }}>
                         <p style={{ fontFamily: INTER, fontSize: 10, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Assignee</p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <img src={CONCIERGE_PROFILE.photo} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
-                          <span style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT }}>{CONCIERGE_PROFILE.name.split(' ')[0]}</span>
+                          <div style={{ width:28, height:28, borderRadius:'50%', background:`${BLUE}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE }}>{(authUser?.name||'C').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span></div>
+                          <span style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT }}>{(authUser?.name || 'Concierge').split(' ')[0]}</span>
                         </div>
                       </div>
                       <div style={{ flex: 1, background: CARD2, borderRadius: 14, border: `1px solid ${BORDER}`, padding: '14px 16px' }}>

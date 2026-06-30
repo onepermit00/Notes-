@@ -6,10 +6,11 @@ import {
   User, Package, Waves, Shield, Wrench, ClipboardList,
   HelpCircle, AlertTriangle, Truck,
   LogOut, Phone, Star, Building2, MapPin, ChevronDown,
-  CheckCircle, Send, Mail, UserPlus, Archive, ArrowUpDown, Menu, Search, Clock, Bell, Sliders, Lock, ShoppingCart, UserCheck,
+  CheckCircle, Send, Mail, UserPlus, Archive, ArrowUpDown, Menu, Search, Clock, Bell, Sliders, Lock, ShoppingCart, UserCheck, KeyRound,
 } from 'lucide-react';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
+import { authApi } from '../services/authApi';
 
 /* ─── Tokens ─────────────────────────────────────────────────────────────────── */
 const BG     = '#F8F8F8';
@@ -276,26 +277,29 @@ const EMPTY_TASK = { title:'', notes:'', category:'', priority:'Standard', assig
 const sev = (s) => s === 'critical' || s === 'high' ? RED : s === 'medium' ? ORANGE : MUTED;
 
 /* ─── Component ──────────────────────────────────────────────────────────────── */
-export const ManagerDashboard = ({ onRoleSwitch }) => {
+export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [tab,       setTab]       = useState('home');
   const [calView,      setCalView]      = useState('month');
-  const [calDate,      setCalDate]      = useState(new Date(2026, 5, 1));
+  const [calDate,      setCalDate]      = useState(new Date());
   const [shiftDay,     setShiftDay]     = useState(TODAY_STR);
   const [shiftsPage,   setShiftsPage]   = useState(0);
-  const [team,      setTeam]      = useState(INIT_TEAM);
-  const [sectionAccess,    setSectionAccess]    = useState(() => Object.fromEntries(INIT_TEAM.map(c => [c.id, { ...DEFAULT_SECTIONS }])));
-  const [setupConcierge,   setSetupConcierge]   = useState('c1');
+  const [team,      setTeam]      = useState([]);
+  const [sectionAccess,    setSectionAccess]    = useState({});
+  const [setupConcierge,   setSetupConcierge]   = useState(null);
   const [customSections,   setCustomSections]   = useState([]);
   const [showAddSection,   setShowAddSection]   = useState(false);
   const [newSectionDraft,  setNewSectionDraft]  = useState({ label:'', desc:'' });
-  const [tasks,     setTasks]     = useState(INIT_TASKS);
-  const [incidents, setIncidents] = useState(INIT_INCIDENTS);
+  const [tasks,     setTasks]     = useState([]);
+  const [incidents, setIncidents] = useState([]);
   const [addOpen,   setAddOpen]   = useState(false);
   const [addStep,   setAddStep]   = useState(1);
   const [addForm,   setAddForm]   = useState(EMPTY_ADD);
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError,   setAddError]   = useState('');
   const [taskOpen,  setTaskOpen]  = useState(false);
   const [taskStep,  setTaskStep]  = useState(1);
   const [taskForm,  setTaskForm]  = useState(EMPTY_TASK);
+  const [taskLoading, setTaskLoading] = useState(false);
   const [conOpen,         setConOpen]         = useState(false);
   const [customContacts,  setCustomContacts]  = useState([]);
   const [showAddContact,  setShowAddContact]  = useState(false);
@@ -311,10 +315,68 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
   const [notifMgr,         setNotifMgr]         = useState({ push:true, email:true, shift:true, incident:true });
   const [settingExpMgr,    setSettingExpMgr]    = useState(null);
-  const [editInfoMgr,      setEditInfoMgr]      = useState({ name:MANAGER.name, email:MANAGER.email, phone:MANAGER.phone });
+  const [editInfoMgr,      setEditInfoMgr]      = useState({ name:'', email:'', phone:'' });
   const [pwFormMgr,        setPwFormMgr]        = useState({ current:'', next:'', confirm:'' });
+  const [pwStatusMgr,      setPwStatusMgr]      = useState('');
   const [isMobile,         setIsMobile]         = useState(() => window.innerWidth < 768);
   const [searchQuery,      setSearchQuery]      = useState('');
+
+  const [todayShift,  setTodayShift]  = useState(null); // live DAR from active shift
+  const [allShifts,   setAllShifts]   = useState([]);   // full shift history for calendar
+  const [shiftFilter, setShiftFilter] = useState('all'); // filter by concierge id or 'all'
+
+  // Converts backend shift data to the shape the DAR renderer expects
+  const shiftToDAR = (s) => {
+    if (!s) return null;
+    return {
+      concierge: { name: s.concierge_name },
+      clockIn:   s.clock_in ? new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+      clockOut:  s.clock_out ? new Date(s.clock_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null,
+      note:      '',
+      incidents: (s.incidents || []).map(i => `${i.type || ''}: ${i.description || ''}`),
+      activities: (s.activities || []).map(t => ({
+        id:       t.task_id,
+        time:     t.created_at ? new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+        title:    t.title,
+        notes:    t.notes || '',
+        category: t.category || 'Other',
+      })),
+    };
+  };
+
+  // Load real data on mount
+  useEffect(() => {
+    authApi.getConcierges().then(list => {
+      setTeam(list);
+      if (list.length > 0) setSetupConcierge(list[0].id);
+      setSectionAccess(Object.fromEntries(list.map(c => [c.id, { ...DEFAULT_SECTIONS }])));
+    }).catch(() => {});
+    authApi.getTasks().then(list => setTasks(list)).catch(() => {});
+    authApi.getIncidents().then(list => setIncidents(list)).catch(() => {});
+    authApi.getShiftHistory().then(data => setAllShifts(data?.shifts || [])).catch(() => {});
+  }, []);
+
+  // Poll active shift every 30s — live DAR for manager
+  useEffect(() => {
+    const loadShift = async () => {
+      const res = await authApi.getActiveShift();
+      if (res?.shifts?.length > 0) {
+        setTodayShift(shiftToDAR(res.shifts[0]));
+      } else {
+        setTodayShift(null);
+      }
+    };
+    loadShift();
+    const timer = setInterval(loadShift, 30000);
+    return () => clearInterval(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync authUser into editInfoMgr
+  useEffect(() => {
+    if (authUser) {
+      setEditInfoMgr({ name: authUser.name || '', email: authUser.email || '', phone: authUser.phone || '' });
+    }
+  }, [authUser]);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768);
@@ -324,36 +386,50 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
 
   const nowStr = () => new Date().toLocaleTimeString('en-US',{ hour:'numeric', minute:'2-digit' });
 
-  const closeAdd  = () => { setAddOpen(false);  setAddStep(1);  setAddForm(EMPTY_ADD);  };
+  const closeAdd  = () => { setAddOpen(false);  setAddStep(1);  setAddForm(EMPTY_ADD); setAddError(''); };
   const closeTask = () => { setTaskOpen(false); setTaskStep(1); setTaskForm(EMPTY_TASK); };
 
-  const submitAdd = () => {
+  const submitAdd = async () => {
     if (!addForm.name.trim() || !addForm.email.trim()) return;
-    setTeam(p => [...p, {
-      id:`c${Date.now()}`,
-      name:addForm.name.trim(),
-      init:addForm.name.trim().split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(),
-      title:addForm.title, co:addForm.co, status:'invited',
-      invitedAt:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}),
-      phone:addForm.phone, email:addForm.email, shifts:0, rating:null, since:null,
-    }]);
-    closeAdd();
+    setAddLoading(true); setAddError('');
+    try {
+      const parts = addForm.name.trim().split(' ');
+      const firstName = parts[0];
+      const lastName  = parts.slice(1).join(' ') || '.';
+      const tempPw = `Concierge${Math.floor(1000 + Math.random() * 9000)}!`;
+      const newC = await authApi.addConcierge({
+        first_name: firstName,
+        last_name:  lastName,
+        email:      addForm.email.trim(),
+        phone:      addForm.phone || '',
+        title:      addForm.title || 'Concierge',
+        password:   tempPw,
+      });
+      setTeam(p => [...p, newC]);
+      setSectionAccess(prev => ({ ...prev, [newC.id]: { ...DEFAULT_SECTIONS } }));
+      closeAdd();
+    } catch (err) {
+      setAddError(err?.response?.data?.detail || 'Failed to add concierge. Please try again.');
+    } finally {
+      setAddLoading(false);
+    }
   };
 
-  const submitTask = () => {
-    if (!taskForm.title.trim() || !taskForm.assignedTo) return;
-    setTasks(p => [{
-      id:`t${Date.now()}`, title:taskForm.title, notes:taskForm.notes,
-      category:taskForm.category, priority:taskForm.priority,
-      assignedTo:taskForm.assignedTo, toId:taskForm.toId,
-      dueTime:taskForm.dueTime, status:'pending',
-      createdAt:`${nowStr()} · Today`,
-    }, ...p]);
-    closeTask();
+  const submitTask = async () => {
+    if (!taskForm.title.trim()) return;
+    setTaskLoading(true);
+    try {
+      const newTask = await authApi.createTask(taskForm);
+      setTasks(p => [newTask, ...p]);
+      closeTask();
+    } catch {
+      // keep modal open so user can retry
+    } finally {
+      setTaskLoading(false);
+    }
   };
 
   const onShift = team.find(c => c.status === 'on_shift');
-  const todayShift = SHIFTS[TODAY_STR];
 
   /* ── Shared sub-components ─────────────────────────────────────────────────── */
   const StatChip = ({ label, val, color }) => (
@@ -403,16 +479,17 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
       <div style={{ background:CARD, borderBottom:`1px solid ${BORDER}`, padding:'28px 20px 24px', display:'flex', flexDirection:'column', alignItems:'center' }}>
         <div style={{ position:'relative', marginBottom:16 }}>
           <div style={{ width:108, height:108, borderRadius:'50%', padding:3, background:`linear-gradient(135deg,${BLUE},${ORANGE})` }}>
-            <img src={MANAGER.avatar} alt={MANAGER.name}
-              style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover', display:'block', border:`3px solid ${CARD}` }} />
+            <div style={{ width:'100%', height:'100%', borderRadius:'50%', background:`linear-gradient(135deg,${BLUE}22,${ORANGE}22)`, display:'flex', alignItems:'center', justifyContent:'center', border:`3px solid ${CARD}` }}>
+              <span style={{ fontFamily:INTER, fontSize:32, fontWeight:800, color:BLUE }}>{(authUser?.name||'M').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span>
+            </div>
           </div>
           <div style={{ position:'absolute', bottom:4, right:4, width:20, height:20, borderRadius:'50%', background:GREEN, border:`3px solid ${CARD}` }} />
         </div>
-        <p style={{ fontFamily:INTER, fontSize:22, fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:'0 0 4px' }}>{MANAGER.name}</p>
-        <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:'0 0 12px' }}>{MANAGER.title} · {MANAGER.company}</p>
+        <p style={{ fontFamily:INTER, fontSize:22, fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:'0 0 4px' }}>{(authUser?.name || 'Manager')}</p>
+        <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:'0 0 12px' }}>{(authUser?.job_title || 'Property Manager')} · {(authUser?.property_name || '')}</p>
         <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(52,199,89,0.10)', border:'1px solid rgba(52,199,89,0.20)', borderRadius:999, padding:'6px 14px' }}>
           <div style={{ width:7, height:7, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.30)' }} />
-          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty · {MANAGER.available}</span>
+          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty · {'Available'}</span>
         </div>
       </div>
 
@@ -421,9 +498,9 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
         {/* Stats */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
           {[
-            { value:MANAGER.rating,            label:'Rating',         color:'#EAB308', Icon:Star   },
-            { value:MANAGER.yearsExperience,   label:'Yrs Experience', color:BLUE,      Icon:Clock  },
-            { value:MANAGER.propertiesManaged, label:'Properties',     color:GREEN,     Icon:Building2 },
+            { value:5.0,            label:'Rating',         color:'#EAB308', Icon:Star   },
+            { value:team.length,   label:'Yrs Experience', color:BLUE,      Icon:Clock  },
+            { value:1, label:'Properties',     color:GREEN,     Icon:Building2 },
           ].map(({ value, label, color, Icon:SI }) => (
             <div key={label} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'16px 12px', textAlign:'center', boxShadow:'0 2px 8px rgba(0,0,0,0.04)' }}>
               <div style={{ width:36, height:36, borderRadius:10, background:`${color}14`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
@@ -448,7 +525,7 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
               </div>
               <div>
                 <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 3px' }}>Email</p>
-                <a href={`mailto:${MANAGER.email}`} style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, textDecoration:'none' }}>{MANAGER.email}</a>
+                <a href={`mailto:${(authUser?.email || '')}`} style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, textDecoration:'none' }}>{(authUser?.email || '')}</a>
               </div>
             </div>
             <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:14, padding:16, display:'flex', alignItems:'center', gap:14, boxShadow:'0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -457,7 +534,7 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
               </div>
               <div>
                 <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 3px' }}>Phone</p>
-                <a href={`tel:${MANAGER.phone?.replace(/\D/g,'')}`} style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, textDecoration:'none' }}>{MANAGER.phone}</a>
+                <a href={`tel:${(authUser?.phone || '')?.replace(/\D/g,'')}`} style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, textDecoration:'none' }}>{(authUser?.phone || '')}</a>
               </div>
             </div>
           </div>
@@ -488,7 +565,7 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
             <h3 style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:0 }}>Certifications</h3>
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {MANAGER.certifications.map(cert => (
+            {['Property Manager', 'Fair Housing Certified'].map(cert => (
               <div key={cert} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:14, padding:16, display:'flex', alignItems:'center', gap:14, boxShadow:'0 2px 8px rgba(0,0,0,0.04)' }}>
                 <div style={{ width:44, height:44, borderRadius:12, background:'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <Check size={20} color={BLUE} />
@@ -652,8 +729,8 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
             <User size={32} color={BLUE} />
           </div>
           <div>
-            <p style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT, margin:'0 0 3px', letterSpacing:'-0.02em' }}>{MANAGER.name}</p>
-            <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:'0 0 10px' }}>{MANAGER.title}</p>
+            <p style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT, margin:'0 0 3px', letterSpacing:'-0.02em' }}>{(authUser?.name || 'Manager')}</p>
+            <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:'0 0 10px' }}>{(authUser?.job_title || 'Property Manager')}</p>
             <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(52,199,89,0.12)', border:'1px solid rgba(52,199,89,0.25)', borderRadius:999, padding:'5px 12px' }}>
               <div style={{ width:7, height:7, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
               <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
@@ -676,10 +753,30 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
             )}
             {row('change-pw', Lock, RED, 'Change Password', 'Update your account password securely',
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                <input style={inputStyle} type="password" value={pwFormMgr.current} onChange={e => setPwFormMgr(f=>({...f,current:e.target.value}))} placeholder="Current password" />
-                <input style={inputStyle} type="password" value={pwFormMgr.next}    onChange={e => setPwFormMgr(f=>({...f,next:e.target.value}))}    placeholder="New password" />
-                <input style={inputStyle} type="password" value={pwFormMgr.confirm} onChange={e => setPwFormMgr(f=>({...f,confirm:e.target.value}))} placeholder="Confirm new password" />
-                <button onClick={() => { setPwFormMgr({current:'',next:'',confirm:''}); setSettingExpMgr(null); }} style={{ marginTop:4, padding:'12px', background:RED, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer' }}>Update Password</button>
+                <input style={inputStyle} type="password" value={pwFormMgr.current} onChange={e => { setPwFormMgr(f=>({...f,current:e.target.value})); setPwStatusMgr(''); }} placeholder="Current password" />
+                <input style={inputStyle} type="password" value={pwFormMgr.next}    onChange={e => { setPwFormMgr(f=>({...f,next:e.target.value}));    setPwStatusMgr(''); }} placeholder="New password (min 6 chars)" />
+                <input style={inputStyle} type="password" value={pwFormMgr.confirm} onChange={e => { setPwFormMgr(f=>({...f,confirm:e.target.value})); setPwStatusMgr(''); }} placeholder="Confirm new password" />
+                {pwStatusMgr.startsWith('error') && <p style={{ fontFamily:INTER, fontSize:13, color:RED, margin:0, fontWeight:600 }}>{pwStatusMgr.replace('error:','')}</p>}
+                {pwStatusMgr === 'success' && <p style={{ fontFamily:INTER, fontSize:13, color:GREEN, margin:0, fontWeight:600 }}>Password updated successfully.</p>}
+                <button
+                  disabled={pwStatusMgr === 'saving'}
+                  onClick={async () => {
+                    if (!pwFormMgr.current || !pwFormMgr.next || !pwFormMgr.confirm) { setPwStatusMgr('error:Please fill in all fields.'); return; }
+                    if (pwFormMgr.next !== pwFormMgr.confirm) { setPwStatusMgr('error:New passwords do not match.'); return; }
+                    if (pwFormMgr.next.length < 6) { setPwStatusMgr('error:New password must be at least 6 characters.'); return; }
+                    setPwStatusMgr('saving');
+                    try {
+                      await authApi.changePassword(pwFormMgr.current, pwFormMgr.next);
+                      setPwStatusMgr('success');
+                      setPwFormMgr({ current:'', next:'', confirm:'' });
+                      setTimeout(() => { setPwStatusMgr(''); setSettingExpMgr(null); }, 2000);
+                    } catch (err) {
+                      setPwStatusMgr('error:' + (err?.response?.data?.detail || 'Failed to update password.'));
+                    }
+                  }}
+                  style={{ marginTop:4, padding:'12px', background: pwStatusMgr==='saving' ? MUTED : RED, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor: pwStatusMgr==='saving' ? 'not-allowed' : 'pointer' }}>
+                  {pwStatusMgr === 'saving' ? 'Updating…' : 'Update Password'}
+                </button>
               </div>
             )}
           </div>
@@ -708,6 +805,7 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
         <div>
           {sectionLabel('Account')}
           <button
+            onClick={onSignOut}
             style={{ width:'100%', padding:20, display:'flex', alignItems:'center', gap:16, background:'rgba(255,59,48,0.05)', border:`2px solid rgba(255,59,48,0.20)`, borderRadius:16, cursor:'pointer', textAlign:'left' }}>
             <div style={{ width:52, height:52, borderRadius:14, background:'rgba(255,59,48,0.10)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
               <LogOut size={22} color={RED} />
@@ -873,7 +971,11 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <p style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, margin:'0 0 3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{inc.title}</p>
-                      <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>{inc.note}</p>
+                      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                        {inc.unit_number && <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>Unit {inc.unit_number}</span>}
+                        {inc.person_involved && <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{inc.unit_number ? '·' : ''} {inc.person_involved}</span>}
+                        {inc.filedBy && <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{(inc.unit_number || inc.person_involved) ? '·' : ''} Filed by {inc.filedBy}</span>}
+                      </div>
                     </div>
                     <button onClick={() => setIncidents(p=>p.filter(i=>i.id!==inc.id))}
                       style={{ flexShrink:0, padding:'8px 14px', background:'rgba(52,199,89,0.10)', border:'1px solid rgba(52,199,89,0.25)', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN, cursor:'pointer' }}>
@@ -955,8 +1057,7 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
     const month  = calDate.getMonth();
     const cells  = getCalCells(year, month);
     const prefix = toDS(year, month, 1).slice(0, 7);
-    const monthCount = (y, m) => [...SHIFT_DATES].filter(d => d.startsWith(toDS(y, m, 1).slice(0,7))).length;
-    const selectedShift = shiftDay ? SHIFTS[shiftDay] : null;
+    const monthCount = (y, m) => [...shiftDatesSet].filter(d => d.startsWith(toDS(y, m, 1).slice(0,7))).length;
 
     const shiftDARBody = (s, dateLabel) => {
       const acts     = s.activities;
@@ -1054,11 +1155,46 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
       );
     };
 
-    const monthShifts = [...SHIFT_DATES].filter(d=>d.startsWith(prefix) && SHIFTS[d]).sort((a,b)=>b.localeCompare(a));
+    // Build real-data map from backend shift history, filtered by team member
+    const filteredRaw = shiftFilter === 'all'
+      ? allShifts
+      : allShifts.filter(s => s.concierge_id === shiftFilter);
+    const shiftDatesMap = {};
+    filteredRaw.forEach(s => {
+      const dateKey = s.clock_in ? s.clock_in.split('T')[0] : null;
+      if (!dateKey) return;
+      const clockInDate  = s.clock_in  ? new Date(s.clock_in)  : null;
+      const clockOutDate = s.clock_out ? new Date(s.clock_out) : null;
+      const ms   = clockInDate && clockOutDate ? clockOutDate - clockInDate : 0;
+      const hrs  = Math.floor(ms / 3600000);
+      const mins = Math.floor((ms % 3600000) / 60000);
+      const cname = s.concierge_name || '';
+      const cinit = cname.trim().split(/\s+/).map(w => w[0]).join('').slice(0,2).toUpperCase() || 'C';
+      // if same day has multiple shifts, keep the later one
+      shiftDatesMap[dateKey] = {
+        concierge: { name: cname, init: cinit },
+        clockIn:   clockInDate  ? clockInDate.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : '',
+        clockOut:  clockOutDate ? clockOutDate.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : null,
+        status:    s.status || 'completed',
+        duration:  ms > 0 ? `${hrs}h ${mins}m` : (s.status === 'active' ? 'Ongoing' : '—'),
+        activities: (s.activities || []).map(t => ({
+          id: t.task_id, time: t.created_at ? new Date(t.created_at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : '—',
+          title: t.title || '', notes: t.notes || '', category: t.category || 'Other',
+        })),
+        incidents: (s.incidents || []).map(i => `${i.type || 'Incident'}: ${i.description || i.title || ''}`),
+        note: '',
+      };
+    });
+    const shiftDatesSet = new Set(Object.keys(shiftDatesMap));
+
+    const monthShifts = [...shiftDatesSet].filter(d=>d.startsWith(prefix)).sort((a,b)=>b.localeCompare(a));
     const totalPages  = Math.ceil(monthShifts.length / 5);
     const pageShifts  = monthShifts.slice(shiftsPage * 5, shiftsPage * 5 + 5);
 
     const dateLabel = shiftDay ? (() => { const dp=shiftDay.split('-'); return `${MONTHS[parseInt(dp[1])-1]} ${parseInt(dp[2])}, ${dp[0]}`; })() : '';
+
+    // Override selectedShift from real data
+    const selectedShift = shiftDay ? shiftDatesMap[shiftDay] : null;
 
     return (
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'1fr 400px', gap: isMobile ? 16 : 20, alignItems: isMobile ? 'stretch' : 'start' }}>
@@ -1091,7 +1227,7 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
                     </button>
                     <div>
                       <div style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT }}>{MONTHS[month]} {year}</div>
-                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED }}>{[...SHIFT_DATES].filter(d=>d.startsWith(prefix) && SHIFTS[d]).length} shifts</div>
+                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED }}>{[...shiftDatesSet].filter(d=>d.startsWith(prefix)).length} shifts</div>
                     </div>
                     <button onClick={() => { setCalDate(new Date(year, month+1, 1)); setShiftsPage(0); }} style={{ width:32, height:32, borderRadius:10, background:CARD2, border:`1px solid ${BORDER}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
                       <ChevronRight size={15} color={MUTED} />
@@ -1130,7 +1266,7 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
                   {cells.map((cell, i) => {
                     if (!cell) return <div key={`e-${i}`} />;
-                    const hasShift = SHIFT_DATES.has(cell.dateStr);
+                    const hasShift = shiftDatesSet.has(cell.dateStr);
                     const isToday  = cell.dateStr === TODAY_STR;
                     const isSel    = cell.dateStr === shiftDay;
                     return (
@@ -1173,16 +1309,31 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
         {/* Shifts this month list — bottom on mobile, right col row 2 on desktop */}
         {calView === 'month' && (
           <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:20, boxShadow:'0 2px 8px rgba(0,0,0,0.05)', order: isMobile ? 3 : 0, gridColumn: 2, gridRow: 2 }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <Clock size={20} color={BLUE} />
-                  <h2 style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Shifts This Month</h2>
+              <div style={{ marginBottom:14 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <Clock size={20} color={BLUE} />
+                    <h2 style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Shifts This Month</h2>
+                  </div>
+                  <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{monthShifts.length > 0 ? `${shiftsPage*5+1}–${Math.min(shiftsPage*5+5,monthShifts.length)} of ${monthShifts.length}` : '0'}</span>
                 </div>
-                <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{monthShifts.length > 0 ? `${shiftsPage*5+1}–${Math.min(shiftsPage*5+5,monthShifts.length)} of ${monthShifts.length}` : '0'}</span>
+                {/* Team member filter — role-specific: each concierge can be filtered */}
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  <button onClick={() => { setShiftFilter('all'); setShiftsPage(0); setShiftDay(null); }}
+                    style={{ padding:'5px 12px', borderRadius:20, border:`1.5px solid ${shiftFilter==='all'?BLUE:BORDER}`, background:shiftFilter==='all'?`${BLUE}10`:'transparent', fontFamily:INTER, fontSize:11, fontWeight:700, color:shiftFilter==='all'?BLUE:MUTED, cursor:'pointer' }}>
+                    All Concierges
+                  </button>
+                  {team.map(c => (
+                    <button key={c.id} onClick={() => { setShiftFilter(c.id); setShiftsPage(0); setShiftDay(null); }}
+                      style={{ padding:'5px 12px', borderRadius:20, border:`1.5px solid ${shiftFilter===c.id?BLUE:BORDER}`, background:shiftFilter===c.id?`${BLUE}10`:'transparent', fontFamily:INTER, fontSize:11, fontWeight:700, color:shiftFilter===c.id?BLUE:MUTED, cursor:'pointer' }}>
+                      {c.name.split(' ')[0]}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {pageShifts.map(dateStr => {
-                  const s = SHIFTS[dateStr];
+                  const s = shiftDatesMap[dateStr];
                   const dp = dateStr.split('-');
                   const label = `${MONTH_ABB[parseInt(dp[1])-1]} ${parseInt(dp[2])}`;
                   const isSel = dateStr === shiftDay;
@@ -1372,6 +1523,16 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
                     <a href={`mailto:${c.email}`} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, textDecoration:'none' }}>
                       <Mail size={14} color={MUTED} /><span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:TEXT }}>Email</span>
                     </a>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await authApi.resendCredentials(c.concierge_id);
+                          alert(`New credentials emailed to ${c.email}`);
+                        } catch { alert('Failed to resend credentials.'); }
+                      }}
+                      style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, cursor:'pointer', fontFamily:INTER }}>
+                      <KeyRound size={14} color={BLUE} /><span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:BLUE }}>Reset PW</span>
+                    </button>
                   </div>
                 </div>
               );
@@ -1702,9 +1863,9 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
                       <X size={20} color={MUTED} />
                     </button>
                     <div style={{ fontFamily:INTER, fontSize:18, fontWeight:700, color:TEXT, lineHeight:1.3, letterSpacing:'-0.01em' }}>
-                      Welcome,<br />{MANAGER.name}!
+                      Welcome,<br />{(authUser?.name || 'Manager')}!
                     </div>
-                    <div style={{ fontFamily:INTER, fontSize:13, color:MUTED, marginTop:6 }}>{MANAGER.email}</div>
+                    <div style={{ fontFamily:INTER, fontSize:13, color:MUTED, marginTop:6 }}>{(authUser?.email || '')}</div>
                   </div>
                   <nav style={{ padding:'8px 8px 4px', overflow:'hidden' }}>
                     {NAV.map(({ id, Icon:NavIcon, label, action }) => {
@@ -1763,7 +1924,7 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
             <motion.div key={tab}
               initial={{ x:'110%' }} animate={{ x:0 }} exit={{ x:'110%' }}
               transition={{ type:'spring', damping:32, stiffness:300 }}
-              style={{ position:'fixed', top:16, bottom:16, right:16, background:BG, zIndex:66, display:'flex', flexDirection:'column', borderRadius:24, overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.20)', ...(tab==='settings' ? { width:Math.min(580, window.innerWidth-(isMobile?32:280)) } : { left: isMobile?16:(sidebarCollapsed?80:264) }) }}>
+              style={{ position:'fixed', top:16, bottom:16, right:16, background:BG, zIndex:66, display:'flex', flexDirection:'column', borderRadius:24, overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.20)', ...(tab==='shifts' ? { left: isMobile?16:(sidebarCollapsed?80:264) } : { width:Math.min(580, window.innerWidth-(isMobile?32:280)) }) }}>
 
               {/* Panel header */}
               <div style={{ background:CARD, borderBottom:`1px solid ${BORDER}`, padding:'20px 32px', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -2191,10 +2352,9 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
                 <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Who are you adding?</h3>
 
                 {[
-                  { field:'teamName', label:'Team / Member Name *', placeholder:'e.g. The Hannah Leasing Team', type:'text' },
-                  { field:'contact',  label:'Primary Contact *',     placeholder:'e.g. Sarah Miller',           type:'text' },
-                  { field:'phone',    label:'Phone Number *',        placeholder:'e.g. (215) 555-0140',         type:'tel'  },
-                  { field:'email',    label:'Email Address *',       placeholder:'e.g. team@thehannah.com',     type:'email'},
+                  { field:'teamName', label:'Full Name *',     placeholder:'e.g. George Nwachukwu',      type:'text'  },
+                  { field:'phone',    label:'Phone Number',    placeholder:'e.g. (215) 555-0140',        type:'tel'   },
+                  { field:'email',    label:'Email Address *', placeholder:'e.g. george@example.com',    type:'email' },
                 ].map(({ field, label, placeholder, type }) => (
                   <div key={field}>
                     <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>{label}</label>
@@ -2240,14 +2400,41 @@ export const ManagerDashboard = ({ onRoleSwitch }) => {
             </div>
 
             {(() => {
-              const lValid = leasingForm.teamName.trim() && leasingForm.contact.trim() && leasingForm.phone.trim() && leasingForm.email.trim();
+              const lValid = (leasingForm.teamName || '').trim() && (leasingForm.email || '').trim();
+              const handleAddMember = async () => {
+                if (!lValid || addLoading) return;
+                setAddLoading(true); setAddError('');
+                try {
+                  const fullName = (leasingForm.teamName || leasingForm.contact || '').trim();
+                  const parts = fullName.split(/\s+/);
+                  const firstName = parts[0] || 'Concierge';
+                  const lastName  = parts.slice(1).join(' ') || '';
+                  const tempPw = `Team${Math.floor(1000 + Math.random() * 9000)}!`;
+                  const newC = await authApi.addConcierge({
+                    first_name: firstName,
+                    last_name:  lastName,
+                    email:      leasingForm.email.trim(),
+                    phone:      leasingForm.phone || '',
+                    title:      leasingForm.role || 'Concierge',
+                    password:   tempPw,
+                  });
+                  setTeam(p => [...p, newC]);
+                  setSectionAccess(prev => ({ ...prev, [newC.id]: { ...DEFAULT_SECTIONS } }));
+                  setLeasingOpen(false);
+                  setLeasingForm({ teamName:'', contact:'', phone:'', email:'' });
+                  setAddError('');
+                } catch (err) {
+                  setAddError(err?.response?.data?.detail || 'Failed to add member. Check the email is not already in use.');
+                } finally { setAddLoading(false); }
+              };
               return (
                 <div style={{ flexShrink:0, padding:'12px 20px 20px', background:CARD, borderTop:`1px solid ${BORDER}` }}>
+                  {addError && <p style={{ fontFamily:INTER, fontSize:13, color:RED, marginBottom:10, fontWeight:600 }}>{addError}</p>}
                   <button
-                    disabled={!lValid}
-                    onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'' }); }}
-                    style={{ width:'100%', padding:'16px 0', background:!lValid?CARD2:GREEN, border:!lValid?`1px solid ${BORDER}`:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:!lValid?MUTED:'white', cursor:!lValid?'not-allowed':'pointer', boxShadow:!lValid?'none':'0 8px 24px rgba(52,199,89,0.30)' }}>
-                    Add Member
+                    disabled={!lValid || addLoading}
+                    onClick={handleAddMember}
+                    style={{ width:'100%', padding:'16px 0', background:(!lValid||addLoading)?CARD2:GREEN, border:(!lValid||addLoading)?`1px solid ${BORDER}`:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:(!lValid||addLoading)?MUTED:'white', cursor:(!lValid||addLoading)?'not-allowed':'pointer', boxShadow:(!lValid||addLoading)?'none':'0 8px 24px rgba(52,199,89,0.30)' }}>
+                    {addLoading ? 'Adding...' : 'Add Member'}
                   </button>
                 </div>
               );
