@@ -6,7 +6,7 @@ import {
   User, Package, Waves, Shield, Wrench, ClipboardList,
   HelpCircle, AlertTriangle, Truck,
   LogOut, Phone, Star, Building2, MapPin, ChevronDown,
-  CheckCircle, Send, Mail, UserPlus, Archive, ArrowUpDown, Menu, Search, Clock, Bell, Sliders, Lock, ShoppingCart, UserCheck, KeyRound,
+  CheckCircle, Send, Mail, UserPlus, Archive, ArrowUpDown, Menu, Search, Clock, Bell, Sliders, Lock, ShoppingCart, UserCheck, KeyRound, Sun, Moon,
 } from 'lucide-react';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
@@ -1783,7 +1783,18 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             />
           </div>
 
-          <div style={{ flexShrink:0 }} />
+          {/* Dark/light toggle */}
+          <button
+            onClick={toggleTheme}
+            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            style={{ flexShrink:0, width:32, height:32, borderRadius:8, background:'rgba(255,255,255,0.10)', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'background 150ms' }}
+            onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.18)'}
+            onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.10)'}
+          >
+            {isDarkMode
+              ? <Sun size={15} color="#FFD60A" />
+              : <Moon size={15} color="rgba(255,255,255,0.80)" />}
+          </button>
         </div>
       )}
 
@@ -1849,7 +1860,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               <div style={{ flex:1, textAlign:'center', fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, letterSpacing:'-0.01em' }}>
                 {BUILDING_PROFILE.name}
               </div>
-              <div style={{ width:36, flexShrink:0 }} />
+              <button onClick={toggleTheme}
+                style={{ width:36, height:36, borderRadius:10, border:'none', background: isDarkMode ? 'rgba(255,214,10,0.12)' : BORDER, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+                {isDarkMode ? <Sun size={17} color="#FFD60A" /> : <Moon size={17} color={MUTED} />}
+              </button>
             </div>
           )}
           <AnimatePresence>

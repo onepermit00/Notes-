@@ -7,7 +7,7 @@ import {
   Car, Zap, Package, Building2, Users, DoorOpen, DoorClosed, Plus,
   Waves, Activity, Sun, Coffee, Briefcase, Film, Heart, Bike, Leaf, Flame,
   Menu, Lock, ShoppingCart, ClipboardList, PlusCircle, Wrench, Search,
-  Tag, Navigation, Flag, ChevronLeft, UserCheck, Truck, HelpCircle, Star, LogOut, Mail
+  Tag, Navigation, Flag, ChevronLeft, UserCheck, Truck, HelpCircle, Star, LogOut, Mail, Moon
 } from 'lucide-react';
 import { PackageDashboard } from './PackageDashboard';
 import { ToursDashboard } from './ToursDashboard';
@@ -1978,8 +1978,18 @@ export const CaregiverDashboard = ({
             })()}
           </div>
 
-          {/* Right: spacer */}
-          <div style={{ flexShrink: 0 }} />
+          {/* Right: dark/light toggle */}
+          <button
+            onClick={toggleTheme}
+            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.10)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 150ms' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.10)'}
+          >
+            {isDarkMode
+              ? <Sun size={15} color="#FFD60A" />
+              : <Moon size={15} color="rgba(255,255,255,0.80)" />}
+          </button>
         </div>
       )}
 
@@ -2011,6 +2021,10 @@ export const CaregiverDashboard = ({
                 <button onClick={() => { setShowSearch(s => !s); setSearchQuery(''); }}
                   style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: showSearch ? `${BLUE}14` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                   {showSearch ? <X size={18} color={BLUE} /> : <Search size={18} color={TEXT} />}
+                </button>
+                <button onClick={toggleTheme}
+                  style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: isDarkMode ? 'rgba(255,214,10,0.12)' : `${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  {isDarkMode ? <Sun size={17} color="#FFD60A" /> : <Moon size={17} color={MUTED} />}
                 </button>
               </div>
               {/* Mobile search row */}
