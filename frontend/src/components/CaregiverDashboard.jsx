@@ -34,48 +34,34 @@ import {
   BUILDING_STATUS, BUILDING_SOPS, SHIFT_HISTORY,
 } from '../services/mockData';
 import { authApi } from '../services/authApi';
+import { useTheme } from '../context/ThemeContext';
 
-// ─── design tokens (Airbnb aesthetic) ─────────────────────────────────────────
-const BG      = '#FFFFFF';              // Airbnb warm light canvas
-const CARD    = '#FFFFFF';              // white cards
-const CARD2   = '#F7F7F7';             // secondary surface
-const GREEN   = '#34C759';             // success / positive
-const BLUE    = '#FF385C';             // primary actions — Airbnb coral
-const RED     = '#FF3B30';             // errors / missed
-const ORANGE  = '#FF9500';             // warnings
-const BORDER  = '#EBEBEB';             // clean light separator
-const TEXT    = '#222222';             // Airbnb dark text
-const MUTED   = '#717171';             // Airbnb secondary text
-const SHADOW  = '0 2px 12px rgba(0,0,0,0.08)';  // soft card shadow
+// ─── Static / brand tokens (theme-independent) ────────────────────────────────
 const INTER   = `'Inter','Plus Jakarta Sans',sans-serif`;
-const SIDEBAR = '#FFFFFF';             // white sidebar panel
-
-const glass = () => ({ background: CARD, boxShadow: SHADOW });
-const glassCard = () => ({ background: CARD, boxShadow: SHADOW, borderRadius: 24, overflow: 'hidden' });
-const glassRow = { background: CARD, boxShadow: SHADOW, borderRadius: 20 };
+const GREEN   = '#34C759';
+const BLUE    = '#FF385C';
+const RED     = '#FF3B30';
+const ORANGE  = '#FF9500';
 
 function Ghost({ label }) { return null; }
 function SectionLabel({ children }) {
-  return <span style={{ fontFamily: INTER, fontSize: 11, fontWeight: 600, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{children}</span>;
+  const { colors } = useTheme();
+  return <span style={{ fontFamily: INTER, fontSize: 11, fontWeight: 600, color: colors.MUTED, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{children}</span>;
 }
 function SectionTitle({ children, style = {} }) {
-  return <span style={{ fontFamily: INTER, fontSize: 'clamp(1.1rem,3vw,1.4rem)', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', lineHeight: 1.2, ...style }}>{children}</span>;
+  const { colors } = useTheme();
+  return <span style={{ fontFamily: INTER, fontSize: 'clamp(1.1rem,3vw,1.4rem)', fontWeight: 700, color: colors.TEXT, letterSpacing: '-0.01em', lineHeight: 1.2, ...style }}>{children}</span>;
 }
 function Card({ children, style = {}, onClick, testId }) {
+  const { colors } = useTheme();
+  const gc = { background: colors.CARD, boxShadow: colors.SHADOW, borderRadius: 24, overflow: 'hidden' };
   return (
-    <div data-testid={testId} onClick={onClick} style={{ ...glassCard(), cursor: onClick ? 'pointer' : undefined, ...style }}>
+    <div data-testid={testId} onClick={onClick} style={{ ...gc, cursor: onClick ? 'pointer' : undefined, ...style }}>
       {children}
     </div>
   );
 }
 
-// ─── status badge colors ──────────────────────────────────────────────────────
-const statusStyle = (status) => {
-  if (status === 'open' || status === 'nominal') return { bg: 'rgba(5,150,105,0.10)', color: GREEN, dot: GREEN };
-  if (status === 'issue')   return { bg: 'rgba(217,119,6,0.10)', color: ORANGE, dot: ORANGE };
-  if (status === 'closed')  return { bg: 'rgba(239,68,68,0.10)',  color: RED,       dot: RED };
-  return { bg: CARD2, color: MUTED, dot: MUTED };
-};
 
 const statusLabel = (status) => {
   if (status === 'open')    return 'Open';
@@ -252,6 +238,27 @@ export const CaregiverDashboard = ({
   onViewCalendar,
   authUser,
 }) => {
+  // ── Theme ──────────────────────────────────────────────────────────────────
+  const { isDarkMode, toggleTheme, colors } = useTheme();
+  const BG     = colors.BG;
+  const CARD   = colors.CARD;
+  const CARD2  = colors.CARD2;
+  const BORDER = colors.BORDER;
+  const TEXT   = colors.TEXT;
+  const MUTED  = colors.MUTED;
+  const SHADOW = colors.SHADOW;
+  const SIDEBAR = colors.SIDEBAR;
+  const glass     = () => ({ background: CARD, boxShadow: SHADOW });
+  const glassCard = () => ({ background: CARD, boxShadow: SHADOW, borderRadius: 24, overflow: 'hidden' });
+  const glassRow  = { background: CARD, boxShadow: SHADOW, borderRadius: 20 };
+  const statusStyle = (status) => {
+    if (status === 'open' || status === 'nominal') return { bg: 'rgba(52,199,89,0.12)', color: GREEN, dot: GREEN };
+    if (status === 'issue')  return { bg: 'rgba(217,119,6,0.10)',  color: ORANGE, dot: ORANGE };
+    if (status === 'closed') return { bg: 'rgba(239,68,68,0.10)',  color: RED,    dot: RED    };
+    return { bg: CARD2, color: MUTED, dot: MUTED };
+  };
+  // ───────────────────────────────────────────────────────────────────────────
+
   const [tasks,    setTasks]    = useState([]);
   const [incidents, setIncidents] = useState([]);
   const [activeTab, setActiveTab]             = useState('home');

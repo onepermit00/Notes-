@@ -11,19 +11,15 @@ import {
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
 import { authApi } from '../services/authApi';
+import { useTheme } from '../context/ThemeContext';
 
-/* ─── Tokens ─────────────────────────────────────────────────────────────────── */
-const BG     = '#F8F8F8';
-const CARD   = '#FFFFFF';
-const CARD2  = '#F4F4F4';
+/* ─── Static brand tokens ────────────────────────────────────────────────────── */
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
 const RED    = '#FF3B30';
 const ORANGE = '#FF9500';
-const BORDER = '#E8E8E8';
-const TEXT   = '#111111';
-const MUTED  = '#717171';
 const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
+const MUTED  = '#717171'; // module-level fallback for static array icon colors
 
 /* ─── Calendar helpers ───────────────────────────────────────────────────────── */
 const MONTHS    = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -278,6 +274,18 @@ const sev = (s) => s === 'critical' || s === 'high' ? RED : s === 'medium' ? ORA
 
 /* ─── Component ──────────────────────────────────────────────────────────────── */
 export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
+  // ── Theme ──────────────────────────────────────────────────────────────────
+  const { isDarkMode, toggleTheme, colors } = useTheme();
+  const BG     = colors.BG     || '#F8F8F8';
+  const CARD   = colors.CARD;
+  const CARD2  = colors.CARD2;
+  const BORDER = colors.BORDER;
+  const TEXT   = colors.TEXT;
+  const MUTED  = colors.MUTED;
+  const SHADOW = colors.SHADOW;
+  const SIDEBAR = colors.SIDEBAR;
+  // ───────────────────────────────────────────────────────────────────────────
+
   const [tab,       setTab]       = useState('home');
   const [calView,      setCalView]      = useState('month');
   const [calDate,      setCalDate]      = useState(new Date());

@@ -11,8 +11,9 @@ import { ThemeProvider }      from "./context/ThemeContext";
 import { authApi }            from "./services/authApi";
 
 function Spinner() {
+  const isDark = localStorage.getItem('adltrack-theme') === 'dark';
   return (
-    <div style={{ display:'flex', height:'100vh', alignItems:'center', justifyContent:'center', background:'#fff' }}>
+    <div style={{ display:'flex', height:'100vh', alignItems:'center', justifyContent:'center', background: isDark ? '#0A0A0A' : '#fff' }}>
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
         <div style={{
           width:40, height:40, borderRadius:'50%',
@@ -104,10 +105,12 @@ export default function App() {
 
   if (page === 'calendar') {
     return (
-      <ShiftCalendarPage
-        onBeginShift={() => setPage('dashboard')}
-        onBack={() => setPage(calendarFrom)}
-      />
+      <ThemeProvider>
+        <ShiftCalendarPage
+          onBeginShift={() => setPage('dashboard')}
+          onBack={() => setPage(calendarFrom)}
+        />
+      </ThemeProvider>
     );
   }
 
