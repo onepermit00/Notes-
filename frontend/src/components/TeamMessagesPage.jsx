@@ -1,16 +1,9 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Send, Hash, Megaphone, Users, CheckCheck, Pin } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
-const BG     = '#FFFFFF';
-const CARD   = '#FFFFFF';
-const CARD2  = '#F7F7F7';
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
-const BORDER = '#EBEBEB';
-const TEXT   = '#222222';
-const MUTED  = '#717171';
-const SHADOW = '0 2px 12px rgba(0,0,0,0.08)';
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
 
 // ── Mock data ──────────────────────────────────────────────────────────────────
 
@@ -125,6 +118,8 @@ function DmAvatar({ dm, size = 44 }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export const TeamMessagesPage = () => {
+  const { colors } = useTheme();
+  const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
   const [active,  setActive]  = useState(null);
   const [newMsg,  setNewMsg]  = useState('');
   const [msgs,    setMsgs]    = useState(INIT_MSGS);

@@ -1,17 +1,10 @@
 import React, { useState } from 'react';
 import { Wrench, CheckCircle, Clock, Plus, Check, LogOut, ChevronRight, FileText, Thermometer, Droplets, Zap, Wifi, Shield, Truck, Hammer, Sparkles, HelpCircle, Building2 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
-const BG     = '#FFFFFF';
-const CARD   = '#FFFFFF';
-const CARD2  = '#F7F7F7';
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
 const ORANGE = '#FF9500';
-const BORDER = '#EBEBEB';
-const TEXT   = '#222222';
-const MUTED  = '#717171';
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const gc     = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
 
 const PURPOSE_CONFIG = [
   { id: 'HVAC',            Icon: Thermometer, desc: 'Heating, ventilation and air conditioning' },
@@ -77,6 +70,9 @@ function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continue
 }
 
 export const VendorsDashboard = ({ onActivityLogged }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
+  const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
   const [vendors,    setVendors]    = useState([]);
   const [view,       setView]       = useState('list');
   const [vStep,      setVStep]      = useState(1);

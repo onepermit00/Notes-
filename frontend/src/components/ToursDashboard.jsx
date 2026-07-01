@@ -1,17 +1,10 @@
 import React, { useState } from 'react';
 import { Plus, Phone, Mail, Building2, Users, ChevronRight, FileText, MapPin, CalendarCheck, Monitor, Home, Star, HelpCircle, Check, Maximize2, LayoutGrid } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
-const BG     = '#FFFFFF';
-const CARD   = '#FFFFFF';
-const CARD2  = '#F7F7F7';
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
 const ORANGE = '#FF9500';
-const BORDER = '#EBEBEB';
-const TEXT   = '#222222';
-const MUTED  = '#717171';
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const gc     = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
 
 export const LEASING_AGENTS = [
   { id: 'sarah',  name: 'Sarah Mitchell', title: 'Leasing Consultant',     initials: 'SM', color: BLUE   },
@@ -107,6 +100,9 @@ function SelectionCard({ id, Icon, desc, selected, onSelect }) {
 }
 
 export const ToursDashboard = ({ onActivityLogged }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
+  const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
   const [tours, setTours] = useState([]);
   const [view,  setView]  = useState('main');
   const [tStep, setTStep] = useState(1);

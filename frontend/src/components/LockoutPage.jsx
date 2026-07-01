@@ -1,16 +1,9 @@
 import React, { useState } from 'react';
 import { Lock, Key, Clock, FileText, AlertTriangle, Check, Home, Wrench, CreditCard, UserCheck, Phone, Building2, HelpCircle, Wifi } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
-const BG     = '#FFFFFF';
-const CARD   = '#FFFFFF';
-const CARD2  = '#F7F7F7';
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
-const BORDER = '#EBEBEB';
-const TEXT   = '#222222';
-const MUTED  = '#717171';
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const gc     = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
 
 const REASON_CONFIG = [
   { id: 'Lost Key',              Icon: Key,        desc: 'Key cannot be located'                 },
@@ -106,6 +99,9 @@ function SelectionCard({ id, Icon, desc, selected, onSelect }) {
 }
 
 export const LockoutPage = ({ onActivityLogged }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
+  const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
   const [log,   setLog]   = useState([]);
   const [view,  setView]  = useState('main');
   const [lStep, setLStep] = useState(1);

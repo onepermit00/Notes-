@@ -1,18 +1,11 @@
 import React, { useState } from 'react';
 import { Package, Plus, Minus, Check, Truck, RotateCcw, ChevronRight, FileText, ArrowLeft, Camera, MessageCircle, X, Mail, ShoppingBag, Globe, UtensilsCrossed, Box, User, Users } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
-const BG     = '#FFFFFF';
-const CARD   = '#FFFFFF';
-const CARD2  = '#F7F7F7';
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
 const RED    = '#FF3B30';
 const ORANGE = '#FF9500';
-const BORDER = '#EBEBEB';
-const TEXT   = '#222222';
-const MUTED  = '#717171';
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const gc     = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
 
 const CARRIER_CONFIG = [
   { id: 'UPS',           Icon: Package,         desc: 'Standard parcel and express shipping'          },
@@ -131,6 +124,9 @@ function CarrierCard({ cfg, selected, onSelect, accent = BLUE }) {
 }
 
 export const PackageDashboard = ({ onActivityLogged }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
+  const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
   const [subTab,      setSubTab]      = useState('deliveries');
   const [view,        setView]        = useState('main');
   const [deliveries,  setDeliveries]  = useState([]);

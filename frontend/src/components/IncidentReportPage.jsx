@@ -1,46 +1,15 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   Camera, AlertTriangle, Clock, Check,
   ChevronRight, Plus, Trash2, Shield,
   HelpCircle, FileText, Car, Volume2, Package,
   Wrench, Users, Zap
 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const BG     = '#FFFFFF';
-const CARD   = '#FFFFFF';
-const CARD2  = '#F7F7F7';
-const TEXT   = '#222222';
-const MUTED  = '#717171';
 const BLUE   = '#FF385C';
 const RED    = '#FF3B30';
 const GREEN  = '#34C759';
-const BORDER = '#EBEBEB';
-const SHADOW = '0 2px 12px rgba(0,0,0,0.08)';
-
-const glass = () => ({
-  background: CARD,
-  border: `1px solid ${BORDER}`,
-});
-
-const glassCard = {
-  background: CARD,
-  border: `1px solid ${BORDER}`,
-  borderRadius: 16,
-};
-
-const baseInput = {
-  width: '100%',
-  padding: '14px 16px',
-  background: CARD2,
-  borderRadius: 12,
-  color: TEXT,
-  outline: 'none',
-  fontSize: 16,
-  fontFamily: INTER,
-  resize: 'none',
-  boxSizing: 'border-box',
-};
 
 const INCIDENT_TYPES = [
   { id: 'noise',        label: 'Noise Complaint',       icon: Volume2,       description: 'Noise disturbance, loud music, or after-hours party' },
@@ -61,6 +30,33 @@ const SEVERITY_LEVELS = [
 ];
 
 export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', incidents = [], onAddIncident }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
+
+  const glass = () => ({
+    background: CARD,
+    border: `1px solid ${BORDER}`,
+  });
+
+  const glassCard = {
+    background: CARD,
+    border: `1px solid ${BORDER}`,
+    borderRadius: 16,
+  };
+
+  const baseInput = {
+    width: '100%',
+    padding: '14px 16px',
+    background: CARD2,
+    borderRadius: 12,
+    color: TEXT,
+    outline: 'none',
+    fontSize: 16,
+    fontFamily: INTER,
+    resize: 'none',
+    boxSizing: 'border-box',
+  };
+
   const [activeView,       setActiveView]       = useState('history');
   const [step,             setStep]             = useState(1);
   const [incidentType,     setIncidentType]     = useState(null);

@@ -1,23 +1,9 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const BG     = '#FFFFFF';
-const CARD   = '#FFFFFF';
-const CARD2  = '#F7F7F7';
-const TEXT   = '#222222';
-const MUTED  = '#717171';
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
-const BORDER = '#EBEBEB';
-const SHADOW = '0 2px 12px rgba(0,0,0,0.08)';
-
-const glassCard = (accent) => ({
-  background: CARD,
-  border: `1px solid ${accent ? accent + '30' : BORDER}`,
-  boxShadow: SHADOW,
-  borderRadius: 16,
-});
 
 const SHIFTS = [
   { date: 'Dec 15, 2024', hours: '8:00 AM - 4:00 PM',  status: 'completed', tasks: 12, completed: 12 },
@@ -28,6 +14,16 @@ const SHIFTS = [
 ];
 
 export const HistoryPage = ({ onBack }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
+
+  const glassCard = (accent) => ({
+    background: CARD,
+    border: `1px solid ${accent ? accent + '30' : BORDER}`,
+    boxShadow: SHADOW,
+    borderRadius: 16,
+  });
+
   const [filter, setFilter] = useState('all');
 
   const filteredShifts = filter === 'all' ? SHIFTS : SHIFTS.filter(s => s.status === filter);
@@ -117,4 +113,3 @@ export const HistoryPage = ({ onBack }) => {
 };
 
 export default HistoryPage;
-

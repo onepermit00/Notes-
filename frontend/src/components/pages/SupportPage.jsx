@@ -1,30 +1,28 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { ArrowLeft, MessageCircle, Phone, Mail, FileText, ChevronRight, ChevronDown, ExternalLink } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const BG     = '#F2F2F7';
-const CARD   = '#FFFFFF';
-const MUTED  = '#8E8E93';
 const GREEN  = '#2E9E5B';
-const BORDER = 'rgba(0,0,0,0.09)';
-const SHADOW = '0 2px 10px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.05)';
-
-const glassCard = {
-  background: CARD,
-  border: `1px solid ${BORDER}`,
-  boxShadow: SHADOW,
-  borderRadius: 16,
-  overflow: 'hidden',
-};
-
-const glassIcon = {
-  width: 44, height: 44, borderRadius: 12,
-  background: '#F2F2F7',
-  border: `1px solid ${BORDER}`,
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-};
 
 export const SupportPage = ({ onBack, role = 'caregiver' }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, MUTED, BORDER, SHADOW, TEXT, INTER } = colors;
+
+  const glassCard = {
+    background: CARD,
+    border: `1px solid ${BORDER}`,
+    boxShadow: SHADOW,
+    borderRadius: 16,
+    overflow: 'hidden',
+  };
+
+  const glassIcon = {
+    width: 44, height: 44, borderRadius: 12,
+    background: BG,
+    border: `1px solid ${BORDER}`,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  };
+
   const [expandedFaq, setExpandedFaq] = useState(null);
 
   const contactOptions = [
@@ -65,7 +63,7 @@ export const SupportPage = ({ onBack, role = 'caregiver' }) => {
         <button onClick={onBack} data-testid="support-back-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', color: MUTED, display: 'flex' }}>
           <ArrowLeft size={22} />
         </button>
-        <h1 style={{ fontFamily: INTER, fontSize: '1.4rem', color: '#222222', letterSpacing: '-0.02em' }}>Help & Support</h1>
+        <h1 style={{ fontFamily: INTER, fontSize: '1.4rem', color: TEXT, letterSpacing: '-0.02em' }}>Help & Support</h1>
       </div>
 
       <div style={{ padding: '20px 20px 80px', display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -83,7 +81,7 @@ export const SupportPage = ({ onBack, role = 'caregiver' }) => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={glassIcon}><opt.icon size={20} color={MUTED} /></div>
                   <div style={{ textAlign: 'left' }}>
-                    <p style={{ fontSize: 15, fontWeight: 600, color: '#222222', marginBottom: 2 }}>{opt.label}</p>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: TEXT, marginBottom: 2 }}>{opt.label}</p>
                     <p style={{ fontSize: 12, color: MUTED }}>{opt.desc}</p>
                   </div>
                 </div>
@@ -104,7 +102,7 @@ export const SupportPage = ({ onBack, role = 'caregiver' }) => {
                   data-testid={`faq-item-${i}`}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer' }}
                 >
-                  <span style={{ fontSize: 14, fontWeight: 500, color: '#222222', textAlign: 'left', flex: 1, paddingRight: 12, lineHeight: 1.4 }}>{faq.question}</span>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: TEXT, textAlign: 'left', flex: 1, paddingRight: 12, lineHeight: 1.4 }}>{faq.question}</span>
                   {expandedFaq === i
                     ? <ChevronDown size={18} color={GREEN} style={{ flexShrink: 0 }} />
                     : <ChevronRight size={18} color={MUTED} style={{ flexShrink: 0 }} />
@@ -133,7 +131,7 @@ export const SupportPage = ({ onBack, role = 'caregiver' }) => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={glassIcon}><FileText size={20} color={MUTED} /></div>
-                  <span style={{ fontSize: 15, fontWeight: 500, color: '#222222' }}>{r.label}</span>
+                  <span style={{ fontSize: 15, fontWeight: 500, color: TEXT }}>{r.label}</span>
                 </div>
                 <ExternalLink size={18} color={MUTED} />
               </button>
@@ -146,4 +144,3 @@ export const SupportPage = ({ onBack, role = 'caregiver' }) => {
 };
 
 export default SupportPage;
-

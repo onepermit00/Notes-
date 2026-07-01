@@ -2,24 +2,22 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Send, Loader2, Heart, ClipboardList, ShieldCheck } from 'lucide-react';
 import { CareAssistantIcon } from './CareAssistantIcon';
 import { sendChatMessage, getGreeting } from '../services/geminiService';
+import { useTheme } from '../context/ThemeContext';
 
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const BG     = '#FFFFFF';
-const CARD   = '#FFFFFF';
-const MUTED  = '#717171';
 const GREEN  = '#2E9E5B';
 const BLUE   = '#FF385C';
-const BORDER = '#EBEBEB';
-const SHADOW = '0 2px 12px rgba(0,0,0,0.08)';
-
-const glassCard = {
-  background: CARD,
-  border: `1px solid ${BORDER}`,
-  boxShadow: SHADOW,
-  borderRadius: 16,
-};
 
 export const AICopilot = ({ isOpen, onClose, role = 'caregiver', patientName = 'the patient' }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, MUTED, BORDER, SHADOW, INTER } = colors;
+
+  const glassCard = {
+    background: CARD,
+    border: `1px solid ${BORDER}`,
+    boxShadow: SHADOW,
+    borderRadius: 16,
+  };
+
   const [messages, setMessages]     = useState([]);
   const [input, setInput]           = useState('');
   const [isLoading, setIsLoading]   = useState(false);
@@ -107,7 +105,7 @@ export const AICopilot = ({ isOpen, onClose, role = 'caregiver', patientName = '
             </div>
 
             {/* Title */}
-            <h1 style={{ fontFamily: INTER, fontSize: '1.6rem', fontWeight: 700, color: '#1C1C1E', textAlign: 'center', letterSpacing: '-0.01em', lineHeight: 1.2, marginBottom: 32 }}>
+            <h1 style={{ fontFamily: INTER, fontSize: '1.6rem', fontWeight: 700, color: colors.TEXT, textAlign: 'center', letterSpacing: '-0.01em', lineHeight: 1.2, marginBottom: 32 }}>
               Concierge AI Assistant
             </h1>
 
@@ -119,7 +117,7 @@ export const AICopilot = ({ isOpen, onClose, role = 'caregiver', patientName = '
                     <f.icon size={22} color={BLUE} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1C1C1E', marginBottom: 4 }}>{f.title}</h3>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: colors.TEXT, marginBottom: 4 }}>{f.title}</h3>
                     <p style={{ fontSize: 14, color: MUTED, lineHeight: 1.6 }}>{f.description}</p>
                   </div>
                 </div>
@@ -157,7 +155,7 @@ export const AICopilot = ({ isOpen, onClose, role = 'caregiver', patientName = '
           </button>
           <CareAssistantIcon size={38} />
           <div>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1C1C1E', lineHeight: 1.2 }}>Care Assistant</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: colors.TEXT, lineHeight: 1.2 }}>Care Assistant</h2>
             <p style={{ fontSize: 11, color: MUTED, fontWeight: 600 }}>Powered by AI</p>
           </div>
         </div>
@@ -179,7 +177,7 @@ export const AICopilot = ({ isOpen, onClose, role = 'caregiver', patientName = '
                   ? { background: BLUE, boxShadow: `0 4px 16px ${BLUE}40` }
                   : { ...glassCard })
               }}>
-                <p style={{ fontSize: 14, color: msg.role === 'user' ? 'white' : '#1C1C1E', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{msg.content}</p>
+                <p style={{ fontSize: 14, color: msg.role === 'user' ? 'white' : colors.TEXT, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{msg.content}</p>
               </div>
             </div>
           ))}
@@ -207,13 +205,13 @@ export const AICopilot = ({ isOpen, onClose, role = 'caregiver', patientName = '
               onBlur={() => setIsFocused(false)}
               placeholder="Ask about care..."
               data-testid="copilot-input"
-              style={{ flex: 1, padding: '12px 16px', background: '#F7F7F7', border: `1.5px solid ${isFocused ? BLUE : BORDER}`, borderRadius: 12, color: '#1C1C1E', fontFamily: INTER, fontSize: 15, outline: 'none', transition: 'border-color 200ms' }}
+              style={{ flex: 1, padding: '12px 16px', background: colors.CARD2, border: `1.5px solid ${isFocused ? BLUE : BORDER}`, borderRadius: 12, color: colors.TEXT, fontFamily: INTER, fontSize: 15, outline: 'none', transition: 'border-color 200ms' }}
             />
             <button
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
               data-testid="copilot-send"
-              style={{ width: 46, height: 46, background: (input.trim() && !isLoading) ? BLUE : '#F7F7F7', border: `1px solid ${BORDER}`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: (input.trim() && !isLoading) ? 'pointer' : 'not-allowed', flexShrink: 0, transition: 'background 200ms', opacity: (!input.trim() || isLoading) ? 0.5 : 1 }}
+              style={{ width: 46, height: 46, background: (input.trim() && !isLoading) ? BLUE : colors.CARD2, border: `1px solid ${BORDER}`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: (input.trim() && !isLoading) ? 'pointer' : 'not-allowed', flexShrink: 0, transition: 'background 200ms', opacity: (!input.trim() || isLoading) ? 0.5 : 1 }}
             >
               <Send size={18} color={(input.trim() && !isLoading) ? 'white' : MUTED} />
             </button>

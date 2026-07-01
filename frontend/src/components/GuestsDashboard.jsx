@@ -1,25 +1,12 @@
 import React, { useState } from 'react';
 import { UserCheck, MessageCircle, Clock, Check, LogOut, User, UtensilsCrossed, Package, Wrench, Truck, HelpCircle } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const BG     = '#FFFFFF';
-const CARD   = '#FFFFFF';
-const CARD2  = '#F7F7F7';
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
 const ORANGE = '#FF9500';
-const BORDER = '#EBEBEB';
-const TEXT   = '#222222';
-const MUTED  = '#717171';
-const SHADOW = '0 2px 12px rgba(0,0,0,0.08)';
 
 const now = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-
-const STATUS_STYLES = {
-  waiting:  { bg: 'rgba(255,149,0,0.10)',   color: ORANGE, label: 'Waiting'  },
-  notified: { bg: 'rgba(255,56,92,0.10)',   color: BLUE,   label: 'Notified' },
-  departed: { bg: 'rgba(113,113,113,0.10)', color: MUTED,  label: 'Departed' },
-};
 
 const PURPOSE_CONFIG = [
   { id: 'Personal Visit',        Icon: User,            desc: 'Friend, family, or social visit'         },
@@ -77,6 +64,13 @@ function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continue
 }
 
 export const GuestsDashboard = ({ onActivityLogged }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
+  const STATUS_STYLES = {
+    waiting:  { bg: 'rgba(255,149,0,0.10)',   color: ORANGE, label: 'Waiting'  },
+    notified: { bg: 'rgba(255,56,92,0.10)',   color: BLUE,   label: 'Notified' },
+    departed: { bg: 'rgba(113,113,113,0.10)', color: MUTED,  label: 'Departed' },
+  };
   const [guests,   setGuests]   = useState([]);
   const [view,     setView]     = useState('list');
   const [gStep,    setGStep]    = useState(1);

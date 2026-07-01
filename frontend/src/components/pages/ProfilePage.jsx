@@ -1,23 +1,19 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Camera, Star, Award, CheckCircle, Check } from 'lucide-react';
 import { UserRole } from '../../types';
-
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const BG     = '#FFFFFF';
-const CARD   = '#FFFFFF';
-const TEXT   = '#222222';
-const MUTED  = '#717171';
-const BORDER = '#EBEBEB';
-const SHADOW = '0 2px 12px rgba(0,0,0,0.08)';
-
-const glassCard = {
-  background: CARD,
-  border: `1px solid ${BORDER}`,
-  boxShadow: SHADOW,
-  borderRadius: 16,
-};
+import { useTheme } from '../../context/ThemeContext';
 
 export const ProfilePage = ({ onBack, role }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
+
+  const glassCard = {
+    background: CARD,
+    border: `1px solid ${BORDER}`,
+    boxShadow: SHADOW,
+    borderRadius: 16,
+  };
+
   const isCaregiver = role === UserRole.CAREGIVER;
 
   const [profile, setProfile] = useState({

@@ -1,15 +1,12 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Send, Search, Users, Image, CheckCheck } from 'lucide-react';
 import { UserRole } from '../../types';
-
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const BG     = '#F2F2F7';
-const CARD   = '#FFFFFF';
-const MUTED  = '#8E8E93';
-const BORDER = 'rgba(0,0,0,0.09)';
-const SHADOW = '0 2px 10px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.05)';
+import { useTheme } from '../../context/ThemeContext';
 
 export const ChatPage = ({ role }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, MUTED, BORDER, SHADOW, TEXT, INTER } = colors;
+
   const [activeConversation, setActiveConversation] = useState(null);
   const [message, setMessage] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
@@ -84,7 +81,7 @@ export const ChatPage = ({ role }) => {
             <img src={conv?.avatar} alt={conv?.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
           )}
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 16, fontWeight: 700, color: '#222222', lineHeight: 1.2 }}>{displayName}</p>
+            <p style={{ fontSize: 16, fontWeight: 700, color: TEXT, lineHeight: 1.2 }}>{displayName}</p>
             {conv?.online && <p style={{ fontSize: 12, color: accentColor, marginTop: 2 }}>Online</p>}
           </div>
         </div>
@@ -104,11 +101,11 @@ export const ChatPage = ({ role }) => {
               }}>
                 {msg.hasImage && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.08)', borderRadius: 10, padding: '8px 12px', marginBottom: 8 }}>
-                    <Image size={16} color={msg.sender === 'me' ? 'white' : '#222222'} />
-                    <span style={{ fontSize: 13, color: msg.sender === 'me' ? 'white' : '#222222' }}>Photo attached</span>
+                    <Image size={16} color={msg.sender === 'me' ? 'white' : TEXT} />
+                    <span style={{ fontSize: 13, color: msg.sender === 'me' ? 'white' : TEXT }}>Photo attached</span>
                   </div>
                 )}
-                <p style={{ fontSize: 15, color: msg.sender === 'me' ? 'white' : '#222222', lineHeight: 1.45 }}>{msg.text}</p>
+                <p style={{ fontSize: 15, color: msg.sender === 'me' ? 'white' : TEXT, lineHeight: 1.45 }}>{msg.text}</p>
                 {msg.sender === 'me' ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 4 }}>
                     <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>{msg.time}</span>
@@ -135,13 +132,13 @@ export const ChatPage = ({ role }) => {
               onBlur={() => setInputFocused(false)}
               placeholder="Type a message..."
               data-testid="chat-input"
-              style={{ flex: 1, padding: '12px 18px', background: '#F2F2F7', border: `1.5px solid ${(inputFocused || message.trim()) ? accentColor : BORDER}`, borderRadius: 999, color: '#222222', fontFamily: INTER, fontSize: 15, outline: 'none', transition: 'border-color 200ms' }}
+              style={{ flex: 1, padding: '12px 18px', background: BG, border: `1.5px solid ${(inputFocused || message.trim()) ? accentColor : BORDER}`, borderRadius: 999, color: TEXT, fontFamily: INTER, fontSize: 15, outline: 'none', transition: 'border-color 200ms' }}
             />
             <button
               onClick={handleSend}
               data-testid="chat-send-btn"
               style={{ width: 48, height: 48, borderRadius: 14, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'background 200ms',
-                background: message.trim() ? accentColor : '#F2F2F7',
+                background: message.trim() ? accentColor : BG,
               }}
             >
               <Send size={18} color={message.trim() ? 'white' : MUTED} />
@@ -157,7 +154,7 @@ export const ChatPage = ({ role }) => {
     <div data-testid="messages-list-view" style={{ flex: 1, overflowY: 'auto', background: BG, paddingBottom: 100, fontFamily: INTER }}>
       {/* Header */}
       <div style={{ padding: '20px 20px 12px' }}>
-        <h1 style={{ fontFamily: INTER, fontSize: '1.8rem', color: '#222222', letterSpacing: '-0.02em' }}>Messages</h1>
+        <h1 style={{ fontFamily: INTER, fontSize: '1.8rem', color: TEXT, letterSpacing: '-0.02em' }}>Messages</h1>
       </div>
 
       {/* Search */}
@@ -170,7 +167,7 @@ export const ChatPage = ({ role }) => {
             onChange={(e) => setSearchText(e.target.value)}
             placeholder="Search conversations..."
             data-testid="search-conversations"
-            style={{ flex: 1, background: 'transparent', border: 'none', color: '#222222', fontFamily: INTER, fontSize: 15, outline: 'none' }}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: TEXT, fontFamily: INTER, fontSize: 15, outline: 'none' }}
           />
         </div>
       </div>
@@ -200,7 +197,7 @@ export const ChatPage = ({ role }) => {
 
             {/* Info */}
             <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-              <p style={{ fontSize: 16, fontWeight: 600, color: '#222222', lineHeight: 1.2 }}>
+              <p style={{ fontSize: 16, fontWeight: 600, color: TEXT, lineHeight: 1.2 }}>
                 {conv.role ? `${conv.name} (${conv.role})` : conv.name}
               </p>
               <p style={{ fontSize: 13, color: MUTED, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.lastMessage}</p>
@@ -223,4 +220,3 @@ export const ChatPage = ({ role }) => {
 };
 
 export default ChatPage;
-

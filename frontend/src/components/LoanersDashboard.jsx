@@ -1,17 +1,10 @@
 import React, { useState } from 'react';
 import { ShoppingCart, Archive, Key, Flame, AlertTriangle, Check, FileText, ChevronRight, RotateCcw } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
-const BG     = '#FFFFFF';
-const CARD   = '#FFFFFF';
-const CARD2  = '#F7F7F7';
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
 const ORANGE = '#FF9500';
-const BORDER = '#EBEBEB';
-const TEXT   = '#222222';
-const MUTED  = '#717171';
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
-const gc     = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
 
 const LOANER_INIT = [
   { id: 'cart-1',  name: 'Luggage Cart #1', desc: 'Front lobby, large rolling cart',  Icon: ShoppingCart, checkedOut: false, resident: null, unit: null, checkoutTime: null },
@@ -70,6 +63,9 @@ function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continue
 }
 
 export const LoanersDashboard = ({ onActivityLogged }) => {
+  const { colors } = useTheme();
+  const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
+  const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
   const [loaners,      setLoaners]      = useState(LOANER_INIT);
   const [subTab,       setSubTab]       = useState('items');
   const [view,         setView]         = useState('main');
