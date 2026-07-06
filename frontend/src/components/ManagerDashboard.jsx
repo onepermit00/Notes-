@@ -323,6 +323,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [uploadedSOPs,     setUploadedSOPs]     = useState([]);
   const [sopUploadOpen,    setSopUploadOpen]    = useState(false);
   const [uploadForm,       setUploadForm]       = useState({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
+  const [fullscreenDoc,    setFullscreenDoc]    = useState(null);
   const uploadFileRef = useRef(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
@@ -1894,17 +1895,30 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   {open && (
                     <div style={{ borderTop:`1px solid ${BORDER}` }}>
                       {isUploaded ? (
-                        /* Document viewer */
+                        /* Document thumbnail — tap to go fullscreen */
                         <div style={{ padding:'16px 20px 20px' }}>
-                          {sop.fileType === 'image' ? (
-                            <img src={sop.dataURL} alt={sop.title}
-                              style={{ width:'100%', borderRadius:10, display:'block', maxHeight:600, objectFit:'contain', background:CARD2 }} />
-                          ) : (
-                            <iframe src={sop.dataURL} title={sop.title}
-                              style={{ width:'100%', height:500, borderRadius:10, border:`1px solid ${BORDER}`, display:'block' }} />
-                          )}
-                          <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:12, padding:'10px 14px', background:CARD2, borderRadius:10 }}>
-                            <Eye size={15} color={MUTED} />
+                          <button onClick={e => { e.stopPropagation(); setFullscreenDoc(sop); }}
+                            style={{ width:'100%', background:'none', border:'none', padding:0, cursor:'pointer', display:'block' }}>
+                            <div style={{ position:'relative', borderRadius:12, overflow:'hidden', border:`1px solid ${BORDER}` }}>
+                              {sop.fileType === 'image' ? (
+                                <img src={sop.dataURL} alt={sop.title}
+                                  style={{ width:'100%', display:'block', maxHeight:220, objectFit:'cover', background:CARD2 }} />
+                              ) : (
+                                <iframe src={sop.dataURL} title={sop.title}
+                                  style={{ width:'100%', height:200, border:'none', display:'block', pointerEvents:'none' }}
+                                  tabIndex={-1} />
+                              )}
+                              {/* Tap-to-fullscreen overlay */}
+                              <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.30)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8 }}>
+                                <div style={{ width:52, height:52, borderRadius:'50%', background:'rgba(255,255,255,0.95)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.25)' }}>
+                                  <Eye size={22} color="#111" />
+                                </div>
+                                <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', letterSpacing:'-0.01em' }}>Tap to view full screen</span>
+                              </div>
+                            </div>
+                          </button>
+                          <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, padding:'9px 13px', background:CARD2, borderRadius:10 }}>
+                            <Eye size={14} color={MUTED} />
                             <span style={{ fontFamily:INTER, fontSize:12, color:MUTED, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sop.fileName}</span>
                           </div>
                         </div>
@@ -2662,6 +2676,45 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         )}
       </AnimatePresence>
 
+      {/* ── Fullscreen document viewer ────────────────────────────────────────── */}
+      {fullscreenDoc && (
+        <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.96)', display:'flex', flexDirection:'column' }}
+          onClick={() => setFullscreenDoc(null)}>
+
+          {/* Header bar */}
+          <div style={{ flexShrink:0, display:'flex', alignItems:'center', gap:14, padding:'14px 20px', background:'rgba(0,0,0,0.7)', backdropFilter:'blur(10px)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.45)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:2 }}>{fullscreenDoc.category}</div>
+              <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', lineHeight:1.2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{fullscreenDoc.title}</div>
+            </div>
+            <button onClick={() => setFullscreenDoc(null)}
+              style={{ width:40, height:40, borderRadius:12, background:'rgba(255,255,255,0.12)', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+              <X size={20} color="white" />
+            </button>
+          </div>
+
+          {/* Document */}
+          <div style={{ flex:1, minHeight:0, display:'flex', alignItems:'center', justifyContent:'center', padding:'12px', overflowY:'auto' }}
+            onClick={e => e.stopPropagation()}>
+            {fullscreenDoc.fileType === 'image' ? (
+              <img src={fullscreenDoc.dataURL} alt={fullscreenDoc.title}
+                style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', borderRadius:8, display:'block' }} />
+            ) : (
+              <iframe src={fullscreenDoc.dataURL} title={fullscreenDoc.title}
+                style={{ width:'100%', height:'100%', border:'none', borderRadius:8, display:'block', background:'white' }} />
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ flexShrink:0, padding:'12px 20px 24px', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}
+            onClick={e => e.stopPropagation()}>
+            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:280 }}>{fullscreenDoc.fileName}</span>
+            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.20)' }}>·</span>
+            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)' }}>Tap outside to close</span>
+          </div>
+        </div>
+      )}
 
     </div>
   );
