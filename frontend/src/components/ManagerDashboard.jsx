@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home, Calendar, Users, BookOpen, Settings,
@@ -7,6 +7,7 @@ import {
   HelpCircle, AlertTriangle, Truck,
   LogOut, Phone, Star, Building2, MapPin, ChevronDown,
   CheckCircle, Send, Mail, UserPlus, Archive, ArrowUpDown, Menu, Search, Clock, Bell, Sliders, Lock, ShoppingCart, UserCheck, KeyRound, Sun, Moon,
+  Upload, FileText, Eye, Image,
 } from 'lucide-react';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
@@ -319,6 +320,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [customSOPs,       setCustomSOPs]       = useState([]);
   const [sopFormOpen,      setSopFormOpen]      = useState(false);
   const [sopForm,          setSopForm]          = useState({ category:'', customCategory:'', title:'', content:'' });
+  const [uploadedSOPs,     setUploadedSOPs]     = useState([]);
+  const [sopUploadOpen,    setSopUploadOpen]    = useState(false);
+  const [uploadForm,       setUploadForm]       = useState({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
+  const uploadFileRef = useRef(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
   const [notifMgr,         setNotifMgr]         = useState({ push:true, email:true, shift:true, incident:true });
@@ -377,7 +382,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     loadShift();
     const timer = setInterval(loadShift, 30000);
     return () => clearInterval(timer);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line
 
   // Sync authUser into editInfoMgr
   useEffect(() => {
@@ -1587,9 +1592,11 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     'Move-In / Move-Out':  Truck,
     'Emergency':           AlertTriangle,
     'Package Management':  Package,
+    '__uploaded_image__':  Image,
+    '__uploaded_pdf__':    FileText,
   };
 
-  const ALL_SOPS = [...BUILDING_SOPS, ...customSOPs];
+  const ALL_SOPS = [...BUILDING_SOPS, ...customSOPs, ...uploadedSOPs];
   const SOP_CATEGORIES = ['Amenity Hours','Guest Policy','Noise & Quiet Hours','Security','Move-In / Move-Out','Emergency','Package Management','Other'];
 
   const saveSOP = () => {
@@ -1598,6 +1605,34 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     setCustomSOPs(p => [...p, { id:`custom-${Date.now()}`, category:cat, title:sopForm.title.trim(), content:sopForm.content.trim(), _custom:true }]);
     setSopForm({ category:'', customCategory:'', title:'', content:'' });
     setSopFormOpen(false);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fileType = file.type.startsWith('image/') ? 'image' : 'pdf';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setUploadForm(p => ({ ...p, fileName: file.name, fileType, dataURL: ev.target.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveUploadedSOP = () => {
+    const cat = uploadForm.category === 'Other' ? (uploadForm.customCategory.trim() || 'Other') : uploadForm.category;
+    if (!cat || !uploadForm.title.trim() || !uploadForm.dataURL) return;
+    setUploadedSOPs(p => [...p, {
+      id: `upload-${Date.now()}`,
+      category: cat,
+      title: uploadForm.title.trim(),
+      fileName: uploadForm.fileName,
+      fileType: uploadForm.fileType,
+      dataURL: uploadForm.dataURL,
+      _uploaded: true,
+    }]);
+    setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
+    setSopUploadOpen(false);
+    if (uploadFileRef.current) uploadFileRef.current.value = '';
   };
 
   const SOP_COLOR = {
@@ -1616,7 +1651,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       {sopFormOpen ? (
         /* ── Inline Add SOP form ── */
         <>
-          {/* Form header */}
           <div style={{ flexShrink:0, marginBottom:24 }}>
             <button onClick={() => { setSopFormOpen(false); setSopForm({ category:'', customCategory:'', title:'', content:'' }); }}
               style={{ display:'inline-flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', padding:0, marginBottom:16 }}>
@@ -1626,10 +1660,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>What procedure are you adding?</h3>
           </div>
 
-          {/* Scrollable fields */}
           <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:20, paddingBottom:16 }}>
-
-            {/* Category */}
             <div>
               <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Category *</label>
               <select value={sopForm.category}
@@ -1639,7 +1670,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 {SOP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-
             {sopForm.category === 'Other' && (
               <div>
                 <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Custom Category Name *</label>
@@ -1648,16 +1678,12 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${sopForm.customCategory?BLUE:BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', transition:'border-color 150ms' }} />
               </div>
             )}
-
-            {/* Title */}
             <div>
               <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Title *</label>
               <input type="text" placeholder="e.g. Pool & Spa Rules" value={sopForm.title}
                 onChange={e => setSopForm(p => ({ ...p, title:e.target.value }))}
                 style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${sopForm.title?BLUE:BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', transition:'border-color 150ms' }} />
             </div>
-
-            {/* Content */}
             <div>
               <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Procedure Content *</label>
               <textarea placeholder="Write the step-by-step procedure here…" value={sopForm.content}
@@ -1666,10 +1692,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${sopForm.content?BLUE:BORDER}`, fontFamily:INTER, fontSize:15, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', resize:'none', lineHeight:1.75, transition:'border-color 150ms' }} />
               <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'6px 0 0' }}>Be specific — include times, names, locations, and steps where relevant.</p>
             </div>
-
           </div>
 
-          {/* Action buttons */}
           <div style={{ flexShrink:0, display:'flex', gap:12, paddingTop:12 }}>
             <button onClick={() => { setSopFormOpen(false); setSopForm({ category:'', customCategory:'', title:'', content:'' }); }}
               style={{ flex:1, padding:'16px 0', borderRadius:14, border:`1px solid ${BORDER}`, background:CARD, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
@@ -1686,21 +1710,130 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             })()}
           </div>
         </>
+
+      ) : sopUploadOpen ? (
+        /* ── Upload Document form ── */
+        <>
+          <div style={{ flexShrink:0, marginBottom:24 }}>
+            <button onClick={() => { setSopUploadOpen(false); setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' }); if(uploadFileRef.current) uploadFileRef.current.value=''; }}
+              style={{ display:'inline-flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', padding:0, marginBottom:16 }}>
+              <ChevronLeft size={16} color={MUTED} />
+              <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:MUTED }}>Back to SOPs</span>
+            </button>
+            <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Upload a Binder Document</h3>
+            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, marginTop:6 }}>Scan pages, take photos, or upload PDF files from your building binder.</p>
+          </div>
+
+          <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:20, paddingBottom:16 }}>
+
+            {/* File picker */}
+            <div>
+              <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Document File *</label>
+              <input ref={uploadFileRef} type="file" accept="image/*,.pdf,application/pdf" onChange={handleFileSelect}
+                style={{ display:'none' }} id="sop-file-input" />
+              <label htmlFor="sop-file-input"
+                style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, padding:'28px 20px', borderRadius:14, border:`2px dashed ${uploadForm.dataURL ? BLUE : BORDER}`, background: uploadForm.dataURL ? `rgba(255,56,92,0.04)` : CARD2, cursor:'pointer', transition:'all 150ms' }}>
+                {uploadForm.dataURL ? (
+                  <>
+                    {uploadForm.fileType === 'image' ? (
+                      <img src={uploadForm.dataURL} alt="preview" style={{ maxHeight:120, maxWidth:'100%', borderRadius:8, objectFit:'contain' }} />
+                    ) : (
+                      <div style={{ width:56, height:56, borderRadius:14, background:'rgba(255,56,92,0.10)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <FileText size={28} color={BLUE} />
+                      </div>
+                    )}
+                    <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:BLUE, textAlign:'center' }}>{uploadForm.fileName}</span>
+                    <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>Tap to change file</span>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ width:56, height:56, borderRadius:14, background:CARD, border:`1px solid ${BORDER}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <Upload size={24} color={MUTED} />
+                    </div>
+                    <div style={{ textAlign:'center' }}>
+                      <p style={{ fontFamily:INTER, fontSize:15, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>Tap to select file</p>
+                      <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>PDF, JPG, PNG — scanned pages or photos of your binder</p>
+                    </div>
+                  </>
+                )}
+              </label>
+            </div>
+
+            {/* Category */}
+            <div>
+              <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Category *</label>
+              <select value={uploadForm.category}
+                onChange={e => setUploadForm(p => ({ ...p, category:e.target.value, customCategory:'' }))}
+                style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${uploadForm.category ? BLUE : BORDER}`, fontFamily:INTER, fontSize:16, color:uploadForm.category?TEXT:MUTED, background:CARD2, outline:'none', boxSizing:'border-box', cursor:'pointer', transition:'border-color 150ms' }}>
+                <option value="" disabled>Select a category…</option>
+                {SOP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            {uploadForm.category === 'Other' && (
+              <div>
+                <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Custom Category Name *</label>
+                <input type="text" placeholder="e.g. Parking Policy" value={uploadForm.customCategory}
+                  onChange={e => setUploadForm(p => ({ ...p, customCategory:e.target.value }))}
+                  style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${uploadForm.customCategory?BLUE:BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', transition:'border-color 150ms' }} />
+              </div>
+            )}
+
+            {/* Title */}
+            <div>
+              <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Document Title *</label>
+              <input type="text" placeholder="e.g. Building Rules & Regulations" value={uploadForm.title}
+                onChange={e => setUploadForm(p => ({ ...p, title:e.target.value }))}
+                style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${uploadForm.title?BLUE:BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', transition:'border-color 150ms' }} />
+            </div>
+          </div>
+
+          <div style={{ flexShrink:0, display:'flex', gap:12, paddingTop:12 }}>
+            <button onClick={() => { setSopUploadOpen(false); setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' }); if(uploadFileRef.current) uploadFileRef.current.value=''; }}
+              style={{ flex:1, padding:'16px 0', borderRadius:14, border:`1px solid ${BORDER}`, background:CARD, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
+              Cancel
+            </button>
+            {(() => {
+              const valid = uploadForm.category && uploadForm.title.trim() && uploadForm.dataURL;
+              return (
+                <button onClick={saveUploadedSOP} disabled={!valid}
+                  style={{ flex:2, padding:'16px 0', borderRadius:14, border:'none', background:valid?BLUE:CARD2, fontFamily:INTER, fontSize:16, fontWeight:700, color:valid?'white':MUTED, cursor:valid?'pointer':'not-allowed', boxShadow:valid?'0 8px 24px rgba(255,56,92,0.30)':'none', transition:'background 150ms, color 150ms' }}>
+                  Save Document
+                </button>
+              );
+            })()}
+          </div>
+        </>
+
       ) : (
         /* ── SOP list view ── */
         <>
-          {/* CTA button */}
-          <div style={{ paddingBottom:20, flexShrink:0 }}>
+          {/* CTA buttons */}
+          <div style={{ paddingBottom:16, flexShrink:0, display:'flex', flexDirection:'column', gap:10 }}>
+            {/* New SOP (typed) */}
             <button onClick={() => setSopFormOpen(true)}
-              style={{ width:'100%', display:'flex', alignItems:'center', gap:16, padding:'20px', background:BLUE, border:'none', borderRadius:18, cursor:'pointer', textAlign:'left', boxShadow:'0 8px 28px rgba(255,56,92,0.32)' }}>
-              <div style={{ width:56, height:56, borderRadius:16, background:'rgba(255,255,255,0.20)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <Plus size={26} color="white" strokeWidth={2.5} />
+              style={{ width:'100%', display:'flex', alignItems:'center', gap:16, padding:'18px 20px', background:BLUE, border:'none', borderRadius:18, cursor:'pointer', textAlign:'left', boxShadow:'0 8px 28px rgba(255,56,92,0.32)' }}>
+              <div style={{ width:50, height:50, borderRadius:14, background:'rgba(255,255,255,0.20)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Plus size={24} color="white" strokeWidth={2.5} />
               </div>
               <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:'white', marginBottom:3 }}>New SOP</div>
-                <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.75)' }}>Add a procedure for {BUILDING_PROFILE.name}</div>
+                <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', marginBottom:2 }}>New SOP</div>
+                <div style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.75)' }}>Write a procedure for {BUILDING_PROFILE.name}</div>
               </div>
-              <ChevronRight size={22} color="rgba(255,255,255,0.75)" />
+              <ChevronRight size={20} color="rgba(255,255,255,0.75)" />
+            </button>
+
+            {/* Upload Document */}
+            <button onClick={() => setSopUploadOpen(true)}
+              style={{ width:'100%', display:'flex', alignItems:'center', gap:16, padding:'18px 20px', background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:18, cursor:'pointer', textAlign:'left' }}>
+              <div style={{ width:50, height:50, borderRadius:14, background:`rgba(255,56,92,0.08)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Upload size={22} color={BLUE} />
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT, marginBottom:2 }}>Upload Document</div>
+                <div style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>Scan or photo pages from your binder</div>
+              </div>
+              <ChevronRight size={20} color={MUTED} />
             </button>
           </div>
 
@@ -1717,10 +1850,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:10, paddingBottom:24 }}>
             {ALL_SOPS.map((sop) => {
               const open = expandedSOPId === sop.id;
-              const SopIcon = SOP_ICON_CONFIG[sop.category] || BookOpen;
+              const isUploaded = !!sop._uploaded;
+              const SopIcon = isUploaded
+                ? (sop.fileType === 'image' ? Image : FileText)
+                : (SOP_ICON_CONFIG[sop.category] || BookOpen);
               const isCustom = !!sop._custom;
               const catColor = SOP_COLOR[sop.category] || MUTED;
               const isEmergency = sop.category === 'Emergency';
+              const canDelete = isCustom || isUploaded;
               return (
                 <div key={sop.id} style={{ background:CARD, border:`1.5px solid ${open ? catColor : BORDER}`, borderRadius:16, overflow:'hidden', transition:'border-color 150ms', boxShadow: open && isEmergency ? '0 4px 20px rgba(255,59,48,0.10)' : open ? '0 4px 20px rgba(0,0,0,0.06)' : 'none' }}>
                   <button onClick={() => setExpandedSOPId(open?null:sop.id)}
@@ -1729,25 +1866,54 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       <SopIcon size={24} color={open?catColor:MUTED} />
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4, flexWrap:'wrap' }}>
                         <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:open?catColor:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', transition:'color 150ms' }}>{sop.category}</span>
                         {isCustom && <span style={{ fontFamily:INTER, fontSize:9, fontWeight:700, color:BLUE, background:'rgba(255,56,92,0.10)', borderRadius:4, padding:'1px 6px', textTransform:'uppercase' }}>Custom</span>}
+                        {isUploaded && <span style={{ fontFamily:INTER, fontSize:9, fontWeight:700, color:GREEN, background:'rgba(52,199,89,0.10)', borderRadius:4, padding:'1px 6px', textTransform:'uppercase' }}>{sop.fileType === 'image' ? 'Photo' : 'PDF'}</span>}
                       </div>
                       <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT, lineHeight:1.3 }}>{sop.title}</div>
+                      {isUploaded && sop.fileName && (
+                        <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sop.fileName}</div>
+                      )}
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-                      {isCustom && (
-                        <button onClick={e => { e.stopPropagation(); setCustomSOPs(p=>p.filter(s=>s.id!==sop.id)); if(expandedSOPId===sop.id) setExpandedSOPId(null); }}
-                          style={{ width:30, height:30, borderRadius:8, border:'none', background:'rgba(255,59,48,0.08)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                      {canDelete && (
+                        <button onClick={e => {
+                          e.stopPropagation();
+                          if (isUploaded) setUploadedSOPs(p=>p.filter(s=>s.id!==sop.id));
+                          else setCustomSOPs(p=>p.filter(s=>s.id!==sop.id));
+                          if(expandedSOPId===sop.id) setExpandedSOPId(null);
+                        }} style={{ width:30, height:30, borderRadius:8, border:'none', background:'rgba(255,59,48,0.08)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
                           <X size={14} color={RED} />
                         </button>
                       )}
                       <ChevronDown size={20} color={MUTED} strokeWidth={2} style={{ transform:open?'rotate(180deg)':'none', transition:'transform 200ms' }} />
                     </div>
                   </button>
+
                   {open && (
-                    <div style={{ padding:'0 20px 20px', borderTop:`1px solid ${BORDER}` }}>
-                      <p style={{ fontFamily:INTER, fontSize:14, color:TEXT, lineHeight:1.8, margin:'16px 0 0', whiteSpace:'pre-line' }}>{sop.content}</p>
+                    <div style={{ borderTop:`1px solid ${BORDER}` }}>
+                      {isUploaded ? (
+                        /* Document viewer */
+                        <div style={{ padding:'16px 20px 20px' }}>
+                          {sop.fileType === 'image' ? (
+                            <img src={sop.dataURL} alt={sop.title}
+                              style={{ width:'100%', borderRadius:10, display:'block', maxHeight:600, objectFit:'contain', background:CARD2 }} />
+                          ) : (
+                            <iframe src={sop.dataURL} title={sop.title}
+                              style={{ width:'100%', height:500, borderRadius:10, border:`1px solid ${BORDER}`, display:'block' }} />
+                          )}
+                          <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:12, padding:'10px 14px', background:CARD2, borderRadius:10 }}>
+                            <Eye size={15} color={MUTED} />
+                            <span style={{ fontFamily:INTER, fontSize:12, color:MUTED, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sop.fileName}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Text content */
+                        <div style={{ padding:'0 20px 20px' }}>
+                          <p style={{ fontFamily:INTER, fontSize:14, color:TEXT, lineHeight:1.8, margin:'16px 0 0', whiteSpace:'pre-line' }}>{sop.content}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
