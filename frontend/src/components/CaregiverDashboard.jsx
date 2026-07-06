@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home, MessageSquare, Clock, Settings, User, MapPin, ChevronRight,
@@ -7,13 +7,14 @@ import {
   Car, Zap, Package, Building2, Users, DoorOpen, DoorClosed, Plus,
   Waves, Activity, Sun, Coffee, Briefcase, Film, Heart, Bike, Leaf, Flame,
   Menu, Lock, ShoppingCart, ClipboardList, PlusCircle, Wrench, Search,
-  Tag, Navigation, Flag, ChevronLeft, UserCheck, Truck, HelpCircle, Star, LogOut, Mail, Moon
+  Tag, Navigation, Flag, ChevronLeft, UserCheck, Truck, HelpCircle, Star, LogOut, Mail, Moon,
+  GraduationCap, FileText, Image, Video, Play, Eye
 } from 'lucide-react';
 import { PackageDashboard } from './PackageDashboard';
 import { ToursDashboard } from './ToursDashboard';
 import { TaskStatus, UserRole } from '../types';
 import { TaskCard } from './TaskCard';
-import { TaskRequestCard } from './TaskRequestCard';
+import { TaskRequestCard }  from './TaskRequestCard';
 import { TaskCompletionModal } from './TaskCompletionModal';
 import { AICopilot } from './AICopilot';
 import { CareAssistantIcon } from './CareAssistantIcon';
@@ -35,6 +36,7 @@ import {
 } from '../services/mockData';
 import { authApi } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
+import { useSharedData } from '../context/SharedDataContext';
 
 // ─── Static / brand tokens (theme-independent) ────────────────────────────────
 const INTER   = `'Inter','Plus Jakarta Sans',sans-serif`;
@@ -240,6 +242,7 @@ export const CaregiverDashboard = ({
 }) => {
   // ── Theme ──────────────────────────────────────────────────────────────────
   const { isDarkMode, toggleTheme, colors } = useTheme();
+  const { uploadedSOPs, trainingItems } = useSharedData();
   const BG     = colors.BG;
   const CARD   = colors.CARD;
   const CARD2  = colors.CARD2;
@@ -261,6 +264,7 @@ export const CaregiverDashboard = ({
 
   const [tasks,    setTasks]    = useState([]);
   const [incidents, setIncidents] = useState([]);
+  const [fullscreenItem, setFullscreenItem] = useState(null);
   const [activeTab, setActiveTab]             = useState('home');
   const [activeTaskTab, setActiveTaskTab]     = useState('today');
   const [expandedTaskId, setExpandedTaskId]   = useState(null);
@@ -277,7 +281,12 @@ export const CaregiverDashboard = ({
   const [showClockAlert, setShowClockAlert]   = useState(false);
   const [clockAlertTitle, setClockAlertTitle] = useState('');
   const [clockAlertMsg, setClockAlertMsg]     = useState('');
-  const [showContacts, setShowContacts]         = useState(false);
+  const [showContacts,  setShowContacts]  = useState(false);
+  const [successTaskId, setSuccessTaskId] = useState(null);
+  const [ntError,       setNtError]       = useState('');
+  const [tasksLoading,  setTasksLoading]  = useState(true);
+  const [tasksError,    setTasksError]    = useState(false);
+  const [srAnnounce,    setSrAnnounce]    = useState('');
   const [showSOPs, setShowSOPs]                 = useState(false);
   const [expandedSOP, setExpandedSOP]           = useState(null);
   const [expandedSOPId, setExpandedSOPId]       = useState(null);
@@ -316,7 +325,9 @@ export const CaregiverDashboard = ({
 
   // Load real data + shift state on mount
   useEffect(() => {
-    authApi.getTasks().then(list => setTasks(list)).catch(() => {});
+    authApi.getTasks()
+      .then(list => { setTasks(list); setTasksLoading(false); setTasksError(false); })
+      .catch(() => { setTasksLoading(false); setTasksError(true); });
     authApi.getIncidents().then(list => setIncidents(list)).catch(() => {});
     authApi.getShiftHistory().then(data => setShiftHistory(data?.shifts || [])).catch(() => {});
 
@@ -383,6 +394,24 @@ export const CaregiverDashboard = ({
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // Ctrl+K / Cmd+K → focus the main search bar
+  const searchInputRef = React.useRef(null);
+  const [ddIdx, setDdIdx] = useState(-1);
+  const ddItemsRef = React.useRef([]);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        setShowSearch(true);
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
 
   const openModelCount = modelUnits.filter(m => m.open).length;
   const toggleModel = (id) => {
@@ -489,13 +518,17 @@ export const CaregiverDashboard = ({
 
   const handleTabChange  = (id) => { setActiveTab(id); };
   const handlePageChange = (page) => { window.scrollTo(0, 0); setActivePage(page); };
-  const handleStartTask     = (task) => setSelectedTask(task);
+  const handleStartTask     = useCallback((task) => setSelectedTask(task), []);
   const handleCompleteTask  = (updated) => {
-    if (tasks.find(t => t.id === updated.id || t.task_id === updated.task_id)) {
+    const id = updated.id || updated.task_id;
+    if (tasks.find(t => t.id === id || t.task_id === id)) {
       handleUpdateTask({ ...updated, status: 'completed' });
     } else {
       handleActivityLogged({ title: updated.title, category: updated.category || 'Administrative', notes: updated.completionNote || '', evidenceUrls: updated.evidenceUrls || [] });
     }
+    setSuccessTaskId(id);
+    setSrAnnounce('Task marked as complete.');
+    setTimeout(() => { setSuccessTaskId(null); setSrAnnounce(''); }, 1000);
     setSelectedTask(null);
     setExpandedTaskId(null);
   };
@@ -504,7 +537,7 @@ export const CaregiverDashboard = ({
       const shift = await authApi.startShift();
       setCurrentShiftId(shift.shift_id);
       setIsShiftActive(true);
-      setSelfTasks([]);  // fresh DAR
+      setSelfTasks([]);
       setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
       setClockOutTime(null);
       setClockAlertTitle('Clocked In');
@@ -548,19 +581,19 @@ export const CaregiverDashboard = ({
     } catch { /* silently fail */ }
   };
 
-  const handleAcceptRequest = async (task) => {
+  const handleAcceptRequest = useCallback(async (task) => {
     try {
-      const saved = await authApi.updateTask(task.id, { status: 'in_progress' });
+      await authApi.updateTask(task.id, { status: 'in_progress' });
       setTasks(p => p.map(t => t.id === task.id ? { ...t, status: 'in_progress' } : t));
     } catch {}
-  };
+  }, []);
 
-  const handleDeclineRequest = async (taskId) => {
+  const handleDeclineRequest = useCallback(async (taskId) => {
     try {
       await authApi.updateTask(taskId, { status: 'completed' });
       setTasks(p => p.map(t => t.id === taskId ? { ...t, status: 'completed' } : t));
     } catch {}
-  };
+  }, []);
 
   const displayTasks    = tasks.filter(t => t.status !== TaskStatus.PROPOSED);
   const pendingTasks    = displayTasks.filter(t => t.status !== TaskStatus.COMPLETED);
@@ -592,7 +625,7 @@ export const CaregiverDashboard = ({
         setIsShiftActive(true);
         setShiftStarted(true);
         setSelfTasks([]);
-        setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+          setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
       } finally { setShiftStarting(false); }
     };
 
@@ -604,28 +637,49 @@ export const CaregiverDashboard = ({
         background: BG, borderTop: `1px solid ${BORDER}`, zIndex: 20,
         display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end',
       }}>
-        <button
+        <motion.button
           onClick={doStart}
           disabled={shiftStarting}
+          whileTap={shiftStarting ? {} : { scale: 0.94 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
           style={{
             width: isMobile ? '100%' : 'auto',
-            padding: isMobile ? '14px 0' : '13px 36px',
+            padding: isMobile ? '16px 0' : '14px 40px',
             background: shiftStarting ? MUTED : BLUE,
             border: 'none', borderRadius: 14,
-            fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white',
+            fontFamily: INTER, fontSize: 16, fontWeight: 700, color: 'white',
             cursor: shiftStarting ? 'not-allowed' : 'pointer',
-            boxShadow: shiftStarting ? 'none' : `0 4px 14px ${BLUE}40`,
-            whiteSpace: 'nowrap',
+            boxShadow: shiftStarting ? 'none' : `0 6px 24px ${BLUE}50`,
+            whiteSpace: 'nowrap', letterSpacing: '-0.01em',
           }}>
           {shiftStarting ? 'Starting…' : 'Start My Shift'}
-        </button>
+        </motion.button>
       </div>
     );
 
     if (prevShift === undefined) {
+      const sk = isDarkMode ? 'skeleton-dark' : 'skeleton-light';
       return (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-          <div style={{ fontFamily: INTER, fontSize: 14, color: MUTED }}>Loading handoff…</div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 80 }}>
+          <div style={{ padding: isMobile ? '64px 16px 0' : '20px 16px 0' }}>
+            <div style={{ borderRadius: 20, overflow: 'hidden', border: `1.5px solid ${BORDER}` }}>
+              {/* Dark header shimmer */}
+              <div style={{ background: '#111827', padding: '28px 28px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ height: 11, borderRadius: 6, width: '34%', background: 'rgba(255,255,255,0.08)' }} />
+                <div style={{ height: 22, borderRadius: 8, width: '52%', background: 'rgba(255,255,255,0.11)' }} />
+                <div style={{ height: 14, borderRadius: 6, width: '44%', background: 'rgba(255,255,255,0.07)' }} />
+              </div>
+              {/* Card body skeleton rows */}
+              <div style={{ background: CARD }}>
+                {[80, 65, 90, 55, 72].map((w, i) => (
+                  <div key={i} style={{ padding: '14px 28px', borderBottom: i < 4 ? `1px solid ${BORDER}` : 'none', display: 'flex', gap: 20, alignItems: 'center' }}>
+                    <div className={sk} style={{ width: 72, height: 13, borderRadius: 5, flexShrink: 0 }} />
+                    <div className={sk} style={{ height: 13, borderRadius: 5, width: w + '%' }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
           <StartBtn />
         </div>
       );
@@ -876,24 +930,56 @@ export const CaregiverDashboard = ({
                 <ClipboardList size={20} color={ORANGE} />
                 <h3 style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:TEXT, margin:0 }}>Assigned by Management</h3>
               </div>
-              <span style={{ width:32, height:32, borderRadius:'50%', background:activeTasks.length>0?`${ORANGE}14`:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:activeTasks.length>0?ORANGE:MUTED, flexShrink:0 }}>{activeTasks.length}</span>
+              <span aria-live="polite" aria-label={`${activeTasks.length} active tasks`} style={{ width:32, height:32, borderRadius:'50%', background:activeTasks.length>0?`${ORANGE}14`:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:activeTasks.length>0?ORANGE:MUTED, flexShrink:0 }}>{activeTasks.length}</span>
             </div>
-            {activeTasks.length > 0 ? (
+            {tasksLoading ? (
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {[0, 1, 2].map(i => {
+                  const sk = isDarkMode ? 'skeleton-dark' : 'skeleton-light';
+                  const widths = [[70, 42], [58, 35], [44, 28]];
+                  return (
+                    <div key={i} style={{ borderRadius:16, overflow:'hidden', background:CARD, border:`1px solid ${BORDER}`, display:'flex', opacity: 1 - i * 0.15 }}>
+                      <div style={{ width:4, flexShrink:0, background:CARD2, borderRadius:'16px 0 0 16px' }} />
+                      <div style={{ flex:1, padding:'14px 16px', display:'flex', alignItems:'center', gap:12 }}>
+                        <div className={sk} style={{ width:36, height:36, borderRadius:10, flexShrink:0 }} />
+                        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:7 }}>
+                          <div className={sk} style={{ height:14, borderRadius:6, width: widths[i][0] + '%' }} />
+                          <div className={sk} style={{ height:11, borderRadius:5, width: widths[i][1] + '%' }} />
+                        </div>
+                        <div className={sk} style={{ width:52, height:22, borderRadius:6, flexShrink:0 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : tasksError ? (
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'24px 16px', textAlign:'center' }}>
+                <div style={{ width:48, height:48, borderRadius:14, background:'rgba(255,59,48,0.08)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+                  <AlertTriangle size={22} color={RED} />
+                </div>
+                <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>Couldn't load tasks</p>
+                <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'0 0 14px' }}>Check your connection and try again</p>
+                <button onClick={() => { setTasksLoading(true); setTasksError(false); authApi.getTasks().then(list => { setTasks(list); setTasksLoading(false); }).catch(() => { setTasksLoading(false); setTasksError(true); }); }}
+                  style={{ padding:'8px 18px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer' }}>
+                  Retry
+                </button>
+              </div>
+            ) : activeTasks.length > 0 ? (
+              <div data-card-list role="list" style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {activeTasks.slice(0,5).map(task => (
-                  <TaskCard key={task.id} task={task} onStartTask={handleStartTask} />
+                  <TaskCard key={task.id} task={task} onStartTask={handleStartTask} successId={successTaskId} />
                 ))}
                 {activeTasks.length > 5 && (
                   <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, textAlign:'center', margin:'4px 0 0' }}>+{activeTasks.length-5} more</p>
                 )}
               </div>
             ) : (
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'20px 0', textAlign:'center' }}>
-                <div style={{ width:48, height:48, borderRadius:14, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
-                  <CheckCircle size={22} color={GREEN} />
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'28px 16px', textAlign:'center' }}>
+                <div style={{ width:56, height:56, borderRadius:18, background:`${GREEN}12`, border:`1.5px solid ${GREEN}25`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:12 }}>
+                  <CheckCircle size={26} color={GREEN} />
                 </div>
-                <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>No tasks assigned</p>
-                <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>Management hasn't assigned anything yet</p>
+                <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 4px', letterSpacing:'-0.01em' }}>You're all caught up</p>
+                <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0, lineHeight:1.5 }}>No tasks assigned yet — check back or pull to refresh</p>
               </div>
             )}
           </div>
@@ -981,7 +1067,6 @@ export const CaregiverDashboard = ({
             <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,56,92,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: BLUE, flexShrink: 0 }}>{pendingRequests.length}</span>
           )}
         </div>
-
         {pendingRequests.length > 0 ? pendingRequests.map(task => (
           <TaskRequestCard
             key={task.id}
@@ -996,11 +1081,11 @@ export const CaregiverDashboard = ({
           />
         )) : (
           <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '40px 20px', textAlign: 'center' }}>
-            <div style={{ width: 64, height: 64, background: CARD2, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-              <Sparkles size={30} color={MUTED} strokeWidth={1.5} />
+            <div style={{ width: 64, height: 64, background: `${GREEN}12`, border: `1.5px solid ${GREEN}25`, borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <Sparkles size={28} color={GREEN} strokeWidth={1.5} />
             </div>
-            <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, marginBottom: 5 }}>All clear</div>
-            <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>No pending requests from management</div>
+            <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, marginBottom: 6, letterSpacing: '-0.01em' }}>Inbox zero</div>
+            <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>No pending requests — management hasn't sent anything new</div>
           </div>
         )}
       </div>
@@ -1044,8 +1129,8 @@ export const CaregiverDashboard = ({
             <div style={{ width: 64, height: 64, background: CARD2, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
               <PlusCircle size={30} color={MUTED} strokeWidth={1.5} />
             </div>
-            <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, marginBottom: 5 }}>Nothing logged yet</div>
-            <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>Tap above to record your work</div>
+            <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, marginBottom: 6, letterSpacing: '-0.01em' }}>Nothing logged yet</div>
+            <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>Tap "Log Task" above to record your first activity this shift</div>
           </div>
         )}
 
@@ -1054,7 +1139,7 @@ export const CaregiverDashboard = ({
           const catConf = TASK_CATEGORY_CONFIG.find(c => c.id === t.category);
           const CatIcon = catConf?.Icon || CheckCircle;
           return (
-            <div key={t.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+            <div key={t.id} className="stagger-item" style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'flex-start', gap: 16 }}>
               <div style={{ width: 52, height: 52, background: 'rgba(255,56,92,0.10)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <CatIcon size={24} color={BLUE} />
               </div>
@@ -1422,6 +1507,119 @@ export const CaregiverDashboard = ({
     );
   };
 
+  // ── SOPs (read-only) ───────────────────────────────────────────────────────
+  const renderSOPs = () => {
+    const SOP_ICON_MAP = {
+      'Amenity Hours': Waves, 'Guest Policy': User, 'Noise & Quiet Hours': Phone,
+      'Security': Shield, 'Move-In / Move-Out': Truck, 'Emergency': AlertTriangle,
+      'Package Management': Package, 'Other': HelpCircle,
+    };
+    const SOP_COLOR_MAP = {
+      'Emergency': RED, 'Security': ORANGE, 'Move-In / Move-Out': BLUE,
+      'Amenity Hours': GREEN, 'Guest Policy': BLUE,
+      'Noise & Quiet Hours': ORANGE, 'Package Management': GREEN,
+    };
+
+    if (uploadedSOPs.length === 0) {
+      return (
+        <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', gap:16, padding:'24px 20px 0', textAlign:'center' }}>
+          <div style={{ width:72, height:72, borderRadius:22, background:'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <BookOpen size={36} color={BLUE} />
+          </div>
+          <div>
+            <p style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, margin:'0 0 8px', letterSpacing:'-0.01em' }}>No SOPs uploaded yet</p>
+            <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0, lineHeight:1.6 }}>Your manager will upload building procedures here for you to reference.</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
+        {uploadedSOPs.map((sop) => {
+          const CatIcon = sop.fileType === 'image' ? Image : sop.fileType === 'pdf' ? FileText : (SOP_ICON_MAP[sop.category] || BookOpen);
+          const catColor = SOP_COLOR_MAP[sop.category] || MUTED;
+          const typeLabel = sop.fileType === 'image' ? 'Photo' : 'PDF';
+          const typeBadgeColor = sop.fileType === 'image' ? GREEN : ORANGE;
+          return (
+            <button key={sop.id} onClick={() => setFullscreenItem(sop)}
+              style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%', background:CARD, border:`1px solid ${BORDER}` }}>
+              <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:CARD2, overflow:'hidden' }}>
+                {sop.fileType === 'image' ? (
+                  <img src={sop.dataURL} alt={sop.title} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                ) : (
+                  <CatIcon size={26} color={catColor} />
+                )}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', margin:'0 0 4px' }}>{sop.category}</p>
+                <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 6px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sop.title}</p>
+                <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 9px', borderRadius:8, background:typeBadgeColor, fontFamily:INTER, fontSize:11, fontWeight:700, color:'white' }}>
+                  <FileText size={11} color="white" />{typeLabel}
+                </span>
+              </div>
+              <ChevronRight size={18} color={MUTED} style={{ flexShrink:0 }} />
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // ── Training (read-only) ───────────────────────────────────────────────────
+  const renderTrainingContent = () => {
+    const TRAINING_ICON_MAP = {
+      'Onboarding': UserCheck, 'Safety & Emergency': Shield, 'Guest Experience': Star,
+      'Building Systems': Wrench, 'Amenity Operations': MapPin, 'Software & Tools': Settings,
+      'Other': HelpCircle,
+    };
+
+    if (trainingItems.length === 0) {
+      return (
+        <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', gap:16, padding:'24px 20px 0', textAlign:'center' }}>
+          <div style={{ width:72, height:72, borderRadius:22, background:'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <GraduationCap size={36} color={BLUE} />
+          </div>
+          <div>
+            <p style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, margin:'0 0 8px', letterSpacing:'-0.01em' }}>No training materials yet</p>
+            <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0, lineHeight:1.6 }}>Your manager will upload training documents, videos, and images here.</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
+        {trainingItems.map((item) => {
+          const CatIcon = TRAINING_ICON_MAP[item.category] || HelpCircle;
+          const typeLabel = item.fileType === 'video' ? 'Video' : item.fileType === 'image' ? 'Photo' : 'PDF';
+          const typeBadgeColor = item.fileType === 'video' ? BLUE : item.fileType === 'image' ? GREEN : ORANGE;
+          const TypeIcon = item.fileType === 'video' ? Video : item.fileType === 'image' ? Image : FileText;
+          return (
+            <button key={item.id} onClick={() => setFullscreenItem(item)}
+              style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%', background:CARD, border:`1px solid ${BORDER}` }}>
+              <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:CARD2, overflow:'hidden' }}>
+                {item.fileType === 'image' ? (
+                  <img src={item.dataURL} alt={item.title} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                ) : (
+                  <CatIcon size={26} color={MUTED} />
+                )}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', margin:'0 0 4px' }}>{item.category}</p>
+                <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 6px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</p>
+                <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 9px', borderRadius:8, background:typeBadgeColor, fontFamily:INTER, fontSize:11, fontWeight:700, color:'white' }}>
+                  <TypeIcon size={11} color="white" />{typeLabel}
+                </span>
+              </div>
+              <ChevronRight size={18} color={MUTED} style={{ flexShrink:0 }} />
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   // ── SHELL ──────────────────────────────────────────────────────────────────
   const PAGE_TITLES = {
     home: "Today's Tasks", requests: 'Requests', packages: 'Packages',
@@ -1429,6 +1627,7 @@ export const CaregiverDashboard = ({
     vendors: 'Vendors', incident: 'Incident Report', calendar: 'Calendar',
     'shift-history': 'Shift History', messages: 'Messages',
     guests: 'Guests', settings: 'Settings', profile: 'Profile',
+    sops: 'Building SOPs', training: 'Training',
   };
 
   const NAV_ITEMS = [
@@ -1441,9 +1640,11 @@ export const CaregiverDashboard = ({
     { id: 'vendors',       Icon: Wrench,        label: 'Vendors'             },
     { id: 'tours',         Icon: Users,         label: 'Tours'               },
     { id: 'loaners',       Icon: ShoppingCart,  label: 'Loaners'             },
-    { id: 'incident',      Icon: AlertTriangle, label: 'Incident'            },
-    { id: 'calendar',      Icon: Calendar,      label: 'Shifts'              },
-    { id: 'settings',      Icon: Settings,      label: 'Settings'            },
+    { id: 'incident',      Icon: AlertTriangle,  label: 'Incident'   },
+    { id: 'sops',          Icon: BookOpen,       label: 'SOPs'       },
+    { id: 'training',      Icon: GraduationCap,  label: 'Training'   },
+    { id: 'calendar',      Icon: Calendar,       label: 'Shifts'     },
+    { id: 'settings',      Icon: Settings,       label: 'Settings'   },
     { id: 'emergency',     Icon: Phone,         label: 'Emergency Contacts', action: () => setShowContacts(true) },
   ];
 
@@ -1772,7 +1973,7 @@ export const CaregiverDashboard = ({
 
     const profileSection = isDrawer ? (
       <div style={{ position: 'relative', padding: '24px 20px 16px', flexShrink: 0, borderBottom: `1px solid ${BORDER}` }}>
-        <button onClick={() => setSidebarOpen(false)}
+        <button aria-label="Close navigation menu" onClick={() => setSidebarOpen(false)}
           style={{ position: 'absolute', top: 12, right: 12, width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
           <X size={18} color={MUTED} />
         </button>
@@ -1808,11 +2009,12 @@ export const CaregiverDashboard = ({
         {isDrawer && profileSection}
 
         {/* Nav items */}
-        <nav style={{ padding: collapsed ? '16px 8px 4px' : '12px 8px 4px', overflowY: 'hidden' }}>
+        <nav style={{ padding: collapsed ? '16px 8px 4px' : '12px 8px 4px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
           {NAV_ITEMS.map(({ id, Icon, label, action }) => {
             const active = !action && activeTab === id;
             return (
               <button key={id}
+                className="nav-btn touch-target"
                 onClick={() => {
                   if (collapsed) setSidebarCollapsed(false);
                   action ? action() : handleTabChange(id);
@@ -1822,11 +2024,12 @@ export const CaregiverDashboard = ({
                 style={{
                   display: 'flex', alignItems: 'center',
                   justifyContent: collapsed ? 'center' : 'flex-start',
-                  gap: collapsed ? 0 : 12, padding: '11px 12px', marginBottom: 2,
+                  gap: collapsed ? 0 : 12, padding: '10px 12px', marginBottom: 2,
                   border: 'none', cursor: 'pointer', textAlign: 'left',
                   background: active ? `rgba(255,56,92,0.08)` : 'transparent',
                   borderRadius: 12, width: '100%',
                   transition: 'background 120ms', position: 'relative',
+                  minHeight: 44,
                 }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: 10, flexShrink: 0,
@@ -1847,7 +2050,7 @@ export const CaregiverDashboard = ({
                   </span>
                 )}
                 {!collapsed && !isDrawer && id === 'home' && (
-                  <button onClick={(e) => { e.stopPropagation(); setSidebarCollapsed(true); }}
+                  <button aria-label="Collapse sidebar" onClick={(e) => { e.stopPropagation(); setSidebarCollapsed(true); }}
                     style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                     <X size={16} color={MUTED} />
                   </button>
@@ -1859,7 +2062,7 @@ export const CaregiverDashboard = ({
         </nav>
 
         {/* Bottom branding */}
-        <div style={{ marginTop: 'auto', padding: collapsed ? '12px 0' : '20px 20px 32px', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start' }}>
+        <div className="mobile-safe-bottom" style={{ flexShrink: 0, padding: collapsed ? '12px 0' : '20px 20px 24px', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start' }}>
           {!collapsed && <span style={{ fontFamily: "'Helvetica Neue','Arial',sans-serif", fontSize: 11, fontWeight: 300, color: TEXT, letterSpacing: '0.22em', textTransform: 'uppercase' }}>onepermit</span>}
         </div>
       </>
@@ -1868,7 +2071,10 @@ export const CaregiverDashboard = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', fontFamily: INTER, background: BG }}>
-
+      {/* Screen-reader live region — announces task completions and status changes */}
+      <div role="status" aria-live="polite" aria-atomic="true" style={{ position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>
+        {srAnnounce}
+      </div>
       {/* ── Full-width desktop header ────────────────────────────────────── */}
       {!isMobile && (
         <div style={{ height: 52, background: '#111827', display: 'flex', alignItems: 'center', padding: '0 20px', flexShrink: 0, gap: 14, zIndex: 20 }}>
@@ -1884,38 +2090,76 @@ export const CaregiverDashboard = ({
           <div style={{ flex: 1, position: 'relative', marginRight: 520, marginLeft: 220 }}>
             <Search size={14} color="#6B7280" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 1 }} />
             <input
+              ref={searchInputRef}
               value={searchQuery}
-              onChange={e => { setSearchQuery(e.target.value); setShowSearch(true); }}
+              onChange={e => { setSearchQuery(e.target.value); setShowSearch(true); setDdIdx(-1); }}
               onFocus={() => setShowSearch(true)}
-              onBlur={() => setTimeout(() => setShowSearch(false), 150)}
-              onKeyDown={e => { if (e.key === 'Escape') { setSearchQuery(''); setShowSearch(false); } }}
-              placeholder="Search tasks, incidents, activities…"
+              onBlur={() => { setTimeout(() => setShowSearch(false), 150); setDdIdx(-1); }}
+              onKeyDown={e => {
+                if (e.key === 'Escape') { setSearchQuery(''); setShowSearch(false); setDdIdx(-1); }
+                if (e.key === 'ArrowDown') { e.preventDefault(); setDdIdx(i => Math.min(i + 1, (ddItemsRef.current.length || 1) - 1)); }
+                if (e.key === 'ArrowUp')   { e.preventDefault(); setDdIdx(i => Math.max(0, i - 1)); }
+                if (e.key === 'Enter' && ddIdx >= 0 && ddItemsRef.current[ddIdx]) {
+                  e.preventDefault();
+                  ddItemsRef.current[ddIdx].action();
+                  setShowSearch(false); setSearchQuery(''); setDdIdx(-1);
+                }
+              }}
+              placeholder="Search or jump to a section… (⌘K)"
               style={{ width: '100%', height: 34, background: '#FFFFFF', border: 'none', borderRadius: 6, paddingLeft: 36, paddingRight: searchQuery ? 30 : 14, fontFamily: INTER, fontSize: 13, color: '#111827', outline: 'none', boxSizing: 'border-box' }}
             />
             {searchQuery && (
-              <button onClick={() => { setSearchQuery(''); setShowSearch(false); }}
+              <button aria-label="Clear search" onClick={() => { setSearchQuery(''); setShowSearch(false); }}
                 style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:2, display:'flex' }}>
                 <X size={13} color="#6B7280" />
               </button>
             )}
-            {/* Search results dropdown */}
-            {showSearch && searchQuery.trim().length > 0 && (() => {
+            {/* Unified search + command dropdown */}
+            {showSearch && (() => {
               const q = searchQuery.toLowerCase().trim();
+              const ALL_CMDS = [
+                { id:'go-home',      group:'Navigate', label:"Today's Tasks",    Icon:Home,          action:()=>handleTabChange('home'),                        keywords:['dashboard','shift'] },
+                { id:'go-requests',  group:'Navigate', label:'Requests',         Icon:Bell,          action:()=>handleTabChange('requests'),                    keywords:['management','tasks'] },
+                { id:'go-packages',  group:'Navigate', label:'Packages',         Icon:Package,       action:()=>handleTabChange('packages'),                    keywords:['delivery','mail'] },
+                { id:'go-guests',    group:'Navigate', label:'Guests',           Icon:UserCheck,     action:()=>handleTabChange('guests'),                      keywords:['visitor','access'] },
+                { id:'go-lockout',   group:'Navigate', label:'Lockouts',         Icon:Lock,          action:()=>handleTabChange('lockout'),                     keywords:['key','locked'] },
+                { id:'go-vendors',   group:'Navigate', label:'Vendors',          Icon:Wrench,        action:()=>handleTabChange('vendors'),                     keywords:['contractor','maintenance'] },
+                { id:'go-tours',     group:'Navigate', label:'Tours',            Icon:Users,         action:()=>handleTabChange('tours'),                       keywords:['showing','prospect'] },
+                { id:'go-loaners',   group:'Navigate', label:'Loaners',          Icon:ShoppingCart,  action:()=>handleTabChange('loaners'),                     keywords:['cart','item'] },
+                { id:'go-incident',  group:'Navigate', label:'Incident Report',  Icon:AlertTriangle, action:()=>handleTabChange('incident'),                    keywords:['report','safety'] },
+                { id:'go-sops',      group:'Navigate', label:'Building SOPs',    Icon:BookOpen,      action:()=>handleTabChange('sops'),                        keywords:['procedure','document'] },
+                { id:'go-training',  group:'Navigate', label:'Training',         Icon:GraduationCap, action:()=>handleTabChange('training'),                    keywords:['learn','video'] },
+                { id:'go-calendar',  group:'Navigate', label:'Shift Calendar',   Icon:Calendar,      action:()=>handleTabChange('calendar'),                    keywords:['schedule','shifts'] },
+                { id:'go-messages',  group:'Navigate', label:'Messages',         Icon:MessageSquare, action:()=>handleTabChange('messages'),                    keywords:['chat','team'] },
+                { id:'go-settings',  group:'Navigate', label:'Settings',         Icon:Settings,      action:()=>handleTabChange('settings'),                    keywords:['preferences'] },
+                { id:'log-task',     group:'Actions',  label:'Log a Task',       Icon:Plus,          action:()=>{ handleTabChange('home'); setShowNewTask(true); }, keywords:['new','create','activity'] },
+                { id:'go-copilot',   group:'Actions',  label:'Open AI Copilot',  Icon:Sparkles,      action:()=>setShowCopilot(true),                           keywords:['ai','assistant','help'] },
+                { id:'emergency',    group:'Actions',  label:'Emergency Contacts', Icon:Phone,       action:()=>setShowContacts(true),                          keywords:['call','contact'] },
+                ...(!isShiftActive ? [{ id:'clock-in',  group:'Actions', label:'Clock In',  Icon:Clock, action:handleClockIn,  keywords:['start','shift'] }] : []),
+                ...(isShiftActive  ? [{ id:'clock-out', group:'Actions', label:'Clock Out', Icon:Clock, action:handleClockOut, keywords:['end','finish','shift'] }] : []),
+              ];
+              const matchCmd = c => !q || c.label.toLowerCase().includes(q) || c.group.toLowerCase().includes(q) || (c.keywords||[]).some(k=>k.includes(q));
               const matchTask = t => (t.title||'').toLowerCase().includes(q) || (t.notes||'').toLowerCase().includes(q) || (t.category||'').toLowerCase().includes(q);
               const matchInc  = i => (i.title||'').toLowerCase().includes(q) || (i.type||'').toLowerCase().includes(q) || (i.location||'').toLowerCase().includes(q);
               const matchAct  = a => (a.title||'').toLowerCase().includes(q) || (a.notes||'').toLowerCase().includes(q) || (a.category||'').toLowerCase().includes(q);
-              const mgmtHits  = tasks.filter(t => t.createdByType === 'manager' && matchTask(t)).slice(0, 4);
-              const actHits   = selfTasks.filter(matchAct).slice(0, 4);
-              const incHits   = incidents.filter(matchInc).slice(0, 4);
-              const total = mgmtHits.length + actHits.length + incHits.length;
+              const cmdHits  = ALL_CMDS.filter(matchCmd);
+              const mgmtHits = q ? tasks.filter(t => t.createdByType === 'manager' && matchTask(t)).slice(0,4) : [];
+              const actHits  = q ? selfTasks.filter(matchAct).slice(0,4) : [];
+              const incHits  = q ? incidents.filter(matchInc).slice(0,4) : [];
+              const hasContent = mgmtHits.length + actHits.length + incHits.length > 0;
+
+              // Group commands
+              const navigateCmds = cmdHits.filter(c => c.group === 'Navigate');
+              const actionCmds   = cmdHits.filter(c => c.group === 'Actions');
+
+              // Flat list for arrow-key navigation
+              const flatCmds = [...navigateCmds, ...actionCmds];
+              ddItemsRef.current = flatCmds.map(c => ({ action: () => { c.action(); } }));
+
               return (
-                <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, right:0, background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, boxShadow:'0 8px 32px rgba(0,0,0,0.14)', zIndex: 200, overflow:'hidden', maxHeight: 420, overflowY:'auto' }}>
-                  {total === 0 ? (
-                    <div style={{ padding:'24px 16px', textAlign:'center' }}>
-                      <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>No results</p>
-                      <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>Nothing matched "{searchQuery}"</p>
-                    </div>
-                  ) : (
+                <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, right:0, background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, boxShadow:'0 8px 32px rgba(0,0,0,0.14)', zIndex:200, overflow:'hidden', maxHeight:460, overflowY:'auto' }}>
+                  {/* Content results (only when query typed) */}
+                  {hasContent && (
                     <>
                       {mgmtHits.length > 0 && (
                         <>
@@ -1923,14 +2167,12 @@ export const CaregiverDashboard = ({
                           {mgmtHits.map(t => (
                             <button key={t.id} onMouseDown={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('requests'); }}
                               style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', borderBottom:`1px solid ${BORDER}` }}>
-                              <div style={{ width:32, height:32, borderRadius:9, background:`${ORANGE}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                                <ClipboardList size={15} color={ORANGE} />
-                              </div>
+                              <div style={{ width:32, height:32, borderRadius:9, background:`${ORANGE}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><ClipboardList size={15} color={ORANGE} /></div>
                               <div style={{ flex:1, minWidth:0 }}>
                                 <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.title}</p>
                                 <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>{t.category} · Due {t.dueTime} · from {t.createdBy}</p>
                               </div>
-                              <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color: t.status==='in_progress'?ORANGE:BLUE, background: t.status==='in_progress'?`${ORANGE}14`:`${BLUE}14`, borderRadius:6, padding:'2px 7px', flexShrink:0, textTransform:'uppercase' }}>{t.status==='in_progress'?'In Progress':'Pending'}</span>
+                              <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:t.status==='in_progress'?ORANGE:BLUE, background:t.status==='in_progress'?`${ORANGE}14`:`${BLUE}14`, borderRadius:6, padding:'2px 7px', flexShrink:0, textTransform:'uppercase' }}>{t.status==='in_progress'?'In Progress':'Pending'}</span>
                             </button>
                           ))}
                         </>
@@ -1941,12 +2183,10 @@ export const CaregiverDashboard = ({
                           {actHits.map((a, i) => (
                             <button key={a.id||i} onMouseDown={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('new-task'); }}
                               style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', borderBottom:`1px solid ${BORDER}` }}>
-                              <div style={{ width:32, height:32, borderRadius:9, background:`${GREEN}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                                <CheckCircle size={15} color={GREEN} />
-                              </div>
+                              <div style={{ width:32, height:32, borderRadius:9, background:`${GREEN}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><CheckCircle size={15} color={GREEN} /></div>
                               <div style={{ flex:1, minWidth:0 }}>
                                 <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.title}</p>
-                                <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>{a.category}{a.completedAt ? ` · ${a.completedAt}` : ''}</p>
+                                <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>{a.category}{a.completedAt?` · ${a.completedAt}`:''}</p>
                               </div>
                               <CheckCircle size={14} color={GREEN} style={{ flexShrink:0 }} />
                             </button>
@@ -1959,19 +2199,67 @@ export const CaregiverDashboard = ({
                           {incHits.map(inc => (
                             <button key={inc.id} onMouseDown={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('incident'); }}
                               style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', borderBottom:`1px solid ${BORDER}` }}>
-                              <div style={{ width:32, height:32, borderRadius:9, background:`${RED}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                                <AlertTriangle size={15} color={RED} />
-                              </div>
+                              <div style={{ width:32, height:32, borderRadius:9, background:`${RED}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><AlertTriangle size={15} color={RED} /></div>
                               <div style={{ flex:1, minWidth:0 }}>
                                 <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{inc.title}</p>
-                                <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>{inc.type}{inc.location ? ` · ${inc.location}` : ''} · {inc.filedAt}</p>
+                                <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>{inc.type}{inc.location?` · ${inc.location}`:''} · {inc.filedAt}</p>
                               </div>
                               <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:RED, background:`${RED}12`, borderRadius:6, padding:'2px 7px', flexShrink:0, textTransform:'uppercase' }}>{inc.severity}</span>
                             </button>
                           ))}
                         </>
                       )}
+                      {cmdHits.length > 0 && <div style={{ height:1, background:BORDER, margin:'4px 0' }} />}
                     </>
+                  )}
+                  {/* Commands */}
+                  {navigateCmds.length > 0 && (
+                    <>
+                      <div style={{ padding:'8px 14px 4px', fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'0.10em' }}>Navigate</div>
+                      {navigateCmds.map((cmd, relIdx) => {
+                        const CmdIcon = cmd.Icon;
+                        const flatIdx = relIdx;
+                        const isActive = ddIdx === flatIdx;
+                        return (
+                          <button key={cmd.id}
+                            onMouseDown={() => { cmd.action(); setShowSearch(false); setSearchQuery(''); setDdIdx(-1); }}
+                            onMouseEnter={() => setDdIdx(flatIdx)}
+                            style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'9px 14px', background: isActive ? `${BLUE}12` : 'none', border:'none', cursor:'pointer', textAlign:'left', transition:'background 80ms' }}>
+                            <div style={{ width:30, height:30, borderRadius:8, background: isActive ? `${BLUE}18` : CARD2, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 80ms' }}>
+                              <CmdIcon size={14} color={isActive ? BLUE : MUTED} />
+                            </div>
+                            <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color: isActive ? BLUE : TEXT }}>{cmd.label}</span>
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+                  {actionCmds.length > 0 && (
+                    <>
+                      <div style={{ padding:'8px 14px 4px', fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'0.10em' }}>Actions</div>
+                      {actionCmds.map((cmd, relIdx) => {
+                        const CmdIcon = cmd.Icon;
+                        const flatIdx = navigateCmds.length + relIdx;
+                        const isActive = ddIdx === flatIdx;
+                        return (
+                          <button key={cmd.id}
+                            onMouseDown={() => { cmd.action(); setShowSearch(false); setSearchQuery(''); setDdIdx(-1); }}
+                            onMouseEnter={() => setDdIdx(flatIdx)}
+                            style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'9px 14px', background: isActive ? `${BLUE}12` : 'none', border:'none', cursor:'pointer', textAlign:'left', transition:'background 80ms' }}>
+                            <div style={{ width:30, height:30, borderRadius:8, background: isActive ? `${BLUE}18` : `${BLUE}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 80ms' }}>
+                              <CmdIcon size={14} color={BLUE} />
+                            </div>
+                            <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color: isActive ? BLUE : TEXT }}>{cmd.label}</span>
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+                  {!hasContent && cmdHits.length === 0 && q && (
+                    <div style={{ padding:'24px 16px', textAlign:'center' }}>
+                      <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>No results</p>
+                      <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>Nothing matched "{searchQuery}"</p>
+                    </div>
                   )}
                 </div>
               );
@@ -1979,17 +2267,19 @@ export const CaregiverDashboard = ({
           </div>
 
           {/* Right: dark/light toggle */}
-          <button
-            onClick={toggleTheme}
-            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.10)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 150ms' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.10)'}
-          >
-            {isDarkMode
-              ? <Sun size={15} color="#FFD60A" />
-              : <Moon size={15} color="rgba(255,255,255,0.80)" />}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button
+              onClick={toggleTheme}
+              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.10)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 150ms' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.10)'}
+            >
+              {isDarkMode
+                ? <Sun size={15} color="#FFD60A" />
+                : <Moon size={15} color="rgba(255,255,255,0.80)" />}
+            </button>
+          </div>
         </div>
       )}
 
@@ -2011,18 +2301,18 @@ export const CaregiverDashboard = ({
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, background: CARD, borderBottom: `1px solid ${BORDER}`, zIndex: 48 }}>
               {/* Top row */}
               <div style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 14px', gap: 10 }}>
-                <button onClick={() => setSidebarOpen(true)}
+                <button aria-label="Open navigation menu" onClick={() => setSidebarOpen(true)}
                   style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                   <Menu size={20} color={TEXT} />
                 </button>
                 <div style={{ flex: 1, textAlign: 'center', fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>
                   {BUILDING_PROFILE.name}
                 </div>
-                <button onClick={() => { setShowSearch(s => !s); setSearchQuery(''); }}
+                <button aria-label={showSearch ? 'Close search' : 'Open search'} onClick={() => { setShowSearch(s => !s); setSearchQuery(''); }}
                   style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: showSearch ? `${BLUE}14` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                   {showSearch ? <X size={18} color={BLUE} /> : <Search size={18} color={TEXT} />}
                 </button>
-                <button onClick={toggleTheme}
+                <button aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'} onClick={toggleTheme}
                   style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: isDarkMode ? 'rgba(255,214,10,0.12)' : `${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                   {isDarkMode ? <Sun size={17} color="#FFD60A" /> : <Moon size={17} color={MUTED} />}
                 </button>
@@ -2143,8 +2433,8 @@ export const CaregiverDashboard = ({
 
               {/* Panel */}
               <motion.div key={activeTab}
-                initial={{ x: '110%' }} animate={{ x: 0 }} exit={{ x: '110%' }}
-                transition={{ type: 'spring', damping: 32, stiffness: 300 }}
+                initial={{ x: '100%', opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: '100%', opacity: 0 }}
+                transition={{ type: 'spring', damping: 34, stiffness: 320 }}
                 style={{
                   position: 'fixed', right: 16, top: 16, bottom: 16,
                   ...(activeTab === 'calendar'
@@ -2177,7 +2467,7 @@ export const CaregiverDashboard = ({
                 </div>
 
                 {/* Panel content — contained */}
-                <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
+                <div className="panel-enter" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
                   {activeTab === 'requests'      && renderRequestsContent()}
                   {activeTab === 'packages'      && <PackageDashboard onActivityLogged={handleActivityLogged} />}
                   {activeTab === 'loaners'       && <LoanersDashboard onActivityLogged={handleActivityLogged} />}
@@ -2196,6 +2486,8 @@ export const CaregiverDashboard = ({
                   {activeTab === 'profile'       && renderProfileContent()}
                   {activeTab === 'messages'      && <TeamMessagesPage />}
                   {activeTab === 'settings'      && renderSettingsContent()}
+                  {activeTab === 'sops'          && renderSOPs()}
+                  {activeTab === 'training'      && renderTrainingContent()}
                 </div>
               </motion.div>
             </>
@@ -2597,25 +2889,35 @@ export const CaregiverDashboard = ({
               </div>
 
               {/* Wizard footer */}
-              <div style={{ flexShrink: 0, padding: '12px 20px 24px', background: CARD, borderTop: `1px solid ${BORDER}`, display: 'flex', gap: 10 }}>
-                {ntStep > 1 && (
-                  <button onClick={() => setNtStep(p => p - 1)}
-                    style={{ flex: 1, padding: '15px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
-                    Back
-                  </button>
+              <div style={{ flexShrink: 0, background: CARD, borderTop: `1px solid ${BORDER}` }}>
+                {ntError && (
+                  <div style={{ padding: '8px 20px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <AlertTriangle size={13} color={RED} />
+                    <span style={{ fontFamily: INTER, fontSize: 12, fontWeight: 600, color: RED }}>{ntError}</span>
+                  </div>
                 )}
-                {ntStep < 3 ? (
-                  <button onClick={() => setNtStep(p => p + 1)}
-                    disabled={ntStep === 1 && !ntForm.title.trim()}
-                    style={{ flex: 1, padding: '15px 0', background: (ntStep === 1 && !ntForm.title.trim()) ? CARD2 : BLUE, border: (ntStep === 1 && !ntForm.title.trim()) ? `1px solid ${BORDER}` : 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: (ntStep === 1 && !ntForm.title.trim()) ? MUTED : 'white', cursor: (ntStep === 1 && !ntForm.title.trim()) ? 'not-allowed' : 'pointer', boxShadow: (ntStep === 1 && !ntForm.title.trim()) ? 'none' : `0 6px 20px ${BLUE}28` }}>
-                    Continue
-                  </button>
-                ) : (
-                  <button onClick={submitNewTask}
-                    style={{ flex: 1, padding: '15px 0', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 6px 20px ${BLUE}28` }}>
-                    Create Task
-                  </button>
-                )}
+                <div style={{ padding: '12px 20px 24px', display: 'flex', gap: 10 }}>
+                  {ntStep > 1 && (
+                    <button onClick={() => { setNtStep(p => p - 1); setNtError(''); }}
+                      style={{ flex: 1, padding: '15px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
+                      Back
+                    </button>
+                  )}
+                  {ntStep < 3 ? (
+                    <button onClick={() => {
+                        if (ntStep === 1 && !ntForm.title.trim()) { setNtError('Please describe what you did before continuing.'); return; }
+                        setNtError(''); setNtStep(p => p + 1);
+                      }}
+                      style={{ flex: 1, padding: '15px 0', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 6px 20px ${BLUE}28` }}>
+                      Continue
+                    </button>
+                  ) : (
+                    <button onClick={submitNewTask}
+                      style={{ flex: 1, padding: '15px 0', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 6px 20px ${BLUE}28` }}>
+                      Create Task
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           </>
@@ -3242,6 +3544,45 @@ export const CaregiverDashboard = ({
 
       </div>{/* end MAIN CONTENT */}
       </div>{/* end body row */}
+
+      {/* ── Fullscreen viewer (SOPs + Training) ─────────────────────────────── */}
+      {fullscreenItem && (
+        <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.96)', display:'flex', flexDirection:'column' }}
+          onClick={() => setFullscreenItem(null)}>
+          <div style={{ flexShrink:0, display:'flex', alignItems:'center', gap:14, padding:'14px 20px', background:'rgba(0,0,0,0.7)', backdropFilter:'blur(10px)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.45)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:2 }}>{fullscreenItem.category}</div>
+              <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', lineHeight:1.2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{fullscreenItem.title}</div>
+            </div>
+            <button onClick={() => setFullscreenItem(null)}
+              style={{ width:40, height:40, borderRadius:12, background:'rgba(255,255,255,0.12)', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+              <X size={20} color="white" />
+            </button>
+          </div>
+          <div style={{ flex:1, minHeight:0, display:'flex', alignItems:'center', justifyContent:'center', padding:'12px', overflowY:'auto' }}
+            onClick={e => e.stopPropagation()}>
+            {fullscreenItem.fileType === 'image' ? (
+              <img src={fullscreenItem.dataURL} alt={fullscreenItem.title}
+                style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', borderRadius:8, display:'block' }} />
+            ) : fullscreenItem.fileType === 'video' ? (
+              <video src={fullscreenItem.dataURL} controls autoPlay
+                style={{ maxWidth:'100%', maxHeight:'100%', borderRadius:8, display:'block', outline:'none' }} />
+            ) : (
+              <iframe src={fullscreenItem.dataURL} title={fullscreenItem.title}
+                style={{ width:'100%', height:'100%', border:'none', borderRadius:8, display:'block', background:'white' }} />
+            )}
+          </div>
+          <div style={{ flexShrink:0, padding:'12px 20px 24px', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}
+            onClick={e => e.stopPropagation()}>
+            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:280 }}>{fullscreenItem.fileName}</span>
+            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.20)' }}>·</span>
+            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)' }}>Tap outside to close</span>
+          </div>
+        </div>
+      )}
+
+
     </div>
   );
 };

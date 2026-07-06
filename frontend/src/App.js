@@ -8,6 +8,7 @@ import { ManagerDashboard }   from "./components/ManagerDashboard";
 import { CaregiverDashboard } from "./components/CaregiverDashboard";
 import { ShiftCalendarPage }  from "./components/ShiftCalendarPage";
 import { ThemeProvider }      from "./context/ThemeContext";
+import { SharedDataProvider } from "./context/SharedDataContext";
 import { authApi }            from "./services/authApi";
 
 function Spinner() {
@@ -115,24 +116,23 @@ export default function App() {
   }
 
   if (page === 'dashboard') {
-    if (currentRole === UserRole.MANAGER) {
-      return (
-        <ThemeProvider>
-          <ManagerDashboard
-            onRoleSwitch={setCurrentRole}
-            onSignOut={handleSignOut}
-            authUser={authUser}
-          />
-        </ThemeProvider>
-      );
-    }
     return (
       <ThemeProvider>
-        <CaregiverDashboard
-          onSignOut={handleSignOut}
-          onViewCalendar={() => goToCalendar('dashboard')}
-          authUser={authUser}
-        />
+        <SharedDataProvider>
+          {currentRole === UserRole.MANAGER ? (
+            <ManagerDashboard
+              onRoleSwitch={setCurrentRole}
+              onSignOut={handleSignOut}
+              authUser={authUser}
+            />
+          ) : (
+            <CaregiverDashboard
+              onSignOut={handleSignOut}
+              onViewCalendar={() => goToCalendar('dashboard')}
+              authUser={authUser}
+            />
+          )}
+        </SharedDataProvider>
       </ThemeProvider>
     );
   }

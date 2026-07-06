@@ -8,11 +8,13 @@ import {
   LogOut, Phone, Star, Building2, MapPin, ChevronDown,
   CheckCircle, Send, Mail, UserPlus, Archive, ArrowUpDown, Menu, Search, Clock, Bell, Sliders, Lock, ShoppingCart, UserCheck, KeyRound, Sun, Moon,
   Upload, FileText, Eye, Image,
+  GraduationCap, Video, Play,
 } from 'lucide-react';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
 import { authApi } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
+import { useSharedData } from '../context/SharedDataContext';
 
 /* ─── Static brand tokens ────────────────────────────────────────────────────── */
 const GREEN  = '#34C759';
@@ -262,8 +264,9 @@ const NAV = [
   { id:'assign-task', Icon:Plus,      label:'Assign Task',        action:'task'      },
   { id:'shifts',      Icon:Calendar,  label:'Shifts'              },
   { id:'team',        Icon:Users,     label:'Team'                },
-  { id:'more',        Icon:BookOpen,  label:'SOPs'                },
-  { id:'sections',    Icon:Sliders,   label:'Shift Sections'      },
+  { id:'more',        Icon:BookOpen,       label:'SOPs'      },
+  { id:'training',    Icon:GraduationCap, label:'Training'  },
+  { id:'sections',    Icon:Sliders,       label:'Shift Sections' },
   { id:'emergency',   Icon:Phone,     label:'Emergency Contacts', action:'emergency' },
   { id:'settings',    Icon:Settings,  label:'Settings'            },
 ];
@@ -309,6 +312,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [taskStep,  setTaskStep]  = useState(1);
   const [taskForm,  setTaskForm]  = useState(EMPTY_TASK);
   const [taskLoading, setTaskLoading] = useState(false);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [tasksError,   setTasksError]   = useState(false);
+  const [incidentsError, setIncidentsError] = useState(false);
+  const [successIncidentId, setSuccessIncidentId] = useState(null);
+  const [srAnnounce,   setSrAnnounce]   = useState('');
+  const searchInputRef = useRef(null);
+  const taskModalRef   = useRef(null);
+  const leasingModalRef = useRef(null);
   const [conOpen,         setConOpen]         = useState(false);
   const [customContacts,  setCustomContacts]  = useState([]);
   const [showAddContact,  setShowAddContact]  = useState(false);
@@ -316,12 +327,19 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [leasingOpen,     setLeasingOpen]     = useState(false);
   const [leasingForm,     setLeasingForm]     = useState({ teamName:'', contact:'', phone:'', email:'' });
   const [profileOpen,     setProfileOpen]     = useState(false);
+  const { uploadedSOPs, setUploadedSOPs, trainingItems, setTrainingItems } = useSharedData();
   const [expandedSOPId,    setExpandedSOPId]    = useState(null);
-  const [uploadedSOPs,     setUploadedSOPs]     = useState([]);
   const [sopUploadOpen,    setSopUploadOpen]    = useState(false);
   const [uploadForm,       setUploadForm]       = useState({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
   const [fullscreenDoc,    setFullscreenDoc]    = useState(null);
+  const [sopStep,          setSopStep]          = useState(1);
   const uploadFileRef = useRef(null);
+  const [expandedTrainingId,  setExpandedTrainingId]  = useState(null);
+  const [trainingUploadOpen,  setTrainingUploadOpen]  = useState(false);
+  const [trainingForm,        setTrainingForm]        = useState({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
+  const [fullscreenTraining,  setFullscreenTraining]  = useState(null);
+  const [trainingStep,        setTrainingStep]        = useState(1);
+  const trainingFileRef = useRef(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
   const [notifMgr,         setNotifMgr]         = useState({ push:true, email:true, shift:true, incident:true });
@@ -362,8 +380,12 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       if (list.length > 0) setSetupConcierge(list[0].id);
       setSectionAccess(Object.fromEntries(list.map(c => [c.id, { ...DEFAULT_SECTIONS }])));
     }).catch(() => {});
-    authApi.getTasks().then(list => setTasks(list)).catch(() => {});
-    authApi.getIncidents().then(list => setIncidents(list)).catch(() => {});
+    authApi.getTasks()
+      .then(list => { setTasks(list); setTasksLoading(false); setTasksError(false); })
+      .catch(() => { setTasksLoading(false); setTasksError(true); });
+    authApi.getIncidents()
+      .then(list => { setIncidents(list); setIncidentsError(false); })
+      .catch(() => setIncidentsError(true));
     authApi.getShiftHistory().then(data => setAllShifts(data?.shifts || [])).catch(() => {});
   }, []);
 
@@ -394,6 +416,55 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // Ctrl+K / Cmd+K → focus the header search bar
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Focus trap — Task Wizard modal
+  useEffect(() => {
+    if (!taskOpen || !taskModalRef.current) return;
+    const el = taskModalRef.current;
+    const getFocusable = () => Array.from(el.querySelectorAll('button,input,select,textarea,a[href],[tabindex]:not([tabindex="-1"])'));
+    const focusable = getFocusable();
+    focusable[0]?.focus();
+    const trap = (e) => {
+      if (e.key !== 'Tab') return;
+      const nodes = getFocusable();
+      const first = nodes[0]; const last = nodes[nodes.length - 1];
+      if (e.shiftKey) { if (document.activeElement === first) { e.preventDefault(); last?.focus(); } }
+      else            { if (document.activeElement === last)  { e.preventDefault(); first?.focus(); } }
+    };
+    el.addEventListener('keydown', trap);
+    return () => el.removeEventListener('keydown', trap);
+  }, [taskOpen, taskStep]);
+
+  // Focus trap — Add Team Members modal
+  useEffect(() => {
+    if (!leasingOpen || !leasingModalRef.current) return;
+    const el = leasingModalRef.current;
+    const getFocusable = () => Array.from(el.querySelectorAll('button,input,select,textarea,a[href],[tabindex]:not([tabindex="-1"])'));
+    const focusable = getFocusable();
+    focusable[0]?.focus();
+    const trap = (e) => {
+      if (e.key !== 'Tab') return;
+      const nodes = getFocusable();
+      const first = nodes[0]; const last = nodes[nodes.length - 1];
+      if (e.shiftKey) { if (document.activeElement === first) { e.preventDefault(); last?.focus(); } }
+      else            { if (document.activeElement === last)  { e.preventDefault(); first?.focus(); } }
+    };
+    el.addEventListener('keydown', trap);
+    return () => el.removeEventListener('keydown', trap);
+  }, [leasingOpen]);
 
   const nowStr = () => new Date().toLocaleTimeString('en-US',{ hour:'numeric', minute:'2-digit' });
 
@@ -963,9 +1034,21 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <AlertTriangle size={20} color={RED} />
                 <h3 style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:TEXT, margin:0 }}>Open Incidents</h3>
               </div>
-              <span style={{ width:32, height:32, borderRadius:'50%', background: incidents.length>0?`${RED}14`:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:incidents.length>0?RED:MUTED, flexShrink:0 }}>{incidents.length}</span>
+              <span aria-live="polite" aria-label={`${incidents.length} open incidents`} style={{ width:32, height:32, borderRadius:'50%', background: incidents.length>0?`${RED}14`:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:incidents.length>0?RED:MUTED, flexShrink:0 }}>{incidents.length}</span>
             </div>
-            {incidents.length === 0 ? (
+            {incidentsError ? (
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'20px 0', textAlign:'center' }}>
+                <div style={{ width:48, height:48, borderRadius:14, background:'rgba(255,59,48,0.08)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+                  <AlertTriangle size={22} color={RED} />
+                </div>
+                <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>Couldn't load incidents</p>
+                <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'0 0 14px' }}>Check your connection and try again</p>
+                <button onClick={() => { setIncidentsError(false); authApi.getIncidents().then(list => { setIncidents(list); setIncidentsError(false); }).catch(() => setIncidentsError(true)); }}
+                  style={{ padding:'8px 18px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer' }}>
+                  Retry
+                </button>
+              </div>
+            ) : incidents.length === 0 ? (
               <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'20px 0', textAlign:'center' }}>
                 <div style={{ width:48, height:48, borderRadius:14, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
                   <CheckCircle size={22} color={GREEN} />
@@ -974,9 +1057,22 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>No open incidents right now</p>
               </div>
             ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              <div data-card-list role="list" style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {incidents.map(inc => (
-                  <div key={inc.id} style={{ background:CARD2, border:`1px solid ${sev(inc.severity)}30`, borderRadius:14, padding:16, display:'flex', alignItems:'center', gap:14 }}>
+                  <div key={inc.id} className="stagger-item" role="listitem"
+                    data-card-focusable tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        const list = e.currentTarget.closest('[data-card-list]');
+                        if (!list) return;
+                        const cards = Array.from(list.querySelectorAll('[data-card-focusable]'));
+                        const idx = cards.indexOf(e.currentTarget);
+                        const target = e.key === 'ArrowDown' ? cards[idx + 1] : cards[idx - 1];
+                        if (target) target.focus();
+                      }
+                    }}
+                    style={{ background: successIncidentId === inc.id ? `rgba(52,199,89,0.08)` : CARD2, border:`1px solid ${successIncidentId === inc.id ? 'rgba(52,199,89,0.35)' : sev(inc.severity)+'30'}`, borderRadius:14, padding:16, display:'flex', alignItems:'center', gap:14, outline:'none', transition:'background 300ms, border-color 300ms' }}>
                     <div style={{ width:48, height:48, borderRadius:14, background:`${sev(inc.severity)}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                       <AlertTriangle size={22} color={sev(inc.severity)} />
                     </div>
@@ -988,7 +1084,11 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                         {inc.filedBy && <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{(inc.unit_number || inc.person_involved) ? '·' : ''} Filed by {inc.filedBy}</span>}
                       </div>
                     </div>
-                    <button onClick={() => setIncidents(p=>p.filter(i=>i.id!==inc.id))}
+                    <button onClick={() => {
+                      setSuccessIncidentId(inc.id);
+                      setSrAnnounce('Incident resolved.');
+                      setTimeout(() => { setIncidents(p=>p.filter(i=>i.id!==inc.id)); setSuccessIncidentId(null); setSrAnnounce(''); }, 600);
+                    }}
                       style={{ flexShrink:0, padding:'8px 14px', background:'rgba(52,199,89,0.10)', border:'1px solid rgba(52,199,89,0.25)', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN, cursor:'pointer' }}>
                       Resolve
                     </button>
@@ -1035,27 +1135,72 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               </div>
               <button onClick={() => setTab('tasks')} style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:BLUE, background:'none', border:'none', cursor:'pointer', padding:0 }}>See all</button>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {tasks.filter(t=>t.status!=='completed').map(t => {
-                const pc = PRIORITY_COLOR[t.priority] ?? MUTED;
-                return (
-                  <div key={t.id} style={{ background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, padding:16 }}>
-                    <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:8 }}>
-                      <p style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, margin:0, flex:1, lineHeight:1.4 }}>{t.title}</p>
-                      <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:pc, background:`${pc}14`, borderRadius:6, padding:'3px 8px', textTransform:'uppercase', letterSpacing:'0.06em', flexShrink:0 }}>{t.priority}</span>
+            {tasksLoading ? (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {[0, 1, 2].map(i => {
+                  const sk = isDarkMode ? 'skeleton-dark' : 'skeleton-light';
+                  const widths = [[72, 38], [58, 30], [44, 26]];
+                  return (
+                    <div key={i} style={{ background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, padding:16, opacity: 1 - i * 0.15 }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:8 }}>
+                        <div className={sk} style={{ height:14, borderRadius:6, flex:1, maxWidth: widths[i][0]+'%' }} />
+                        <div className={sk} style={{ height:18, borderRadius:6, width:44, flexShrink:0 }} />
+                      </div>
+                      <div className={sk} style={{ height:12, borderRadius:5, width: widths[i][1]+'%' }} />
                     </div>
-                    <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>→ {t.assignedTo} · {t.dueTime}</p>
-                  </div>
-                );
-              })}
-              {tasks.filter(t=>t.status!=='completed').length === 0 && (
-                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'20px 0', textAlign:'center' }}>
-                  <CheckCircle size={24} color={GREEN} style={{ marginBottom:8 }} />
-                  <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>All tasks done</p>
-                  <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>No active tasks right now</p>
+                  );
+                })}
+              </div>
+            ) : tasksError ? (
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'20px 0', textAlign:'center' }}>
+                <div style={{ width:48, height:48, borderRadius:14, background:'rgba(255,59,48,0.08)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+                  <AlertTriangle size={22} color={RED} />
                 </div>
-              )}
-            </div>
+                <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>Couldn't load tasks</p>
+                <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'0 0 14px' }}>Check your connection and try again</p>
+                <button onClick={() => { setTasksLoading(true); setTasksError(false); authApi.getTasks().then(list => { setTasks(list); setTasksLoading(false); }).catch(() => { setTasksLoading(false); setTasksError(true); }); }}
+                  style={{ padding:'8px 18px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer' }}>
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <div data-card-list role="list" style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {tasks.filter(t=>t.status!=='completed').map(t => {
+                  const pc = PRIORITY_COLOR[t.priority] ?? MUTED;
+                  return (
+                    <div key={t.id} className="stagger-item" role="listitem"
+                      data-card-focusable tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          const list = e.currentTarget.closest('[data-card-list]');
+                          if (!list) return;
+                          const cards = Array.from(list.querySelectorAll('[data-card-focusable]'));
+                          const idx = cards.indexOf(e.currentTarget);
+                          const target = e.key === 'ArrowDown' ? cards[idx + 1] : cards[idx - 1];
+                          if (target) target.focus();
+                        }
+                      }}
+                      style={{ background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, padding:16, outline:'none' }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:8 }}>
+                        <p style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, margin:0, flex:1, lineHeight:1.4 }}>{t.title}</p>
+                        <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:pc, background:`${pc}14`, borderRadius:6, padding:'3px 8px', textTransform:'uppercase', letterSpacing:'0.06em', flexShrink:0 }}>{t.priority}</span>
+                      </div>
+                      <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>→ {t.assignedTo} · {t.dueTime}</p>
+                    </div>
+                  );
+                })}
+                {tasks.filter(t=>t.status!=='completed').length === 0 && (
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'20px 0', textAlign:'center' }}>
+                    <div style={{ width:48, height:48, borderRadius:14, background:'rgba(52,199,89,0.10)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+                      <CheckCircle size={24} color={GREEN} />
+                    </div>
+                    <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>All caught up</p>
+                    <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>No active tasks right now</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1622,7 +1767,291 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     }]);
     setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
     setSopUploadOpen(false);
+    setSopStep(1);
     if (uploadFileRef.current) uploadFileRef.current.value = '';
+  };
+
+  const TRAINING_CATEGORIES = ['Onboarding','Safety & Emergency','Guest Experience','Building Systems','Amenity Operations','Software & Tools','Other'];
+
+  const handleTrainingFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    let fileType = 'pdf';
+    if (file.type.startsWith('image/')) fileType = 'image';
+    else if (file.type.startsWith('video/')) fileType = 'video';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setTrainingForm(p => ({ ...p, fileName: file.name, fileType, dataURL: ev.target.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveTrainingItem = () => {
+    const cat = trainingForm.category === 'Other' ? (trainingForm.customCategory.trim() || 'Other') : trainingForm.category;
+    if (!cat || !trainingForm.title.trim() || !trainingForm.dataURL) return;
+    setTrainingItems(p => [...p, {
+      id: `training-${Date.now()}`,
+      category: cat,
+      title: trainingForm.title.trim(),
+      fileName: trainingForm.fileName,
+      fileType: trainingForm.fileType,
+      dataURL: trainingForm.dataURL,
+    }]);
+    setTrainingForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
+    setTrainingUploadOpen(false);
+    setTrainingStep(1);
+    if (trainingFileRef.current) trainingFileRef.current.value = '';
+  };
+
+  const renderTraining = () => {
+    const CATEGORY_DEFS = [
+      { id:'Onboarding',         Icon:UserCheck,  desc:'New hire orientation, building intro, role expectations' },
+      { id:'Safety & Emergency', Icon:Shield,     desc:'Emergency protocols, evacuation plans, safety procedures' },
+      { id:'Guest Experience',   Icon:Star,       desc:'Check-in, tours, resident relations, hospitality standards' },
+      { id:'Building Systems',   Icon:Wrench,     desc:'HVAC, elevators, utilities, mechanical room access' },
+      { id:'Amenity Operations', Icon:MapPin,     desc:'Gym, pool, rooftop, lounge — setup, rules, scheduling' },
+      { id:'Software & Tools',   Icon:Settings,   desc:'Property management software, access control, apps' },
+      { id:'Other',              Icon:HelpCircle, desc:'Any other training material not covered above' },
+    ];
+
+    const tInput = {
+      width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12,
+      color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box',
+    };
+
+    const cancelUpload = () => {
+      setTrainingUploadOpen(false);
+      setTrainingStep(1);
+      setTrainingForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
+      if (trainingFileRef.current) trainingFileRef.current.value = '';
+    };
+
+    if (trainingUploadOpen) {
+      const step2Valid = trainingForm.title.trim() && trainingForm.dataURL;
+      return (
+        <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+
+          {/* ── Wizard header ── */}
+          <div style={{ flexShrink:0, padding:'16px 0 14px', borderBottom:`1px solid ${BORDER}`, background:CARD, marginBottom:0 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+              <div>
+                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Add Training Material</h2>
+                <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:'2px 0 0' }}>Step {trainingStep} of 2</p>
+              </div>
+              <button onClick={cancelUpload}
+                style={{ padding:'10px 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontSize:14, fontWeight:600, color:TEXT, cursor:'pointer', fontFamily:INTER }}>
+                Cancel
+              </button>
+            </div>
+            <div style={{ display:'flex', gap:6 }}>
+              {[1,2].map(s => (
+                <div key={s} style={{ height:4, flex:1, borderRadius:999, background: s <= trainingStep ? RED : `rgba(0,0,0,0.10)` }} />
+              ))}
+            </div>
+          </div>
+
+          {/* ── Step content ── */}
+          <div style={{ flex:1, overflowY:'auto' }}>
+            <div style={{ padding:'24px 0' }}>
+
+              {/* Step 1: Category selection */}
+              {trainingStep === 1 && (
+                <div>
+                  <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:20 }}>
+                    What type of training material?
+                  </h3>
+                  <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                    {CATEGORY_DEFS.map(({ id, Icon, desc }) => {
+                      const sel = trainingForm.category === id;
+                      return (
+                        <button key={id} onClick={() => setTrainingForm(p => ({ ...p, category:id, customCategory:'' }))}
+                          style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%',
+                            background: sel ? 'rgba(239,68,68,0.06)' : CARD,
+                            border: sel ? `2px solid ${RED}` : `2px solid ${BORDER}`,
+                            boxShadow: sel ? '0 4px 20px rgba(239,68,68,0.12)' : 'none',
+                          }}>
+                          <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: sel ? 'rgba(239,68,68,0.12)' : CARD2 }}>
+                            <Icon size={24} color={sel ? RED : MUTED} />
+                          </div>
+                          <div style={{ flex:1 }}>
+                            <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:'0 0 3px' }}>{id}</p>
+                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0, lineHeight:1.4 }}>{desc}</p>
+                          </div>
+                          {sel && (
+                            <div style={{ width:26, height:26, borderRadius:'50%', background:RED, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                              <Check size={14} color="white" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {trainingForm.category === 'Other' && (
+                    <div style={{ marginTop:20 }}>
+                      <label style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', display:'block', marginBottom:10 }}>Custom Category Name</label>
+                      <input type="text" placeholder="e.g. Lease Renewals" value={trainingForm.customCategory}
+                        onChange={e => setTrainingForm(p => ({ ...p, customCategory:e.target.value }))}
+                        style={{ ...tInput, border:`1.5px solid ${trainingForm.customCategory?RED:BORDER}` }} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 2: File + Title */}
+              {trainingStep === 2 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
+                  <div>
+                    <h3 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:6 }}>Upload your file</h3>
+                    <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, marginBottom:16 }}>Attach a PDF document, photo, or video clip.</p>
+                    <input ref={trainingFileRef} type="file" accept="image/*,video/*,.pdf,application/pdf"
+                      onChange={handleTrainingFileSelect} style={{ display:'none' }} id="training-file-input" />
+                    <label htmlFor="training-file-input" style={{ cursor:'pointer' }}>
+                      <div style={{ width:'100%', padding: trainingForm.dataURL ? '24px 0' : '48px 0', border:`2px dashed ${trainingForm.dataURL ? RED : BORDER}`, borderRadius:16, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, background: trainingForm.dataURL ? 'rgba(239,68,68,0.04)' : CARD }}>
+                        {trainingForm.dataURL ? (
+                          <>
+                            {trainingForm.fileType === 'image' ? (
+                              <img src={trainingForm.dataURL} alt="preview" style={{ maxHeight:140, maxWidth:'90%', borderRadius:10, objectFit:'contain' }} />
+                            ) : (
+                              <div style={{ width:60, height:60, borderRadius:16, background:'rgba(239,68,68,0.12)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                {trainingForm.fileType === 'video' ? <Video size={30} color={RED} /> : <FileText size={30} color={RED} />}
+                              </div>
+                            )}
+                            <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:RED, margin:0, textAlign:'center', maxWidth:240, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{trainingForm.fileName}</p>
+                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Tap to change file</p>
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={40} color={MUTED} />
+                            <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, fontWeight:600, margin:0 }}>Tap to add file</p>
+                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>PDF, Image, or Video</p>
+                          </>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', display:'block', marginBottom:10 }}>Material Title</label>
+                    <input type="text" placeholder="e.g. How to Handle a Lockout" value={trainingForm.title}
+                      onChange={e => setTrainingForm(p => ({ ...p, title:e.target.value }))}
+                      style={{ ...tInput, border:`1.5px solid ${trainingForm.title ? RED : BORDER}` }} />
+                  </div>
+
+                  {/* Summary card */}
+                  <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:16 }}>
+                    <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', margin:'0 0 8px' }}>Selected Category</p>
+                    {(() => {
+                      const cat = trainingForm.category === 'Other'
+                        ? (trainingForm.customCategory.trim() || 'Other')
+                        : trainingForm.category;
+                      const def = CATEGORY_DEFS.find(d => d.id === trainingForm.category);
+                      const CatIcon = def ? def.Icon : HelpCircle;
+                      return (
+                        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                          <div style={{ width:40, height:40, borderRadius:12, background:'rgba(239,68,68,0.10)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                            <CatIcon size={20} color={RED} />
+                          </div>
+                          <span style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT }}>{cat}</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+
+          {/* ── Footer ── */}
+          <div style={{ flexShrink:0, padding:'12px 0 4px', background:CARD, borderTop:`1px solid ${BORDER}` }}>
+            <div style={{ display:'flex', gap:12 }}>
+              {trainingStep > 1 && (
+                <button onClick={() => setTrainingStep(trainingStep - 1)}
+                  style={{ flex:1, padding:'16px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
+                  Back
+                </button>
+              )}
+              {trainingStep === 1 ? (
+                <button onClick={() => setTrainingStep(2)} disabled={!trainingForm.category}
+                  style={{ flex:2, padding:'16px 0', borderRadius:14, border:'none', background:trainingForm.category?RED:'rgba(255,56,92,0.25)', fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:trainingForm.category?'pointer':'default' }}>
+                  Continue
+                </button>
+              ) : (
+                <button onClick={saveTrainingItem} disabled={!step2Valid}
+                  style={{ flex:2, padding:'16px 0', borderRadius:14, border:'none', background:step2Valid?RED:'rgba(255,56,92,0.25)', fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:step2Valid?'pointer':'default' }}>
+                  Save Material
+                </button>
+              )}
+            </div>
+          </div>
+
+        </div>
+      );
+    }
+
+    /* ── List / history view ── */
+    return (
+      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
+        {trainingItems.length === 0 ? (
+          <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', gap:16, padding:'8px 0 0', textAlign:'center' }}>
+            <div style={{ width:72, height:72, borderRadius:22, background:'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <GraduationCap size={36} color={RED} />
+            </div>
+            <div>
+              <p style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, margin:'0 0 8px', letterSpacing:'-0.01em' }}>No training materials yet</p>
+              <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0, lineHeight:1.6 }}>Upload documents, images, or videos{'\n'}for your team to reference.</p>
+            </div>
+          </div>
+        ) : (
+          <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:12 }}>
+            {trainingItems.map((item) => {
+              const def = CATEGORY_DEFS.find(d => d.id === item.category);
+              const CatIcon = def ? def.Icon : HelpCircle;
+              const typeLabel = item.fileType === 'video' ? 'Video' : item.fileType === 'image' ? 'Photo' : 'PDF';
+              const typeBadgeColor = item.fileType === 'video' ? BLUE : item.fileType === 'image' ? GREEN : ORANGE;
+              const TypeIcon = item.fileType === 'video' ? Video : item.fileType === 'image' ? Image : FileText;
+              return (
+                <button key={item.id} onClick={() => setFullscreenTraining(item)}
+                  style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%',
+                    background:CARD, border:`1px solid ${BORDER}` }}>
+                  {/* Icon */}
+                  <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:CARD2, overflow:'hidden' }}>
+                    {item.fileType === 'image' ? (
+                      <img src={item.dataURL} alt={item.title} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                    ) : (
+                      <CatIcon size={26} color={MUTED} />
+                    )}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', margin:'0 0 4px' }}>{item.category}</p>
+                    <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 6px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</p>
+                    <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 9px', borderRadius:8, background:typeBadgeColor, fontFamily:INTER, fontSize:11, fontWeight:700, color:'white' }}>
+                      <TypeIcon size={11} color="white" />{typeLabel}
+                    </span>
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8, flexShrink:0 }}>
+                    <button onClick={e => { e.stopPropagation(); setTrainingItems(p=>p.filter(t=>t.id!==item.id)); }}
+                      style={{ width:34, height:34, borderRadius:10, border:'none', background:'rgba(255,59,48,0.08)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                      <Trash2 size={15} color={RED} />
+                    </button>
+                    <ChevronRight size={18} color={MUTED} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{ flexShrink:0, paddingTop:16 }}>
+          <button onClick={() => setTrainingUploadOpen(true)}
+            style={{ width:'100%', padding:'16px 0', borderRadius:14, border:'none', background:RED, fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10 }}>
+            <Upload size={18} color="white" />
+            Add Training Material
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const SOP_COLOR = {
@@ -1635,105 +2064,202 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     'Package Management': GREEN,
   };
 
-  const renderMore = () => (
-    <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
+  const renderMore = () => {
+    const SOP_CATEGORY_DEFS = [
+      { id:'Amenity Hours',       Icon:Waves,         desc:'Pool, gym, rooftop hours and access rules' },
+      { id:'Guest Policy',        Icon:User,          desc:'Visitor registration, guest parking, overnight stays' },
+      { id:'Noise & Quiet Hours', Icon:Phone,         desc:'Quiet hours, disturbance policies, common area rules' },
+      { id:'Security',            Icon:Shield,        desc:'Key control, access cards, camera systems, lock procedures' },
+      { id:'Move-In / Move-Out',  Icon:Truck,         desc:'Elevator reservations, move procedures, inspection checklists' },
+      { id:'Emergency',           Icon:AlertTriangle, desc:'Fire evacuations, medical emergencies, power outages' },
+      { id:'Package Management',  Icon:Package,       desc:'Package receiving, storage, resident notification' },
+      { id:'Other',               Icon:HelpCircle,    desc:'Any other building policy or procedure' },
+    ];
 
-      {sopUploadOpen ? (
-        /* ── Upload Document form ── */
-        <>
-          <div style={{ flexShrink:0, marginBottom:24 }}>
-            <button onClick={() => { setSopUploadOpen(false); setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' }); if(uploadFileRef.current) uploadFileRef.current.value=''; }}
-              style={{ display:'inline-flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', padding:0, marginBottom:16 }}>
-              <ChevronLeft size={16} color={MUTED} />
-              <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:MUTED }}>Back to SOPs</span>
-            </button>
-            <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Upload a Binder Document</h3>
-            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, marginTop:6 }}>Scan pages, take photos, or upload PDF files from your building binder.</p>
-          </div>
+    const sInput = {
+      width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12,
+      color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box',
+    };
 
-          <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:20, paddingBottom:16 }}>
+    const cancelSop = () => {
+      setSopUploadOpen(false);
+      setSopStep(1);
+      setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
+      if (uploadFileRef.current) uploadFileRef.current.value = '';
+    };
 
-            {/* File picker */}
-            <div>
-              <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Document File *</label>
-              <input ref={uploadFileRef} type="file" accept="image/*,.pdf,application/pdf" onChange={handleFileSelect}
-                style={{ display:'none' }} id="sop-file-input" />
-              <label htmlFor="sop-file-input"
-                style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, padding:'28px 20px', borderRadius:14, border:`2px dashed ${uploadForm.dataURL ? BLUE : BORDER}`, background: uploadForm.dataURL ? `rgba(255,56,92,0.04)` : CARD2, cursor:'pointer', transition:'all 150ms' }}>
-                {uploadForm.dataURL ? (
-                  <>
-                    {uploadForm.fileType === 'image' ? (
-                      <img src={uploadForm.dataURL} alt="preview" style={{ maxHeight:120, maxWidth:'100%', borderRadius:8, objectFit:'contain' }} />
-                    ) : (
-                      <div style={{ width:56, height:56, borderRadius:14, background:'rgba(255,56,92,0.10)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <FileText size={28} color={BLUE} />
-                      </div>
-                    )}
-                    <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:BLUE, textAlign:'center' }}>{uploadForm.fileName}</span>
-                    <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>Tap to change file</span>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ width:56, height:56, borderRadius:14, background:CARD, border:`1px solid ${BORDER}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <Upload size={24} color={MUTED} />
-                    </div>
-                    <div style={{ textAlign:'center' }}>
-                      <p style={{ fontFamily:INTER, fontSize:15, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>Tap to select file</p>
-                      <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>PDF, JPG, PNG — scanned pages or photos of your binder</p>
-                    </div>
-                  </>
-                )}
-              </label>
-            </div>
+    if (sopUploadOpen) {
+      const step2Valid = uploadForm.title.trim() && uploadForm.dataURL;
+      return (
+        <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
-            {/* Category */}
-            <div>
-              <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Category *</label>
-              <select value={uploadForm.category}
-                onChange={e => setUploadForm(p => ({ ...p, category:e.target.value, customCategory:'' }))}
-                style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${uploadForm.category ? BLUE : BORDER}`, fontFamily:INTER, fontSize:16, color:uploadForm.category?TEXT:MUTED, background:CARD2, outline:'none', boxSizing:'border-box', cursor:'pointer', transition:'border-color 150ms' }}>
-                <option value="" disabled>Select a category…</option>
-                {SOP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-
-            {uploadForm.category === 'Other' && (
+          {/* ── Wizard header ── */}
+          <div style={{ flexShrink:0, padding:'16px 0 14px', borderBottom:`1px solid ${BORDER}`, background:CARD }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
               <div>
-                <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Custom Category Name *</label>
-                <input type="text" placeholder="e.g. Parking Policy" value={uploadForm.customCategory}
-                  onChange={e => setUploadForm(p => ({ ...p, customCategory:e.target.value }))}
-                  style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${uploadForm.customCategory?BLUE:BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', transition:'border-color 150ms' }} />
+                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Upload a Binder Document</h2>
+                <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:'2px 0 0' }}>Step {sopStep} of 2</p>
               </div>
-            )}
-
-            {/* Title */}
-            <div>
-              <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Document Title *</label>
-              <input type="text" placeholder="e.g. Building Rules & Regulations" value={uploadForm.title}
-                onChange={e => setUploadForm(p => ({ ...p, title:e.target.value }))}
-                style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${uploadForm.title?BLUE:BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', transition:'border-color 150ms' }} />
+              <button onClick={cancelSop}
+                style={{ padding:'10px 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontSize:14, fontWeight:600, color:TEXT, cursor:'pointer', fontFamily:INTER }}>
+                Cancel
+              </button>
+            </div>
+            <div style={{ display:'flex', gap:6 }}>
+              {[1,2].map(s => (
+                <div key={s} style={{ height:4, flex:1, borderRadius:999, background: s <= sopStep ? RED : 'rgba(0,0,0,0.10)' }} />
+              ))}
             </div>
           </div>
 
-          <div style={{ flexShrink:0, display:'flex', gap:12, paddingTop:12 }}>
-            <button onClick={() => { setSopUploadOpen(false); setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' }); if(uploadFileRef.current) uploadFileRef.current.value=''; }}
-              style={{ flex:1, padding:'16px 0', borderRadius:14, border:`1px solid ${BORDER}`, background:CARD, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
-              Cancel
-            </button>
-            {(() => {
-              const valid = uploadForm.category && uploadForm.title.trim() && uploadForm.dataURL;
-              return (
-                <button onClick={saveUploadedSOP} disabled={!valid}
-                  style={{ flex:2, padding:'16px 0', borderRadius:14, border:'none', background:valid?BLUE:CARD2, fontFamily:INTER, fontSize:16, fontWeight:700, color:valid?'white':MUTED, cursor:valid?'pointer':'not-allowed', boxShadow:valid?'0 8px 24px rgba(255,56,92,0.30)':'none', transition:'background 150ms, color 150ms' }}>
+          {/* ── Step content ── */}
+          <div style={{ flex:1, overflowY:'auto' }}>
+            <div style={{ padding:'24px 0' }}>
+
+              {/* Step 1: Category selection */}
+              {sopStep === 1 && (
+                <div>
+                  <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:20 }}>
+                    What type of procedure is this?
+                  </h3>
+                  <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                    {SOP_CATEGORY_DEFS.map(({ id, Icon, desc }) => {
+                      const sel = uploadForm.category === id;
+                      const catColor = SOP_COLOR[id] || MUTED;
+                      return (
+                        <button key={id} onClick={() => setUploadForm(p => ({ ...p, category:id, customCategory:'' }))}
+                          style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%',
+                            background: sel ? 'rgba(239,68,68,0.06)' : CARD,
+                            border: sel ? `2px solid ${RED}` : `2px solid ${BORDER}`,
+                            boxShadow: sel ? '0 4px 20px rgba(239,68,68,0.12)' : 'none',
+                          }}>
+                          <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: sel ? 'rgba(239,68,68,0.12)' : CARD2 }}>
+                            <Icon size={24} color={sel ? RED : catColor} />
+                          </div>
+                          <div style={{ flex:1 }}>
+                            <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:'0 0 3px' }}>{id}</p>
+                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0, lineHeight:1.4 }}>{desc}</p>
+                          </div>
+                          {sel && (
+                            <div style={{ width:26, height:26, borderRadius:'50%', background:RED, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                              <Check size={14} color="white" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {uploadForm.category === 'Other' && (
+                    <div style={{ marginTop:20 }}>
+                      <label style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', display:'block', marginBottom:10 }}>Custom Category Name</label>
+                      <input type="text" placeholder="e.g. Parking Policy" value={uploadForm.customCategory}
+                        onChange={e => setUploadForm(p => ({ ...p, customCategory:e.target.value }))}
+                        style={{ ...sInput, border:`1.5px solid ${uploadForm.customCategory ? RED : BORDER}` }} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 2: File + Title */}
+              {sopStep === 2 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
+                  <div>
+                    <h3 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:6 }}>Upload your document</h3>
+                    <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, marginBottom:16 }}>Scan pages, take a photo, or upload a PDF from your binder.</p>
+                    <input ref={uploadFileRef} type="file" accept="image/*,.pdf,application/pdf"
+                      onChange={handleFileSelect} style={{ display:'none' }} id="sop-file-input" />
+                    <label htmlFor="sop-file-input" style={{ cursor:'pointer' }}>
+                      <div style={{ width:'100%', padding: uploadForm.dataURL ? '24px 0' : '48px 0', border:`2px dashed ${uploadForm.dataURL ? RED : BORDER}`, borderRadius:16, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, background: uploadForm.dataURL ? 'rgba(239,68,68,0.04)' : CARD }}>
+                        {uploadForm.dataURL ? (
+                          <>
+                            {uploadForm.fileType === 'image' ? (
+                              <img src={uploadForm.dataURL} alt="preview" style={{ maxHeight:140, maxWidth:'90%', borderRadius:10, objectFit:'contain' }} />
+                            ) : (
+                              <div style={{ width:60, height:60, borderRadius:16, background:'rgba(239,68,68,0.12)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                <FileText size={30} color={RED} />
+                              </div>
+                            )}
+                            <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:RED, margin:0, textAlign:'center', maxWidth:240, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{uploadForm.fileName}</p>
+                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Tap to change file</p>
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={40} color={MUTED} />
+                            <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, fontWeight:600, margin:0 }}>Tap to add file</p>
+                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>PDF, JPG, or PNG</p>
+                          </>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', display:'block', marginBottom:10 }}>Document Title</label>
+                    <input type="text" placeholder="e.g. Building Rules & Regulations" value={uploadForm.title}
+                      onChange={e => setUploadForm(p => ({ ...p, title:e.target.value }))}
+                      style={{ ...sInput, border:`1.5px solid ${uploadForm.title ? RED : BORDER}` }} />
+                  </div>
+
+                  {/* Summary card */}
+                  <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:16 }}>
+                    <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', margin:'0 0 8px' }}>Selected Category</p>
+                    {(() => {
+                      const cat = uploadForm.category === 'Other'
+                        ? (uploadForm.customCategory.trim() || 'Other')
+                        : uploadForm.category;
+                      const def = SOP_CATEGORY_DEFS.find(d => d.id === uploadForm.category);
+                      const CatIcon = def ? def.Icon : HelpCircle;
+                      const catColor = SOP_COLOR[uploadForm.category] || MUTED;
+                      return (
+                        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                          <div style={{ width:40, height:40, borderRadius:12, background:'rgba(239,68,68,0.10)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                            <CatIcon size={20} color={RED} />
+                          </div>
+                          <div>
+                            <span style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT }}>{cat}</span>
+                            {def && <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'2px 0 0' }}>{def.desc}</p>}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+
+          {/* ── Footer ── */}
+          <div style={{ flexShrink:0, padding:'12px 0 4px', background:CARD, borderTop:`1px solid ${BORDER}` }}>
+            <div style={{ display:'flex', gap:12 }}>
+              {sopStep > 1 && (
+                <button onClick={() => setSopStep(sopStep - 1)}
+                  style={{ flex:1, padding:'16px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
+                  Back
+                </button>
+              )}
+              {sopStep === 1 ? (
+                <button onClick={() => setSopStep(2)} disabled={!uploadForm.category}
+                  style={{ flex:2, padding:'16px 0', borderRadius:14, border:'none', background:uploadForm.category?RED:'rgba(255,56,92,0.25)', fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:uploadForm.category?'pointer':'default' }}>
+                  Continue
+                </button>
+              ) : (
+                <button onClick={saveUploadedSOP} disabled={!step2Valid}
+                  style={{ flex:2, padding:'16px 0', borderRadius:14, border:'none', background:step2Valid?RED:'rgba(255,56,92,0.25)', fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:step2Valid?'pointer':'default' }}>
                   Save Document
                 </button>
-              );
-            })()}
+              )}
+            </div>
           </div>
-        </>
 
-      ) : (
-        /* ── SOP list view ── */
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
+        {/* ── SOP list view ── */}
         <>
           {/* CTA button */}
           <div style={{ paddingBottom:16, flexShrink:0 }}>
@@ -1843,13 +2369,17 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             })}
           </div>
         </>
-      )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   /* ── Layout ───────────────────────────────────────────────────────────────── */
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:BG, fontFamily:INTER }}>
+      {/* Screen-reader live region */}
+      <div role="status" aria-live="polite" aria-atomic="true" style={{ position:'absolute', width:1, height:1, margin:-1, padding:0, overflow:'hidden', clip:'rect(0,0,0,0)', whiteSpace:'nowrap', border:0 }}>
+        {srAnnounce}
+      </div>
 
       {/* ── Full-width desktop header ─────────────────────────────────────────── */}
       {!isMobile && (
@@ -1866,6 +2396,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <div style={{ flex:1, position:'relative', marginRight:520, marginLeft:220 }}>
             <Search size={14} color="#6B7280" style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
             <input
+              ref={searchInputRef}
+              aria-label="Search residents, tasks, shifts, incidents"
               placeholder="Search residents, tasks, shifts, incidents…"
               style={{ width:'100%', height:34, background:'#FFFFFF', border:'none', borderRadius:6, paddingLeft:36, paddingRight:14, fontFamily:INTER, fontSize:13, color:'#111827', outline:'none', boxSizing:'border-box' }}
             />
@@ -1904,7 +2436,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               };
               return (
                 <button key={id} onClick={handleClick} title={sidebarCollapsed ? label : undefined}
-                  style={{ display:'flex', alignItems:'center', gap: sidebarCollapsed ? 0 : 12, justifyContent: sidebarCollapsed ? 'center' : 'flex-start', padding:'11px 12px', marginBottom:2, border:'none', cursor:'pointer', textAlign:'left', background:active?'rgba(255,56,92,0.08)':'transparent', borderRadius:12, width:'100%', position:'relative', transition:'background 120ms' }}>
+                  className="nav-btn touch-target"
+                  style={{ display:'flex', alignItems:'center', gap: sidebarCollapsed ? 0 : 12, justifyContent: sidebarCollapsed ? 'center' : 'flex-start', padding:'11px 12px', marginBottom:2, border:'none', cursor:'pointer', textAlign:'left', background:active?'rgba(255,56,92,0.08)':'transparent', borderRadius:12, width:'100%', position:'relative', transition:'background 120ms', minHeight:44 }}>
                   <div style={{ width:36, height:36, borderRadius:10, flexShrink:0, background:active?'rgba(255,56,92,0.12)':CARD2, display:'flex', alignItems:'center', justifyContent:'center', transition:'background 120ms', position:'relative' }}>
                     <NavIcon size={18} color={active?BLUE:MUTED} strokeWidth={active?2.2:1.6} />
                     {id==='home' && incidents.length>0 && sidebarCollapsed && (
@@ -1921,6 +2454,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   )}
                   {!sidebarCollapsed && id==='home' && (
                     <button onClick={(e) => { e.stopPropagation(); setSidebarCollapsed(true); }}
+                      aria-label="Collapse sidebar"
                       style={{ width:28, height:28, borderRadius:7, border:'none', background:'transparent', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
                       <X size={16} color={MUTED} />
                     </button>
@@ -1942,6 +2476,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           {!sidebarOpen && (
             <div style={{ position:'fixed', top:0, left:0, right:0, height:56, background:CARD, borderBottom:`1px solid ${BORDER}`, display:'flex', alignItems:'center', padding:'0 14px', zIndex:48, gap:10 }}>
               <button onClick={() => setSidebarOpen(true)}
+                aria-label="Open navigation menu"
                 style={{ width:36, height:36, borderRadius:10, border:'none', background:'transparent', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
                 <Menu size={20} color={TEXT} />
               </button>
@@ -1949,6 +2484,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 {BUILDING_PROFILE.name}
               </div>
               <button onClick={toggleTheme}
+                aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
                 style={{ width:36, height:36, borderRadius:10, border:'none', background: isDarkMode ? 'rgba(255,214,10,0.12)' : BORDER, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
                 {isDarkMode ? <Sun size={17} color="#FFD60A" /> : <Moon size={17} color={MUTED} />}
               </button>
@@ -1969,6 +2505,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   {/* Profile — top on mobile, Latch-style */}
                   <div style={{ position:'relative', padding:'24px 20px 16px', flexShrink:0, borderBottom:`1px solid ${BORDER}` }}>
                     <button onClick={() => setSidebarOpen(false)}
+                      aria-label="Close navigation menu"
                       style={{ position:'absolute', top:12, right:12, width:32, height:32, borderRadius:8, border:'none', background:'transparent', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
                       <X size={20} color={MUTED} />
                     </button>
@@ -1989,7 +2526,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       };
                       return (
                         <button key={id} onClick={handleClick}
-                          style={{ display:'flex', alignItems:'center', gap:12, padding:'11px 12px', marginBottom:2, border:'none', cursor:'pointer', textAlign:'left', background:active?'rgba(255,56,92,0.08)':'transparent', borderRadius:12, width:'100%', position:'relative', transition:'background 120ms' }}>
+                          className="nav-btn touch-target"
+                          style={{ display:'flex', alignItems:'center', gap:12, padding:'11px 12px', marginBottom:2, border:'none', cursor:'pointer', textAlign:'left', background:active?'rgba(255,56,92,0.08)':'transparent', borderRadius:12, width:'100%', position:'relative', transition:'background 120ms', minHeight:44 }}>
                           <div style={{ width:36, height:36, borderRadius:10, flexShrink:0, background:active?'rgba(255,56,92,0.12)':CARD2, display:'flex', alignItems:'center', justifyContent:'center', transition:'background 120ms' }}>
                             <NavIcon size={18} color={active?BLUE:MUTED} strokeWidth={active?2.2:1.6} />
                           </div>
@@ -2041,7 +2579,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div>
                   <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 2px' }}>{BUILDING_PROFILE.name}</p>
                   <h2 style={{ fontFamily:INTER, fontSize:20, fontWeight:700, color:TEXT, margin:0, letterSpacing:'-0.01em' }}>
-                    {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', more:'Building SOPs', sections:'Shift Sections', settings:'Settings' }[tab]}
+                    {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings' }[tab]}
                   </h2>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -2065,6 +2603,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 {tab==='tasks'     && renderTasks()}
                 {tab==='team'      && renderTeam()}
                 {tab==='more'      && renderMore()}
+                {tab==='training'  && renderTraining()}
                 {tab==='sections'  && renderConciergeSetup()}
                 {tab==='settings'  && renderSettings()}
               </div>
@@ -2088,7 +2627,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
         {/* Task Wizard */}
         {taskOpen && (
-          <motion.div key="task-modal"
+          <motion.div key="task-modal" ref={taskModalRef}
+            role="dialog" aria-modal="true" aria-label="Assign Task"
             initial={{ x:'110%' }} animate={{ x:0 }} exit={{ x:'110%' }}
             transition={{ type:'spring', damping:32, stiffness:300 }}
             style={{ position:'fixed', right:16, top:16, bottom:16, width:Math.min(580, window.innerWidth - (isMobile ? 32 : 280)), zIndex:68, background:BG, borderRadius:24, boxShadow:'0 24px 64px rgba(0,0,0,0.20)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
@@ -2441,7 +2981,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.2 }}
               onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'' }); }}
               style={{ position:'fixed', inset:0, zIndex:67, background:'rgba(0,0,0,0.32)', backdropFilter:'blur(2px)' }} />
-            <motion.div key="leasing-modal"
+            <motion.div key="leasing-modal" ref={leasingModalRef}
+              role="dialog" aria-modal="true" aria-label="Add Team Members"
               initial={{ x:'110%' }} animate={{ x:0 }} exit={{ x:'110%' }}
               transition={{ type:'spring', damping:32, stiffness:300 }}
               style={{ position:'fixed', right:16, top:16, bottom:16, width:Math.min(580, window.innerWidth - (isMobile ? 32 : 280)), zIndex:68, background:BG, borderRadius:24, boxShadow:'0 24px 64px rgba(0,0,0,0.20)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
@@ -2618,6 +3159,49 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <div style={{ flexShrink:0, padding:'12px 20px 24px', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}
             onClick={e => e.stopPropagation()}>
             <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:280 }}>{fullscreenDoc.fileName}</span>
+            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.20)' }}>·</span>
+            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)' }}>Tap outside to close</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Fullscreen training viewer ───────────────────────────────────────── */}
+      {fullscreenTraining && (
+        <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.96)', display:'flex', flexDirection:'column' }}
+          onClick={() => setFullscreenTraining(null)}>
+
+          {/* Header bar */}
+          <div style={{ flexShrink:0, display:'flex', alignItems:'center', gap:14, padding:'14px 20px', background:'rgba(0,0,0,0.7)', backdropFilter:'blur(10px)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.45)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:2 }}>{fullscreenTraining.category}</div>
+              <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', lineHeight:1.2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{fullscreenTraining.title}</div>
+            </div>
+            <button onClick={() => setFullscreenTraining(null)}
+              style={{ width:40, height:40, borderRadius:12, background:'rgba(255,255,255,0.12)', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+              <X size={20} color="white" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div style={{ flex:1, minHeight:0, display:'flex', alignItems:'center', justifyContent:'center', padding:'12px', overflowY:'auto' }}
+            onClick={e => e.stopPropagation()}>
+            {fullscreenTraining.fileType === 'image' ? (
+              <img src={fullscreenTraining.dataURL} alt={fullscreenTraining.title}
+                style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', borderRadius:8, display:'block' }} />
+            ) : fullscreenTraining.fileType === 'video' ? (
+              <video src={fullscreenTraining.dataURL} controls autoPlay
+                style={{ maxWidth:'100%', maxHeight:'100%', borderRadius:8, display:'block', outline:'none' }} />
+            ) : (
+              <iframe src={fullscreenTraining.dataURL} title={fullscreenTraining.title}
+                style={{ width:'100%', height:'100%', border:'none', borderRadius:8, display:'block', background:'white' }} />
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ flexShrink:0, padding:'12px 20px 24px', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}
+            onClick={e => e.stopPropagation()}>
+            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:280 }}>{fullscreenTraining.fileName}</span>
             <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.20)' }}>·</span>
             <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)' }}>Tap outside to close</span>
           </div>

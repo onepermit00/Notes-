@@ -17,7 +17,7 @@ export const TaskRequestCard = ({ task, onAccept, onDecline }) => {
   };
 
   return (
-    <div style={{ background: CARD, border: '1.5px solid rgba(255,56,92,0.22)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 16px rgba(255,56,92,0.06)', fontFamily: INTER }}>
+    <div className="stagger-item" style={{ background: CARD, border: '1.5px solid rgba(255,56,92,0.22)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 16px rgba(255,56,92,0.06)', fontFamily: INTER }}>
       <div style={{ padding: 20 }}>
 
         {/* Header */}
@@ -27,9 +27,9 @@ export const TaskRequestCard = ({ task, onAccept, onDecline }) => {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ marginBottom: 4 }}>
-              <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: BLUE, background: 'rgba(255,56,92,0.10)', borderRadius: 6, padding: '2px 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Request</span>
+              <span style={{ fontFamily: INTER, fontSize: 'var(--text-xs)', fontWeight: 800, color: BLUE, background: 'rgba(255,56,92,0.10)', borderRadius: 6, padding: '2px 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Request</span>
             </div>
-            <h3 style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: 0, lineHeight: 1.3 }}>{task.title}</h3>
+            <h3 style={{ fontFamily: INTER, fontSize: 'var(--text-base)', fontWeight: 700, color: TEXT, margin: 0, lineHeight: 1.3 }}>{task.title}</h3>
           </div>
         </div>
 
@@ -44,17 +44,17 @@ export const TaskRequestCard = ({ task, onAccept, onDecline }) => {
         </div>
 
         {task.description && (
-          <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: '0 0 14px', lineHeight: 1.5 }}>{task.description}</p>
+          <p style={{ fontFamily: INTER, fontSize: 'var(--text-sm)', color: MUTED, margin: '0 0 14px', lineHeight: 1.5 }}>{task.description}</p>
         )}
 
         {/* Actions */}
         {showDeclineForm ? (
           <div>
-            <p style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: RED, letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 8 }}>Select reason:</p>
+            <p style={{ fontFamily: INTER, fontSize: 'var(--text-xs)', fontWeight: 800, color: RED, letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 8 }}>Select reason:</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
               {DECLINE_REASONS.map(reason => (
                 <button key={reason} onClick={() => setSelectedReason(reason)}
-                  style={{ width: '100%', padding: '10px 12px', background: selectedReason === reason ? 'rgba(255,59,48,0.08)' : CARD, border: selectedReason === reason ? '1px solid rgba(255,59,48,0.30)' : `1px solid ${BORDER}`, borderRadius: 10, textAlign: 'left', fontFamily: INTER, fontSize: 13, fontWeight: 500, color: selectedReason === reason ? RED : MUTED, cursor: 'pointer', transition: 'all 150ms' }}>
+                  style={{ width: '100%', padding: 'var(--space-1) 12px', background: selectedReason === reason ? 'rgba(255,59,48,0.08)' : CARD, border: selectedReason === reason ? '1px solid rgba(255,59,48,0.30)' : `1px solid ${BORDER}`, borderRadius: 10, textAlign: 'left', fontFamily: INTER, fontSize: 'var(--text-sm)', fontWeight: 500, color: selectedReason === reason ? RED : MUTED, cursor: 'pointer', transition: 'all 150ms' }}>
                   {reason}
                 </button>
               ))}
