@@ -2,6 +2,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Response, Request, Cookie
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from contextlib import asynccontextmanager
 import bcrypt as _bcrypt
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -31,11 +32,43 @@ def verify_pw(password: str, hashed: str) -> bool:
         return False
 
 # ── App ───────────────────────────────────────────────────────────────────────
-app = FastAPI()
-api = APIRouter(prefix='/api')
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
+
+
+async def _ensure_indexes():
+    await db.sessions.create_index('token',      unique=True,  background=True)
+    await db.sessions.create_index('expires_at',              background=True)
+    await db.managers.create_index('email',      unique=True,  background=True)
+    await db.managers.create_index('manager_id',              background=True)
+    await db.concierges.create_index('email',    unique=True,  background=True)
+    await db.concierges.create_index('concierge_id',          background=True)
+    await db.concierges.create_index([('manager_id', 1)],     background=True)
+    await db.shifts.create_index([('concierge_id', 1), ('status', 1)], background=True)
+    await db.shifts.create_index([('manager_id', 1),  ('status', 1)], background=True)
+    await db.shifts.create_index([('clock_in', -1)],          background=True)
+    await db.tasks.create_index('task_id',                    background=True)
+    await db.tasks.create_index([('manager_id', 1), ('created_at', -1)], background=True)
+    await db.incidents.create_index('incident_id',            background=True)
+    await db.incidents.create_index([('manager_id', 1), ('created_at', -1)], background=True)
+    await db.messages.create_index([('manager_id', 1), ('created_at', 1)],  background=True)
+    logger.info('MongoDB indexes ensured.')
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        await client.admin.command('ping')
+        logger.info('MongoDB connected.')
+    except Exception as e:
+        logger.error(f'MongoDB connection failed: {e}')
+    await _ensure_indexes()
+    yield
+    client.close()
+
+
+app = FastAPI(lifespan=lifespan)
+api = APIRouter(prefix='/api')
 
 SESSION_DAYS = 30
 
@@ -108,6 +141,15 @@ class IncidentCreate(BaseModel):
     unit_number:      Optional[str] = None
     person_involved:  Optional[str] = None
 
+class IncidentUpdate(BaseModel):
+    status:        Optional[str] = None
+    resolved_note: Optional[str] = None
+
+class UpdateProfileRequest(BaseModel):
+    first_name: Optional[str] = None
+    last_name:  Optional[str] = None
+    phone:      Optional[str] = None
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SESSION HELPERS
@@ -177,7 +219,7 @@ async def send_email(to_email: str, subject: str, html: str):
         logger.info(f'SMTP not configured — skipping email to {to_email}')
         return
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, _send_smtp, to_email, subject, html)
         logger.info(f'Email sent → {to_email}')
     except Exception as e:
@@ -190,6 +232,8 @@ async def send_email(to_email: str, subject: str, html: str):
 
 @api.post('/auth/manager/signup')
 async def manager_signup(data: ManagerSignupRequest, response: Response):
+    if len(data.password) < 8:
+        raise HTTPException(400, 'Password must be at least 8 characters.')
     if await db.managers.find_one({'email': data.email.lower()}):
         raise HTTPException(400, 'An account with this email already exists.')
 
@@ -341,6 +385,42 @@ async def change_password(data: ChangePasswordRequest, request: Request, session
     return {'message': 'Password updated successfully.'}
 
 
+@api.put('/auth/me')
+async def update_profile(data: UpdateProfileRequest, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    session = await get_session(request, session_token)
+    if not session:
+        raise HTTPException(401, 'Not authenticated.')
+    patch = {}
+    if data.first_name is not None: patch['first_name'] = data.first_name.strip()
+    if data.last_name  is not None: patch['last_name']  = data.last_name.strip()
+    if data.phone      is not None: patch['phone']      = data.phone.strip()
+    if not patch:
+        raise HTTPException(400, 'No fields to update.')
+    collection = db.managers   if session['user_type'] == 'manager' else db.concierges
+    id_field   = 'manager_id'  if session['user_type'] == 'manager' else 'concierge_id'
+    result = await collection.update_one({id_field: session['user_id']}, {'$set': patch})
+    if result.matched_count == 0:
+        raise HTTPException(404, 'User not found.')
+    user = await collection.find_one({id_field: session['user_id']}, {'_id': 0, 'password_hash': 0})
+    if session['user_type'] == 'manager':
+        return {
+            'user_id':       user['manager_id'],
+            'user_type':     'manager',
+            'name':          f"{user['first_name']} {user['last_name']}",
+            'email':         user['email'],
+            'property_name': user['property_name'],
+        }
+    return {
+        'user_id':       user['concierge_id'],
+        'user_type':     'concierge',
+        'name':          f"{user['first_name']} {user['last_name']}",
+        'email':         user['email'],
+        'property_name': user.get('property_name', ''),
+        'title':         user.get('title', 'Concierge'),
+        'manager_id':    user['manager_id'],
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # MANAGER — CONCIERGE MANAGEMENT
 # ══════════════════════════════════════════════════════════════════════════════
@@ -355,6 +435,8 @@ async def add_concierge(data: AddConciergeRequest, request: Request, session_tok
     if not manager:
         raise HTTPException(404, 'Manager not found.')
 
+    if len(data.password) < 8:
+        raise HTTPException(400, 'Password must be at least 8 characters.')
     if await db.concierges.find_one({'email': data.email.lower()}):
         raise HTTPException(400, 'A concierge with this email already exists.')
 
@@ -668,10 +750,11 @@ async def create_task(task: TaskCreate, request: Request, session_token: Optiona
         'created_by':      user['manager_id'] if user_type == 'manager' else user['concierge_id'],
         'created_by_name': f"{user['first_name']} {user['last_name']}",
         'created_by_type': user_type,
-        'created_at':      datetime.now(timezone.utc).isoformat(),
+        'created_at':      datetime.now(timezone.utc),
     }
     await db.tasks.insert_one(doc)
     doc.pop('_id', None)
+    doc['created_at'] = doc['created_at'].isoformat()
     return doc
 
 
@@ -726,11 +809,36 @@ async def create_incident(incident: IncidentCreate, request: Request, session_to
         'status':          'new',
         'created_by':      f"{user['first_name']} {user['last_name']}",
         'created_by_type': user_type,
-        'created_at':      datetime.now(timezone.utc).isoformat(),
+        'created_at':      datetime.now(timezone.utc),
     }
     await db.incidents.insert_one(doc)
     doc.pop('_id', None)
+    doc['created_at'] = doc['created_at'].isoformat()
     return doc
+
+
+@api.put('/incidents/{incident_id}')
+async def update_incident(incident_id: str, update: IncidentUpdate, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if user_type != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    patch = {}
+    if update.status:
+        patch['status'] = update.status
+    if update.status == 'resolved':
+        patch['resolved_at'] = datetime.now(timezone.utc).isoformat()
+        patch['resolved_by'] = f"{user['first_name']} {user['last_name']}"
+    if update.resolved_note:
+        patch['resolved_note'] = update.resolved_note
+    if not patch:
+        raise HTTPException(400, 'No fields to update.')
+    result = await db.incidents.update_one({'incident_id': incident_id, 'manager_id': mgr_id}, {'$set': patch})
+    if result.matched_count == 0:
+        raise HTTPException(404, 'Incident not found.')
+    updated = await db.incidents.find_one({'incident_id': incident_id}, {'_id': 0})
+    if isinstance(updated.get('created_at'), datetime):
+        updated['created_at'] = updated['created_at'].isoformat()
+    return updated
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -755,10 +863,11 @@ async def send_message(msg: MessageCreate, request: Request, session_token: Opti
         'message_type': msg.message_type,
         'sender_name':  f"{user['first_name']} {user['last_name']}",
         'sender_type':  user_type,
-        'created_at':   datetime.now(timezone.utc).isoformat(),
+        'created_at':   datetime.now(timezone.utc),
     }
     await db.messages.insert_one(doc)
     doc.pop('_id', None)
+    doc['created_at'] = doc['created_at'].isoformat()
     return doc
 
 
@@ -826,6 +935,3 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-@app.on_event('shutdown')
-async def shutdown():
-    client.close()

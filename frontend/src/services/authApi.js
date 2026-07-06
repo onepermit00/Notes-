@@ -112,6 +112,11 @@ export const authApi = {
     return data;
   },
 
+  async updateProfile(fields) {
+    const { data } = await api.put('/auth/me', fields);
+    return data;
+  },
+
   async getMe() {
     try {
       const { data } = await api.get('/auth/me');
@@ -201,6 +206,11 @@ export const authApi = {
   async getIncidents() {
     const { data } = await api.get('/incidents');
     return (data.incidents || []).map(normalizeIncident);
+  },
+
+  async resolveIncident(incidentId) {
+    const { data } = await api.put(`/incidents/${incidentId}`, { status: 'resolved' });
+    return normalizeIncident(data);
   },
 
   async createIncident(form) {
