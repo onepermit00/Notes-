@@ -45,7 +45,7 @@ const CHANNELS = [
   { id: 'all',       name: 'All Staff',         subtitle: 'Building-wide channel',    type: 'channel', unread: 0, color: BLUE,   lastMsg: 'Good morning everyone!',                  lastTime: 'Yesterday' },
   { id: 'concierge', name: 'Concierge',         subtitle: 'Front desk team',          type: 'channel', unread: 3, color: GREEN,  lastMsg: 'RTS package still in slot B2',            lastTime: '6:42 AM'  },
   { id: 'day',       name: 'Day Shift',         subtitle: '6 AM – 6 PM',              type: 'channel', unread: 0, color: BLUE,   lastMsg: 'Lobby polished ✓',                        lastTime: 'Yesterday' },
-  { id: 'night',     name: 'Night Shift',       subtitle: '6 PM – 6 AM',              type: 'channel', unread: 1, color: MUTED,  lastMsg: 'Noise complaint 12F resolved',            lastTime: '11:55 PM' },
+  { id: 'night',     name: 'Night Shift',       subtitle: '6 PM – 6 AM',              type: 'channel', unread: 1, color: '#717171', lastMsg: 'Noise complaint 12F resolved',          lastTime: '11:55 PM' },
 ];
 
 const DMS = [
@@ -106,6 +106,8 @@ function ChannelIcon({ channel, size = 44 }) {
 
 // ── DM avatar ──────────────────────────────────────────────────────────────────
 function DmAvatar({ dm, size = 44 }) {
+  const { colors } = useTheme();
+  const { CARD } = colors;
   return (
     <div style={{ position: 'relative', flexShrink: 0 }}>
       <img src={dm.avatar} alt={dm.name} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />

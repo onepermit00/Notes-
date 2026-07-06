@@ -17,6 +17,8 @@ const LOANER_INIT = [
 const now = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
 function Label({ children }) {
+  const { colors } = useTheme();
+  const { MUTED, INTER } = colors;
   return (
     <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>
       {children}
@@ -25,6 +27,8 @@ function Label({ children }) {
 }
 
 function WizardHeader({ title, step, totalSteps, onCancel }) {
+  const { colors } = useTheme();
+  const { CARD, BORDER, TEXT, MUTED, INTER } = colors;
   return (
     <div style={{ flexShrink: 0, background: CARD, borderBottom: `1px solid ${BORDER}` }}>
       <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -46,6 +50,8 @@ function WizardHeader({ title, step, totalSteps, onCancel }) {
 }
 
 function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continueDisabled = false, isFirst = false }) {
+  const { colors } = useTheme();
+  const { CARD, CARD2, BORDER, TEXT, MUTED, INTER } = colors;
   return (
     <div style={{ flexShrink: 0, padding: '12px 20px 24px', background: CARD, borderTop: `1px solid ${BORDER}`, display: 'flex', gap: 10 }}>
       {!isFirst && (
