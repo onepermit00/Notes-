@@ -317,9 +317,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [leasingForm,     setLeasingForm]     = useState({ teamName:'', contact:'', phone:'', email:'' });
   const [profileOpen,     setProfileOpen]     = useState(false);
   const [expandedSOPId,    setExpandedSOPId]    = useState(null);
-  const [customSOPs,       setCustomSOPs]       = useState([]);
-  const [sopFormOpen,      setSopFormOpen]      = useState(false);
-  const [sopForm,          setSopForm]          = useState({ category:'', customCategory:'', title:'', content:'' });
   const [uploadedSOPs,     setUploadedSOPs]     = useState([]);
   const [sopUploadOpen,    setSopUploadOpen]    = useState(false);
   const [uploadForm,       setUploadForm]       = useState({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
@@ -1597,16 +1594,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     '__uploaded_pdf__':    FileText,
   };
 
-  const ALL_SOPS = [...BUILDING_SOPS, ...customSOPs, ...uploadedSOPs];
+  const ALL_SOPS = [...uploadedSOPs];
   const SOP_CATEGORIES = ['Amenity Hours','Guest Policy','Noise & Quiet Hours','Security','Move-In / Move-Out','Emergency','Package Management','Other'];
-
-  const saveSOP = () => {
-    const cat = sopForm.category === 'Other' ? (sopForm.customCategory.trim() || 'Other') : sopForm.category;
-    if (!cat || !sopForm.title.trim() || !sopForm.content.trim()) return;
-    setCustomSOPs(p => [...p, { id:`custom-${Date.now()}`, category:cat, title:sopForm.title.trim(), content:sopForm.content.trim(), _custom:true }]);
-    setSopForm({ category:'', customCategory:'', title:'', content:'' });
-    setSopFormOpen(false);
-  };
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
@@ -1649,70 +1638,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const renderMore = () => (
     <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
 
-      {sopFormOpen ? (
-        /* ── Inline Add SOP form ── */
-        <>
-          <div style={{ flexShrink:0, marginBottom:24 }}>
-            <button onClick={() => { setSopFormOpen(false); setSopForm({ category:'', customCategory:'', title:'', content:'' }); }}
-              style={{ display:'inline-flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', padding:0, marginBottom:16 }}>
-              <ChevronLeft size={16} color={MUTED} />
-              <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:MUTED }}>Back to SOPs</span>
-            </button>
-            <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>What procedure are you adding?</h3>
-          </div>
-
-          <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:20, paddingBottom:16 }}>
-            <div>
-              <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Category *</label>
-              <select value={sopForm.category}
-                onChange={e => setSopForm(p => ({ ...p, category:e.target.value, customCategory:'' }))}
-                style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${sopForm.category ? BLUE : BORDER}`, fontFamily:INTER, fontSize:16, color:sopForm.category?TEXT:MUTED, background:CARD2, outline:'none', boxSizing:'border-box', cursor:'pointer', transition:'border-color 150ms' }}>
-                <option value="" disabled>Select a category…</option>
-                {SOP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            {sopForm.category === 'Other' && (
-              <div>
-                <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Custom Category Name *</label>
-                <input type="text" placeholder="e.g. Parking Policy" value={sopForm.customCategory}
-                  onChange={e => setSopForm(p => ({ ...p, customCategory:e.target.value }))}
-                  style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${sopForm.customCategory?BLUE:BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', transition:'border-color 150ms' }} />
-              </div>
-            )}
-            <div>
-              <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Title *</label>
-              <input type="text" placeholder="e.g. Pool & Spa Rules" value={sopForm.title}
-                onChange={e => setSopForm(p => ({ ...p, title:e.target.value }))}
-                style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${sopForm.title?BLUE:BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', transition:'border-color 150ms' }} />
-            </div>
-            <div>
-              <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Procedure Content *</label>
-              <textarea placeholder="Write the step-by-step procedure here…" value={sopForm.content}
-                onChange={e => setSopForm(p => ({ ...p, content:e.target.value }))}
-                rows={7}
-                style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:`1.5px solid ${sopForm.content?BLUE:BORDER}`, fontFamily:INTER, fontSize:15, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', resize:'none', lineHeight:1.75, transition:'border-color 150ms' }} />
-              <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'6px 0 0' }}>Be specific — include times, names, locations, and steps where relevant.</p>
-            </div>
-          </div>
-
-          <div style={{ flexShrink:0, display:'flex', gap:12, paddingTop:12 }}>
-            <button onClick={() => { setSopFormOpen(false); setSopForm({ category:'', customCategory:'', title:'', content:'' }); }}
-              style={{ flex:1, padding:'16px 0', borderRadius:14, border:`1px solid ${BORDER}`, background:CARD, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
-              Cancel
-            </button>
-            {(() => {
-              const valid = sopForm.category && sopForm.title.trim() && sopForm.content.trim();
-              return (
-                <button onClick={saveSOP} disabled={!valid}
-                  style={{ flex:2, padding:'16px 0', borderRadius:14, border:'none', background:valid?BLUE:CARD2, fontFamily:INTER, fontSize:16, fontWeight:700, color:valid?'white':MUTED, cursor:valid?'pointer':'not-allowed', boxShadow:valid?'0 8px 24px rgba(255,56,92,0.30)':'none', transition:'background 150ms, color 150ms' }}>
-                  Save Procedure
-                </button>
-              );
-            })()}
-          </div>
-        </>
-
-      ) : sopUploadOpen ? (
+      {sopUploadOpen ? (
         /* ── Upload Document form ── */
         <>
           <div style={{ flexShrink:0, marginBottom:24 }}>
@@ -1809,32 +1735,18 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       ) : (
         /* ── SOP list view ── */
         <>
-          {/* CTA buttons */}
-          <div style={{ paddingBottom:16, flexShrink:0, display:'flex', flexDirection:'column', gap:10 }}>
-            {/* New SOP (typed) */}
-            <button onClick={() => setSopFormOpen(true)}
-              style={{ width:'100%', display:'flex', alignItems:'center', gap:16, padding:'18px 20px', background:BLUE, border:'none', borderRadius:18, cursor:'pointer', textAlign:'left', boxShadow:'0 8px 28px rgba(255,56,92,0.32)' }}>
-              <div style={{ width:50, height:50, borderRadius:14, background:'rgba(255,255,255,0.20)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <Plus size={24} color="white" strokeWidth={2.5} />
-              </div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', marginBottom:2 }}>New SOP</div>
-                <div style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.75)' }}>Write a procedure for {BUILDING_PROFILE.name}</div>
-              </div>
-              <ChevronRight size={20} color="rgba(255,255,255,0.75)" />
-            </button>
-
-            {/* Upload Document */}
+          {/* CTA button */}
+          <div style={{ paddingBottom:16, flexShrink:0 }}>
             <button onClick={() => setSopUploadOpen(true)}
-              style={{ width:'100%', display:'flex', alignItems:'center', gap:16, padding:'18px 20px', background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:18, cursor:'pointer', textAlign:'left' }}>
-              <div style={{ width:50, height:50, borderRadius:14, background:`rgba(255,56,92,0.08)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <Upload size={22} color={BLUE} />
+              style={{ width:'100%', display:'flex', alignItems:'center', gap:16, padding:'20px', background:BLUE, border:'none', borderRadius:18, cursor:'pointer', textAlign:'left', boxShadow:'0 8px 28px rgba(255,56,92,0.32)' }}>
+              <div style={{ width:56, height:56, borderRadius:16, background:'rgba(255,255,255,0.20)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Upload size={26} color="white" strokeWidth={2.5} />
               </div>
               <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT, marginBottom:2 }}>Upload Document</div>
-                <div style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>Scan or photo pages from your binder</div>
+                <div style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:'white', marginBottom:3 }}>Upload Document</div>
+                <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.75)' }}>Scan or photo pages from your binder</div>
               </div>
-              <ChevronRight size={20} color={MUTED} />
+              <ChevronRight size={22} color="rgba(255,255,255,0.75)" />
             </button>
           </div>
 
@@ -1855,10 +1767,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               const SopIcon = isUploaded
                 ? (sop.fileType === 'image' ? Image : FileText)
                 : (SOP_ICON_CONFIG[sop.category] || BookOpen);
-              const isCustom = !!sop._custom;
               const catColor = SOP_COLOR[sop.category] || MUTED;
               const isEmergency = sop.category === 'Emergency';
-              const canDelete = isCustom || isUploaded;
               return (
                 <div key={sop.id} style={{ background:CARD, border:`1.5px solid ${open ? catColor : BORDER}`, borderRadius:16, overflow:'hidden', transition:'border-color 150ms', boxShadow: open && isEmergency ? '0 4px 20px rgba(255,59,48,0.10)' : open ? '0 4px 20px rgba(0,0,0,0.06)' : 'none' }}>
                   <button onClick={() => setExpandedSOPId(open?null:sop.id)}
@@ -1869,7 +1779,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4, flexWrap:'wrap' }}>
                         <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:open?catColor:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', transition:'color 150ms' }}>{sop.category}</span>
-                        {isCustom && <span style={{ fontFamily:INTER, fontSize:9, fontWeight:700, color:BLUE, background:'rgba(255,56,92,0.10)', borderRadius:4, padding:'1px 6px', textTransform:'uppercase' }}>Custom</span>}
                         {isUploaded && <span style={{ fontFamily:INTER, fontSize:9, fontWeight:700, color:GREEN, background:'rgba(52,199,89,0.10)', borderRadius:4, padding:'1px 6px', textTransform:'uppercase' }}>{sop.fileType === 'image' ? 'Photo' : 'PDF'}</span>}
                       </div>
                       <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT, lineHeight:1.3 }}>{sop.title}</div>
@@ -1878,11 +1787,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       )}
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-                      {canDelete && (
+                      {isUploaded && (
                         <button onClick={e => {
                           e.stopPropagation();
-                          if (isUploaded) setUploadedSOPs(p=>p.filter(s=>s.id!==sop.id));
-                          else setCustomSOPs(p=>p.filter(s=>s.id!==sop.id));
+                          setUploadedSOPs(p=>p.filter(s=>s.id!==sop.id));
                           if(expandedSOPId===sop.id) setExpandedSOPId(null);
                         }} style={{ width:30, height:30, borderRadius:8, border:'none', background:'rgba(255,59,48,0.08)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
                           <X size={14} color={RED} />
