@@ -9,9 +9,8 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-import os, logging, uuid, asyncio, smtplib, base64
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import os, logging, uuid, asyncio, base64
+import urllib.request, urllib.error, json as _json
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -198,29 +197,29 @@ def set_cookie(response: Response, token: str):
 # EMAIL HELPER
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _send_smtp(to_email: str, subject: str, html: str):
-    host = os.environ.get('SMTP_HOST')
-    port = int(os.environ.get('SMTP_PORT', 587))
-    user = os.environ.get('SMTP_USER', '')
-    pwd_ = os.environ.get('SMTP_PASS', '')
-    msg  = MIMEMultipart('alternative')
-    msg['Subject'] = subject
-    msg['From']    = f'onepermit <{user}>'
-    msg['To']      = to_email
-    msg.attach(MIMEText(html, 'html'))
-    with smtplib.SMTP(host, port) as s:
-        s.ehlo()
-        s.starttls()
-        s.login(user, pwd_)
-        s.sendmail(user, [to_email], msg.as_string())
+def _send_resend(to_email: str, subject: str, html: str):
+    api_key = os.environ.get('RESEND_API_KEY', '')
+    payload = _json.dumps({
+        'from': 'Notes <onboarding@resend.dev>',
+        'to': [to_email],
+        'subject': subject,
+        'html': html,
+    }).encode()
+    req = urllib.request.Request(
+        'https://api.resend.com/emails',
+        data=payload,
+        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+    )
+    with urllib.request.urlopen(req, timeout=15) as r:
+        r.read()
 
 async def send_email(to_email: str, subject: str, html: str):
-    if not os.environ.get('SMTP_HOST'):
-        logger.info(f'SMTP not configured — skipping email to {to_email}')
+    if not os.environ.get('RESEND_API_KEY'):
+        logger.info(f'Resend not configured — skipping email to {to_email}')
         return
     try:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _send_smtp, to_email, subject, html)
+        await loop.run_in_executor(None, _send_resend, to_email, subject, html)
         logger.info(f'Email sent → {to_email}')
     except Exception as e:
         logger.error(f'Email failed: {e}')
