@@ -308,6 +308,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [addForm,   setAddForm]   = useState(EMPTY_ADD);
   const [addLoading, setAddLoading] = useState(false);
   const [addError,   setAddError]   = useState('');
+  const [newCredentials, setNewCredentials] = useState(null);
   const [taskOpen,  setTaskOpen]  = useState(false);
   const [taskStep,  setTaskStep]  = useState(1);
   const [taskForm,  setTaskForm]  = useState(EMPTY_TASK);
@@ -489,6 +490,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       });
       setTeam(p => [...p, newC]);
       setSectionAccess(prev => ({ ...prev, [newC.id]: { ...DEFAULT_SECTIONS } }));
+      setNewCredentials({ email: addForm.email.trim(), password: tempPw, name: addForm.name.trim() });
       closeAdd();
     } catch (err) {
       setAddError(err?.response?.data?.detail || 'Failed to add concierge. Please try again.');
@@ -2611,6 +2613,39 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           </>
         )}
       </AnimatePresence>
+
+      {/* ── Credentials Modal ─────────────────────────────────────────────────── */}
+      {newCredentials && (
+        <div style={{ position:'fixed', inset:0, zIndex:200, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+          <div style={{ background:BG, borderRadius:20, padding:32, maxWidth:420, width:'100%', boxShadow:'0 24px 64px rgba(0,0,0,0.25)' }}>
+            <div style={{ textAlign:'center', marginBottom:24 }}>
+              <div style={{ fontSize:40, marginBottom:8 }}>✅</div>
+              <div style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT }}>{newCredentials.name} Added</div>
+              <div style={{ fontFamily:INTER, fontSize:13, color:MUTED, marginTop:4 }}>Share these login credentials with them directly</div>
+            </div>
+            <div style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:14, padding:20, marginBottom:20 }}>
+              <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Login Credentials</div>
+              <div style={{ marginBottom:10 }}>
+                <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginBottom:2 }}>USERNAME (EMAIL)</div>
+                <div style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, wordBreak:'break-all' }}>{newCredentials.email}</div>
+              </div>
+              <div>
+                <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginBottom:2 }}>TEMPORARY PASSWORD</div>
+                <div style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, letterSpacing:'0.05em' }}>{newCredentials.password}</div>
+              </div>
+            </div>
+            <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, textAlign:'center', marginBottom:20 }}>
+              The concierge can change their password after signing in via the <strong>Settings → Change Password</strong> tab.
+            </div>
+            <button
+              onClick={() => setNewCredentials(null)}
+              style={{ width:'100%', padding:'14px', background:ACCENT||'#222', color:'white', border:'none', borderRadius:12, fontFamily:INTER, fontSize:15, fontWeight:700, cursor:'pointer' }}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Modals ───────────────────────────────────────────────────────────── */}
       <AnimatePresence>
