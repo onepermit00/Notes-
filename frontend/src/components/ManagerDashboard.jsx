@@ -8,7 +8,7 @@ import {
   LogOut, Phone, Star, Building2, MapPin, ChevronDown,
   CheckCircle, Send, Mail, UserPlus, Archive, ArrowUpDown, Menu, Search, Clock, Bell, Sliders, Lock, ShoppingCart, UserCheck, KeyRound, Sun, Moon,
   Upload, FileText, Eye, Image,
-  GraduationCap, Video, Play,
+  GraduationCap, Video, Play, Trash2,
 } from 'lucide-react';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
@@ -1690,6 +1690,17 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       }}
                       style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, cursor:'pointer', fontFamily:INTER }}>
                       <KeyRound size={14} color={BLUE} /><span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:BLUE }}>Reset PW</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm(`Remove ${c.name} from your team?`)) return;
+                        try {
+                          await authApi.removeConcierge(c.concierge_id);
+                          setTeam(p => p.filter(m => m.concierge_id !== c.concierge_id));
+                        } catch { alert('Failed to remove team member.'); }
+                      }}
+                      style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, cursor:'pointer', fontFamily:INTER }}>
+                      <Trash2 size={14} color="#ef4444" /><span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:'#ef4444' }}>Remove</span>
                     </button>
                   </div>
                 </div>
