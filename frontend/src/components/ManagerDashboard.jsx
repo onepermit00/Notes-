@@ -7,7 +7,7 @@ import {
   HelpCircle, AlertTriangle, Truck,
   LogOut, Phone, Star, Building2, MapPin, ChevronDown,
   CheckCircle, Send, Mail, UserPlus, Archive, ArrowUpDown, Menu, Search, Clock, Bell, Sliders, Lock, ShoppingCart, UserCheck, KeyRound, Sun, Moon,
-  Upload, FileText, Eye, Image,
+  Upload, FileText, Eye, EyeOff, Image,
   GraduationCap, Video, Play, Trash2,
 } from 'lucide-react';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
@@ -326,6 +326,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [newContactDraft, setNewContactDraft] = useState({ label:'', number:'' });
   const [leasingOpen,     setLeasingOpen]     = useState(false);
   const [leasingForm,     setLeasingForm]     = useState({ teamName:'', contact:'', phone:'', email:'', password:'' });
+  const [showPw,          setShowPw]          = useState(false);
   const [profileOpen,     setProfileOpen]     = useState(false);
   const { uploadedSOPs, setUploadedSOPs, trainingItems, setTrainingItems } = useSharedData();
   const [expandedSOPId,    setExpandedSOPId]    = useState(null);
@@ -2991,7 +2992,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <>
             <motion.div key="leasing-bg"
               initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.2 }}
-              onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'', password:'' }); }}
+              onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'', password:'' }); setShowPw(false); }}
               style={{ position:'fixed', inset:0, zIndex:67, background:'rgba(0,0,0,0.32)', backdropFilter:'blur(2px)' }} />
             <motion.div key="leasing-modal" ref={leasingModalRef}
               role="dialog" aria-modal="true" aria-label="Add Team Members"
@@ -3004,7 +3005,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:2 }}>{BUILDING_PROFILE.name}</div>
                 <h2 style={{ fontFamily:INTER, fontSize:20, fontWeight:700, color:TEXT, margin:0, letterSpacing:'-0.01em' }}>Add Team Members</h2>
               </div>
-              <button onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'', password:'' }); }}
+              <button onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'', password:'' }); setShowPw(false); }}
                 style={{ width:36, height:36, borderRadius:10, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
                 <X size={18} color={MUTED} />
               </button>
@@ -3015,20 +3016,29 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Who are you adding?</h3>
 
                 {[
-                  { field:'teamName', label:'Full Name *',     placeholder:'e.g. George Nwachukwu',      type:'text'     },
-                  { field:'phone',    label:'Phone Number',    placeholder:'e.g. (215) 555-0140',        type:'tel'      },
-                  { field:'email',    label:'Email / Username *', placeholder:'e.g. george@example.com', type:'email'    },
-                  { field:'password', label:'Password *',      placeholder:'Create a password for them', type:'password' },
-                ].map(({ field, label, placeholder, type }) => (
+                  { field:'teamName', label:'Full Name *',        placeholder:'e.g. George Nwachukwu',   type:'text',     ac:'off'          },
+                  { field:'phone',    label:'Phone Number',       placeholder:'e.g. (215) 555-0140',     type:'tel',      ac:'off'          },
+                  { field:'email',    label:'Email / Username *', placeholder:'e.g. george@example.com', type:'email',    ac:'off'          },
+                  { field:'password', label:'Password *',         placeholder:'Min. 8 characters',       type:'password', ac:'new-password' },
+                ].map(({ field, label, placeholder, type, ac }) => (
                   <div key={field}>
                     <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>{label}</label>
-                    <input
-                      type={type}
-                      placeholder={placeholder}
-                      value={leasingForm[field]}
-                      onChange={e => setLeasingForm(p=>({...p,[field]:e.target.value}))}
-                      style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:leasingForm[field]?`1.5px solid ${GREEN}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }}
-                    />
+                    <div style={{ position:'relative' }}>
+                      <input
+                        type={field === 'password' ? (showPw ? 'text' : 'password') : type}
+                        placeholder={placeholder}
+                        value={leasingForm[field]}
+                        onChange={e => setLeasingForm(p=>({...p,[field]:e.target.value}))}
+                        autoComplete={ac}
+                        style={{ width:'100%', padding:'14px 16px', paddingRight: field === 'password' ? 48 : 16, borderRadius:12, border:leasingForm[field]?`1.5px solid ${GREEN}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }}
+                      />
+                      {field === 'password' && (
+                        <button type="button" onClick={() => setShowPw(p => !p)}
+                          style={{ position:'absolute', right:14, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:4, display:'flex', alignItems:'center' }}>
+                          {showPw ? <EyeOff size={18} color={MUTED} /> : <Eye size={18} color={MUTED} />}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
 
