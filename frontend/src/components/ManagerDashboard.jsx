@@ -2586,7 +2586,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <motion.div key={tab}
               initial={{ x:'110%' }} animate={{ x:0 }} exit={{ x:'110%' }}
               transition={{ type:'spring', damping:32, stiffness:300 }}
-              style={{ position:'fixed', top:16, bottom:16, right:16, background:BG, zIndex:66, display:'flex', flexDirection:'column', borderRadius:24, overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.20)', ...(tab==='shifts' ? { left: isMobile?16:(sidebarCollapsed?80:264) } : { width:Math.min(580, window.innerWidth-(isMobile?32:280)) }) }}>
+              style={{ position:'fixed', top:16, bottom:16, right:16, background:BG, zIndex:66, display:'flex', flexDirection:'column', borderRadius:24, overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.20)', ...(tab==='shifts' ? { left: isMobile?16:(sidebarCollapsed?80:264) } : { width:Math.min(isMobile ? 700 : 640, window.innerWidth-(isMobile?32:280)) }) }}>
 
               {/* Panel header */}
               <div style={{ background:CARD, borderBottom:`1px solid ${BORDER}`, padding:'20px 32px', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
