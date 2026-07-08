@@ -322,7 +322,7 @@ export const CaregiverDashboard = ({
   const [shiftsPage,   setShiftsPage]   = useState(0);
   const [shiftHistory, setShiftHistory] = useState([]);
   const [viewPhoto,  setViewPhoto]  = useState(null);
-  const [isMobile,      setIsMobile]      = useState(() => window.innerWidth < 768);
+  const [isMobile,      setIsMobile]      = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (t ? 1366 : 768); });
 
   // Load real data + shift state on mount
   useEffect(() => {
@@ -391,7 +391,7 @@ export const CaregiverDashboard = ({
   }, [authUser]);
 
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 768);
+    const onResize = () => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; setIsMobile(window.innerWidth < (t ? 1366 : 768)); };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
