@@ -2586,7 +2586,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <motion.div key={tab}
               initial={{ x:'110%' }} animate={{ x:0 }} exit={{ x:'110%' }}
               transition={{ type:'spring', damping:32, stiffness:300 }}
-              style={{ position:'fixed', top:16, bottom:16, right:16, background:BG, zIndex:66, display:'flex', flexDirection:'column', borderRadius:24, overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.20)', ...(tab==='shifts' ? { left: isMobile?16:(sidebarCollapsed?80:264) } : { width:Math.min(isMobile ? 700 : 640, window.innerWidth-(isMobile?32:280)) }) }}>
+              style={{ position:'fixed', top:16, bottom:16, right:16, background:BG, zIndex:66, display:'flex', flexDirection:'column', borderRadius:24, overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.20)', ...(tab==='shifts' ? { left: isMobile?16:(sidebarCollapsed?80:264) } : (isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)})) }}>
 
               {/* Panel header */}
               <div style={{ background:CARD, borderBottom:`1px solid ${BORDER}`, padding:'20px 32px', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -2645,7 +2645,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             role="dialog" aria-modal="true" aria-label="Assign Task"
             initial={{ x:'110%' }} animate={{ x:0 }} exit={{ x:'110%' }}
             transition={{ type:'spring', damping:32, stiffness:300 }}
-            style={{ position:'fixed', right:16, top:16, bottom:16, width:Math.min(isMobile ? 700 : 640, window.innerWidth - (isMobile ? 32 : 280)), zIndex:68, background:BG, borderRadius:24, boxShadow:'0 24px 64px rgba(0,0,0,0.20)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            style={{ position:'fixed', right:16, top:16, bottom:16, ...(isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), zIndex:68, background:BG, borderRadius:24, boxShadow:'0 24px 64px rgba(0,0,0,0.20)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
             <div style={{ padding:'16px 20px 14px', borderBottom:`1px solid ${BORDER}`, flexShrink:0 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
@@ -2805,7 +2805,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <motion.div key="con-panel"
             initial={{ x: '110%' }} animate={{ x: 0 }} exit={{ x: '110%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-            style={{ position: 'fixed', right: 16, top: 16, bottom: 16, width: Math.min(isMobile ? 700 : 640, window.innerWidth - (isMobile ? 32 : 280)), background: BG, zIndex: 68, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+            style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 68, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
             {/* Header */}
             <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
@@ -2999,7 +2999,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               role="dialog" aria-modal="true" aria-label="Add Team Members"
               initial={{ x:'110%' }} animate={{ x:0 }} exit={{ x:'110%' }}
               transition={{ type:'spring', damping:32, stiffness:300 }}
-              style={{ position:'fixed', right:16, top:16, bottom:16, width:Math.min(isMobile ? 700 : 640, window.innerWidth - (isMobile ? 32 : 280)), zIndex:68, background:BG, borderRadius:24, boxShadow:'0 24px 64px rgba(0,0,0,0.20)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+              style={{ position:'fixed', right:16, top:16, bottom:16, ...(isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), zIndex:68, background:BG, borderRadius:24, boxShadow:'0 24px 64px rgba(0,0,0,0.20)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
             <div style={{ padding:'16px 20px', borderBottom:`1px solid ${BORDER}`, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
               <div>
@@ -3130,7 +3130,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <motion.div key="prof-panel"
               initial={{ x:'110%' }} animate={{ x:0 }} exit={{ x:'110%' }}
               transition={{ type:'spring', damping:32, stiffness:300 }}
-              style={{ position:'fixed', right:16, top:16, bottom:16, width:Math.min(isMobile ? 700 : 640, window.innerWidth - (isMobile ? 32 : 280)), zIndex:70, background:BG, borderRadius:24, boxShadow:'0 24px 64px rgba(0,0,0,0.20)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+              style={{ position:'fixed', right:16, top:16, bottom:16, ...(isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), zIndex:70, background:BG, borderRadius:24, boxShadow:'0 24px 64px rgba(0,0,0,0.20)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
               {/* Header */}
               <div style={{ padding:'20px 20px 14px', borderBottom:`1px solid ${BORDER}`, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div>
