@@ -715,14 +715,14 @@ export const CaregiverDashboard = ({
     const rounds   = security.filter(a => !a.title?.toLowerCase().includes('lockout'));
 
     const Sect = ({ title, accent = '#8FAEDD' }) => (
-      <div style={{ background: accent, padding: '7px 28px', marginTop: 6 }}>
+      <div style={{ background: accent, padding: isMobile ? '7px 16px' : '7px 28px', marginTop: 6 }}>
         <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 800, color: TEXT, letterSpacing: '0.10em', textTransform: 'uppercase' }}>{title}</span>
       </div>
     );
     const Field = ({ label, value, last }) => (
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, padding: '16px 28px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
-        <div style={{ width: 240, flexShrink: 0, fontFamily: INTER, fontSize: 17, fontWeight: 600, color: MUTED, lineHeight: 1.55 }}>{label}</div>
-        <div style={{ flex: 1, minWidth: 0, fontFamily: INTER, fontSize: 17, color: TEXT, lineHeight: 1.55, whiteSpace: 'pre-line' }}>{value}</div>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'flex-start', gap: isMobile ? 2 : 20, padding: isMobile ? '12px 16px' : '16px 28px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
+        <div style={{ width: isMobile ? '100%' : 240, flexShrink: 0, fontFamily: INTER, fontSize: isMobile ? 11 : 17, fontWeight: 700, color: MUTED, lineHeight: 1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
+        <div style={{ flex: 1, minWidth: 0, fontFamily: INTER, fontSize: isMobile ? 15 : 17, color: TEXT, lineHeight: 1.55, whiteSpace: 'pre-line' }}>{value}</div>
       </div>
     );
     const ActRows = ({ items, emptyLabel, last }) => items.length > 0
@@ -838,16 +838,16 @@ export const CaregiverDashboard = ({
     const rounds   = security.filter(a=>!a.title.toLowerCase().includes('lockout'));
 
     const Sect = ({ title, accent='#8FAEDD' }) => (
-      <div style={{ background:accent, padding:'7px 28px', marginTop:6 }}>
+      <div style={{ background:accent, padding: isMobile ? '7px 16px' : '7px 28px', marginTop:6 }}>
         <span style={{ fontFamily:INTER, fontSize:13, fontWeight:800, color:TEXT, letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
       </div>
     );
     const Field = ({ label, value, sub, photos, last }) => (
-      <div style={{ display:'flex', alignItems:'flex-start', gap:20, padding:'16px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
-        <div style={{ width:240, flexShrink:0, fontFamily:INTER, fontSize:17, fontWeight:600, color:MUTED, lineHeight:1.55 }}>{label}</div>
+      <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 2 : 20, padding: isMobile ? '12px 16px' : '16px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
+        <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isMobile ? 11 : 17, fontWeight:700, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontFamily:INTER, fontSize:17, color:TEXT, lineHeight:1.55, whiteSpace:'pre-line' }}>{value}</div>
-          {sub && <div style={{ fontFamily:INTER, fontSize:15, color:MUTED, marginTop:3 }}>{sub}</div>}
+          <div style={{ fontFamily:INTER, fontSize: isMobile ? 15 : 17, color:TEXT, lineHeight:1.55, whiteSpace:'pre-line' }}>{value}</div>
+          {sub && <div style={{ fontFamily:INTER, fontSize: isMobile ? 13 : 15, color:MUTED, marginTop:3 }}>{sub}</div>}
         </div>
         {Array.isArray(photos)&&photos.length>0 && (
           <div style={{ display:'flex', gap:6, flexShrink:0 }}>
@@ -1720,16 +1720,16 @@ export const CaregiverDashboard = ({
       const lockouts = security.filter(a => a.title.toLowerCase().includes('lockout'));
       const rounds   = security.filter(a => !a.title.toLowerCase().includes('lockout'));
       const Sect = ({ title, accent='#8FAEDD' }) => (
-        <div style={{ background:accent, padding:'6px 28px', marginTop:6 }}>
+        <div style={{ background:accent, padding: isMobile ? '7px 16px' : '6px 28px', marginTop:6 }}>
           <span style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:TEXT, letterSpacing:'0.12em', textTransform:'uppercase' }}>{title}</span>
         </div>
       );
       const Field = ({ label, value, sub, last }) => (
-        <div style={{ display:'flex', alignItems:'flex-start', gap:20, padding:'14px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
-          <div style={{ width:240, flexShrink:0, fontFamily:INTER, fontSize:16, fontWeight:600, color:MUTED, lineHeight:1.5 }}>{label}</div>
+        <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 2 : 20, padding: isMobile ? '12px 16px' : '14px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
+          <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isMobile ? 11 : 16, fontWeight:700, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontFamily:INTER, fontSize:16, color:TEXT, lineHeight:1.5, whiteSpace:'pre-line' }}>{value}</div>
-            {sub && <div style={{ fontFamily:INTER, fontSize:14, color:MUTED, marginTop:3 }}>{sub}</div>}
+            <div style={{ fontFamily:INTER, fontSize: isMobile ? 15 : 16, color:TEXT, lineHeight:1.55, whiteSpace:'pre-line' }}>{value}</div>
+            {sub && <div style={{ fontFamily:INTER, fontSize: isMobile ? 13 : 14, color:MUTED, marginTop:3 }}>{sub}</div>}
           </div>
         </div>
       );
