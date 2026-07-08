@@ -420,15 +420,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Lock body scroll on iPhone when any panel is open (prevents iOS from jumping the page)
-  const _mgPhoneOpen = isPhone && (taskOpen || conOpen || leasingOpen || profileOpen || (tab && tab !== 'home'));
+  // On iPhone lock the body permanently — prevents iOS scrolling the page under any panel
   useEffect(() => {
-    if (!_mgPhoneOpen) return;
+    if (!isPhone) return;
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
     document.body.style.width = '100%';
     return () => { document.body.style.overflow = ''; document.body.style.position = ''; document.body.style.width = ''; };
-  }, [_mgPhoneOpen]);
+  }, [isPhone]);
 
   // Ctrl+K / Cmd+K → focus the header search bar
   useEffect(() => {

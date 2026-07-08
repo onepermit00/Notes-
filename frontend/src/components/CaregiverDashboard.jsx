@@ -397,15 +397,14 @@ export const CaregiverDashboard = ({
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Lock body scroll on iPhone when any panel is open (prevents iOS from jumping the page)
-  const _cgPhoneOpen = isPhone && (showContacts || showNewTask || !!selectedTask);
+  // On iPhone lock the body permanently — prevents iOS scrolling the page under any panel
   useEffect(() => {
-    if (!_cgPhoneOpen) return;
+    if (!isPhone) return;
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
     document.body.style.width = '100%';
     return () => { document.body.style.overflow = ''; document.body.style.position = ''; document.body.style.width = ''; };
-  }, [_cgPhoneOpen]);
+  }, [isPhone]);
 
   // Ctrl+K / Cmd+K → focus the main search bar
   const searchInputRef = React.useRef(null);
