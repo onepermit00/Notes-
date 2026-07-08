@@ -3117,6 +3117,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   });
                   setTeam(p => [...p, newC]);
                   setSectionAccess(prev => ({ ...prev, [newC.id]: { ...DEFAULT_SECTIONS } }));
+                  setNewCredentials({ email: leasingForm.email.trim(), password: tempPw, name: fullName });
                   setLeasingOpen(false);
                   setLeasingForm({ teamName:'', contact:'', phone:'', email:'' });
                   setAddError('');
