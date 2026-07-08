@@ -323,6 +323,7 @@ export const CaregiverDashboard = ({
   const [shiftHistory, setShiftHistory] = useState([]);
   const [viewPhoto,  setViewPhoto]  = useState(null);
   const [isMobile,      setIsMobile]      = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (t ? 1366 : 768); });
+  const [isPhone,       setIsPhone]       = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return t && window.innerWidth < 768; });
 
   // Load real data + shift state on mount
   useEffect(() => {
@@ -391,7 +392,7 @@ export const CaregiverDashboard = ({
   }, [authUser]);
 
   useEffect(() => {
-    const onResize = () => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; setIsMobile(window.innerWidth < (t ? 1366 : 768)); };
+    const onResize = () => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; setIsMobile(window.innerWidth < (t ? 1366 : 768)); setIsPhone(t && window.innerWidth < 768); };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -2439,8 +2440,8 @@ export const CaregiverDashboard = ({
                 style={{
                   position: 'fixed', right: 16, top: 16, bottom: 16,
                   ...(activeTab === 'calendar'
-                    ? { left: isMobile ? 16 : (sidebarCollapsed ? 80 : 264) }
-                    : (isMobile ? { left: 16 } : { width: Math.min(640, window.innerWidth - 280) })),
+                    ? (isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : { left: isMobile ? 16 : (sidebarCollapsed ? 80 : 264) })
+                    : (isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? { left: 16 } : { width: Math.min(640, window.innerWidth - 280) })),
                   background: BG, zIndex: 66,
                   display: 'flex', flexDirection: 'column',
                   borderRadius: 24, overflow: 'hidden',
@@ -2509,7 +2510,7 @@ export const CaregiverDashboard = ({
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
               style={{
                 position: 'fixed', right: 16, top: 16, bottom: 16,
-                ...(isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}),
+                ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}),
                 background: CARD, zIndex: 68,
                 display: 'flex', flexDirection: 'column',
                 borderRadius: 24, overflow: 'hidden',
@@ -2562,7 +2563,7 @@ export const CaregiverDashboard = ({
             <motion.div key="ec-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 66, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 66, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
               <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
@@ -2729,7 +2730,7 @@ export const CaregiverDashboard = ({
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
               style={{
                 position: 'fixed', right: 16, top: 16, bottom: 16,
-                ...(isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}),
+                ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}),
                 background: CARD, zIndex: 66,
                 display: 'flex', flexDirection: 'column',
                 borderRadius: 24,
@@ -2937,7 +2938,7 @@ export const CaregiverDashboard = ({
             <motion.div key="pkgaudit-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
               <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -3110,7 +3111,7 @@ export const CaregiverDashboard = ({
             <motion.div key="am-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
               <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -3220,7 +3221,7 @@ export const CaregiverDashboard = ({
             <motion.div key="models-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
               <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -3330,7 +3331,7 @@ export const CaregiverDashboard = ({
             <motion.div key="elev-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
               <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
