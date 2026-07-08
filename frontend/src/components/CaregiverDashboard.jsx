@@ -397,13 +397,24 @@ export const CaregiverDashboard = ({
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // On iPhone lock the body permanently — prevents iOS scrolling the page under any panel
+  // On iPhone: lock body + counteract iOS visual-viewport scroll so panels never jump
   useEffect(() => {
     if (!isPhone) return;
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
     document.body.style.width = '100%';
-    return () => { document.body.style.overflow = ''; document.body.style.position = ''; document.body.style.width = ''; };
+    document.body.style.top = '0';
+    const reset = () => { window.scrollTo(0, 0); };
+    window.addEventListener('scroll', reset, { passive: true });
+    window.visualViewport?.addEventListener('scroll', reset);
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.top = '';
+      window.removeEventListener('scroll', reset);
+      window.visualViewport?.removeEventListener('scroll', reset);
+    };
   }, [isPhone]);
 
   // Ctrl+K / Cmd+K → focus the main search bar
