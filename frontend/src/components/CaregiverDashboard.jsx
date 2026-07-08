@@ -2440,7 +2440,7 @@ export const CaregiverDashboard = ({
                   position: 'fixed', right: 16, top: 16, bottom: 16,
                   ...(activeTab === 'calendar'
                     ? { left: isMobile ? 16 : (sidebarCollapsed ? 80 : 264) }
-                    : { width: Math.min(isMobile ? 700 : 580, window.innerWidth - (isMobile ? 32 : 280)) }),
+                    : { width: Math.min(isMobile ? 700 : 640, window.innerWidth - (isMobile ? 32 : 280)) }),
                   background: BG, zIndex: 66,
                   display: 'flex', flexDirection: 'column',
                   borderRadius: 24, overflow: 'hidden',
@@ -2509,7 +2509,7 @@ export const CaregiverDashboard = ({
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
               style={{
                 position: 'fixed', right: 16, top: 16, bottom: 16,
-                width: Math.min(isMobile ? 700 : 580, window.innerWidth - (isMobile ? 32 : 280)),
+                width: Math.min(isMobile ? 700 : 640, window.innerWidth - (isMobile ? 32 : 280)),
                 background: CARD, zIndex: 68,
                 display: 'flex', flexDirection: 'column',
                 borderRadius: 24, overflow: 'hidden',
