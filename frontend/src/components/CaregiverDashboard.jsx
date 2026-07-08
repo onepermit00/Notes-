@@ -2440,7 +2440,7 @@ export const CaregiverDashboard = ({
                   position: 'fixed', right: 16, top: 16, bottom: 16,
                   ...(activeTab === 'calendar'
                     ? { left: isMobile ? 16 : (sidebarCollapsed ? 80 : 264) }
-                    : { width: Math.min(580, window.innerWidth - (isMobile ? 32 : 280)) }),
+                    : { width: Math.min(isMobile ? 700 : 580, window.innerWidth - (isMobile ? 32 : 280)) }),
                   background: BG, zIndex: 66,
                   display: 'flex', flexDirection: 'column',
                   borderRadius: 24, overflow: 'hidden',
@@ -2509,7 +2509,7 @@ export const CaregiverDashboard = ({
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
               style={{
                 position: 'fixed', right: 16, top: 16, bottom: 16,
-                width: Math.min(580, window.innerWidth - (isMobile ? 32 : 280)),
+                width: Math.min(isMobile ? 700 : 580, window.innerWidth - (isMobile ? 32 : 280)),
                 background: CARD, zIndex: 68,
                 display: 'flex', flexDirection: 'column',
                 borderRadius: 24, overflow: 'hidden',
@@ -2562,7 +2562,7 @@ export const CaregiverDashboard = ({
             <motion.div key="ec-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, width: Math.min(580, window.innerWidth - 32), background: BG, zIndex: 66, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, width: Math.min(700, window.innerWidth - 32), background: BG, zIndex: 66, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
               <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
@@ -2729,7 +2729,7 @@ export const CaregiverDashboard = ({
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
               style={{
                 position: 'fixed', right: 16, top: 16, bottom: 16,
-                width: Math.min(560, window.innerWidth - 32),
+                width: Math.min(680, window.innerWidth - 32),
                 background: CARD, zIndex: 66,
                 display: 'flex', flexDirection: 'column',
                 borderRadius: 24,
@@ -2937,7 +2937,7 @@ export const CaregiverDashboard = ({
             <motion.div key="pkgaudit-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, width: Math.min(580, window.innerWidth - 32), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, width: Math.min(700, window.innerWidth - 32), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
               <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -3110,7 +3110,7 @@ export const CaregiverDashboard = ({
             <motion.div key="am-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, width: Math.min(580, window.innerWidth - 32), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, width: Math.min(700, window.innerWidth - 32), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
               <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -3220,7 +3220,7 @@ export const CaregiverDashboard = ({
             <motion.div key="models-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, width: Math.min(580, window.innerWidth - 32), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, width: Math.min(700, window.innerWidth - 32), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
               <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -3330,7 +3330,7 @@ export const CaregiverDashboard = ({
             <motion.div key="elev-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, width: Math.min(580, window.innerWidth - 32), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, width: Math.min(700, window.innerWidth - 32), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
               <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
