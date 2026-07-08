@@ -251,6 +251,7 @@ export const CaregiverDashboard = ({
   const MUTED  = colors.MUTED;
   const SHADOW = colors.SHADOW;
   const SIDEBAR = colors.SIDEBAR;
+  const propertyName = authUser?.property_name || propertyName;
   const glass     = () => ({ background: CARD, boxShadow: SHADOW });
   const glassCard = () => ({ background: CARD, boxShadow: SHADOW, borderRadius: 24, overflow: 'hidden' });
   const glassRow  = { background: CARD, boxShadow: SHADOW, borderRadius: 20 };
@@ -1327,7 +1328,7 @@ export const CaregiverDashboard = ({
             <MapPin size={18} color={BLUE} />
           </div>
           <div>
-            <div style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: TEXT, marginBottom: 3 }}>{BUILDING_PROFILE.name}</div>
+            <div style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: TEXT, marginBottom: 3 }}>{propertyName}</div>
             <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED }}>{BUILDING_PROFILE.company} · {BUILDING_PROFILE.units} units</div>
             <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 2 }}>{BUILDING_PROFILE.address}</div>
           </div>
@@ -2083,7 +2084,7 @@ export const CaregiverDashboard = ({
             <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(255,255,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Building2 size={15} color="white" />
             </div>
-            <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: 'white', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>{BUILDING_PROFILE.name}</span>
+            <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: 'white', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>{propertyName}</span>
           </div>
 
           {/* Search — fills all remaining space */}
@@ -2306,7 +2307,7 @@ export const CaregiverDashboard = ({
                   <Menu size={20} color={TEXT} />
                 </button>
                 <div style={{ flex: 1, textAlign: 'center', fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>
-                  {BUILDING_PROFILE.name}
+                  {propertyName}
                 </div>
                 <button aria-label={showSearch ? 'Close search' : 'Open search'} onClick={() => { setShowSearch(s => !s); setSearchQuery(''); }}
                   style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: showSearch ? `${BLUE}14` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -2454,7 +2455,7 @@ export const CaregiverDashboard = ({
                 }}>
                   <div>
                     <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>
-                      {BUILDING_PROFILE.name}
+                      {propertyName}
                     </p>
                     <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>
                       {PAGE_TITLES[activeTab] || activeTab}
@@ -2472,7 +2473,7 @@ export const CaregiverDashboard = ({
                   {activeTab === 'packages'      && <PackageDashboard onActivityLogged={handleActivityLogged} />}
                   {activeTab === 'loaners'       && <LoanersDashboard onActivityLogged={handleActivityLogged} />}
                   {activeTab === 'lockout'       && <LockoutPage      onActivityLogged={handleActivityLogged} />}
-                  {activeTab === 'incident'      && <IncidentReportPage patientName={BUILDING_PROFILE.name} incidents={incidents} onAddIncident={async (inc) => {
+                  {activeTab === 'incident'      && <IncidentReportPage patientName={propertyName} incidents={incidents} onAddIncident={async (inc) => {
                     try {
                       const saved = await authApi.createIncident(inc);
                       setIncidents(p => [saved, ...p]);
@@ -2521,7 +2522,7 @@ export const CaregiverDashboard = ({
       </AnimatePresence>
 
       {/* AI Copilot */}
-      <AICopilot isOpen={showCopilot} onClose={() => setShowCopilot(false)} role="concierge" patientName={BUILDING_PROFILE.name} />
+      <AICopilot isOpen={showCopilot} onClose={() => setShowCopilot(false)} role="concierge" patientName={propertyName} />
 
       {/* Clock alert */}
       <AnimatePresence>
@@ -2566,7 +2567,7 @@ export const CaregiverDashboard = ({
               {/* Header */}
               <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
                 <div>
-                  <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{BUILDING_PROFILE.name}</div>
+                  <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{propertyName}</div>
                   <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Emergency Contacts</h2>
                 </div>
                 <button onClick={() => setShowContacts(false)}
@@ -2945,7 +2946,7 @@ export const CaregiverDashboard = ({
                     <Package size={22} color={BLUE} />
                   </div>
                   <div>
-                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{BUILDING_PROFILE.name}</p>
+                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{propertyName}</p>
                     <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Package Room Audit</h2>
                   </div>
                 </div>
@@ -3118,7 +3119,7 @@ export const CaregiverDashboard = ({
                     <Waves size={22} color={BLUE} />
                   </div>
                   <div>
-                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{BUILDING_PROFILE.name}</p>
+                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{propertyName}</p>
                     <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Amenity Spaces</h2>
                   </div>
                 </div>
@@ -3228,7 +3229,7 @@ export const CaregiverDashboard = ({
                     <DoorOpen size={22} color={BLUE} />
                   </div>
                   <div>
-                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{BUILDING_PROFILE.name}</p>
+                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{propertyName}</p>
                     <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Open Models</h2>
                   </div>
                 </div>
@@ -3338,7 +3339,7 @@ export const CaregiverDashboard = ({
                     <Zap size={22} color={BLUE} />
                   </div>
                   <div>
-                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{BUILDING_PROFILE.name}</p>
+                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{propertyName}</p>
                     <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Move Activity</h2>
                   </div>
                 </div>
