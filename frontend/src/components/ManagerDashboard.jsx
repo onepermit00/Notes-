@@ -288,6 +288,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const MUTED  = colors.MUTED;
   const SHADOW = colors.SHADOW;
   const SIDEBAR = colors.SIDEBAR;
+  const propertyName = authUser?.property_name || propertyName;
   // ───────────────────────────────────────────────────────────────────────────
 
   const [tab,       setTab]       = useState('home');
@@ -635,7 +636,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               <Building2 size={26} color={ORANGE} />
             </div>
             <div>
-              <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 2px' }}>{BUILDING_PROFILE.name}</p>
+              <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 2px' }}>{propertyName}</p>
               <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'0 0 1px' }}>{BUILDING_PROFILE.company} · {BUILDING_PROFILE.units} units</p>
               <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>{BUILDING_PROFILE.address}</p>
             </div>
@@ -2402,7 +2403,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <div style={{ width:28, height:28, borderRadius:7, background:'rgba(255,255,255,0.10)', display:'flex', alignItems:'center', justifyContent:'center' }}>
               <Building2 size={15} color="white" />
             </div>
-            <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', letterSpacing:'-0.01em', whiteSpace:'nowrap' }}>{BUILDING_PROFILE.name}</span>
+            <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', letterSpacing:'-0.01em', whiteSpace:'nowrap' }}>{propertyName}</span>
           </div>
 
           {/* Search — fills all remaining space */}
@@ -2494,7 +2495,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <Menu size={20} color={TEXT} />
               </button>
               <div style={{ flex:1, textAlign:'center', fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, letterSpacing:'-0.01em' }}>
-                {BUILDING_PROFILE.name}
+                {propertyName}
               </div>
               <button onClick={toggleTheme}
                 aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -2590,7 +2591,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               {/* Panel header */}
               <div style={{ background:CARD, borderBottom:`1px solid ${BORDER}`, padding:'20px 32px', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div>
-                  <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 2px' }}>{BUILDING_PROFILE.name}</p>
+                  <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 2px' }}>{propertyName}</p>
                   <h2 style={{ fontFamily:INTER, fontSize:20, fontWeight:700, color:TEXT, margin:0, letterSpacing:'-0.01em' }}>
                     {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings' }[tab]}
                   </h2>
@@ -2649,7 +2650,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <div style={{ padding:'16px 20px 14px', borderBottom:`1px solid ${BORDER}`, flexShrink:0 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
                 <div>
-                  <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:2 }}>{BUILDING_PROFILE.name}</div>
+                  <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:2 }}>{propertyName}</div>
                   <div style={{ fontFamily:INTER, fontSize:20, fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:'0 0 2px' }}>Assign Task</div>
                   <div style={{ fontFamily:INTER, fontSize:13, color:MUTED }}>Step {taskStep} of 2</div>
                 </div>
@@ -2809,7 +2810,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             {/* Header */}
             <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
               <div>
-                <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{BUILDING_PROFILE.name}</div>
+                <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{propertyName}</div>
                 <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Emergency Contacts</h2>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3002,7 +3003,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
             <div style={{ padding:'16px 20px', borderBottom:`1px solid ${BORDER}`, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
               <div>
-                <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:2 }}>{BUILDING_PROFILE.name}</div>
+                <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:2 }}>{propertyName}</div>
                 <h2 style={{ fontFamily:INTER, fontSize:20, fontWeight:700, color:TEXT, margin:0, letterSpacing:'-0.01em' }}>Add Team Members</h2>
               </div>
               <button onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'', password:'' }); setShowPw(false); }}
@@ -3133,7 +3134,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               {/* Header */}
               <div style={{ padding:'20px 20px 14px', borderBottom:`1px solid ${BORDER}`, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div>
-                  <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 2px' }}>{BUILDING_PROFILE.name}</p>
+                  <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 2px' }}>{propertyName}</p>
                   <h2 style={{ fontFamily:INTER, fontSize:20, fontWeight:700, color:TEXT, margin:0, letterSpacing:'-0.01em' }}>My Profile</h2>
                 </div>
                 <button onClick={() => setProfileOpen(false)}
