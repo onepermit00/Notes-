@@ -2513,7 +2513,7 @@ export const CaregiverDashboard = ({
                 ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}),
                 background: CARD, zIndex: 68,
                 display: 'flex', flexDirection: 'column',
-                borderRadius: 24, overflow: 'hidden',
+                borderRadius: isPhone ? 0 : 24, overflow: 'hidden',
                 boxShadow: '0 24px 64px rgba(0,0,0,0.20)',
               }}>
               <TaskCompletionModal task={selectedTask} onClose={() => setSelectedTask(null)} onComplete={handleCompleteTask} />
@@ -2733,7 +2733,7 @@ export const CaregiverDashboard = ({
                 ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}),
                 background: CARD, zIndex: 66,
                 display: 'flex', flexDirection: 'column',
-                borderRadius: 24,
+                borderRadius: isPhone ? 0 : 24,
                 boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
                 overflow: 'hidden',
               }}>
@@ -2787,8 +2787,8 @@ export const CaregiverDashboard = ({
                         placeholder="e.g. Helped resident in 1204 carry groceries, assisted maintenance with P2 shut-off valve..."
                         value={ntForm.title}
                         onChange={e => setNTF(p => ({ ...p, title: e.target.value }))}
-                        rows={5}
-                        autoFocus
+                        rows={isPhone ? 4 : 5}
+                        autoFocus={!isPhone}
                         style={{
                           width: '100%', padding: '16px', borderRadius: 14,
                           border: `1.5px solid ${ntForm.title ? BLUE : BORDER}`,
@@ -2898,7 +2898,7 @@ export const CaregiverDashboard = ({
                     <span style={{ fontFamily: INTER, fontSize: 12, fontWeight: 600, color: RED }}>{ntError}</span>
                   </div>
                 )}
-                <div style={{ padding: '12px 20px 24px', display: 'flex', gap: 10 }}>
+                <div style={{ padding: isPhone ? '12px 20px 32px' : '12px 20px 24px', display: 'flex', gap: 10 }}>
                   {ntStep > 1 && (
                     <button onClick={() => { setNtStep(p => p - 1); setNtError(''); }}
                       style={{ flex: 1, padding: '15px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
