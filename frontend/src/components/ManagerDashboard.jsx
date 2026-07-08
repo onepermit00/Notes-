@@ -349,7 +349,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [editInfoMgr,      setEditInfoMgr]      = useState({ name:'', email:'', phone:'' });
   const [pwFormMgr,        setPwFormMgr]        = useState({ current:'', next:'', confirm:'' });
   const [pwStatusMgr,      setPwStatusMgr]      = useState('');
-  const [isMobile,         setIsMobile]         = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (t ? 1366 : 768); });
+  const [isMobile,         setIsMobile]         = useState(() => window.innerWidth < 768);
   const [searchQuery,      setSearchQuery]      = useState('');
 
   const [todayShift,  setTodayShift]  = useState(null); // live DAR from active shift
@@ -414,7 +414,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   }, [authUser]);
 
   useEffect(() => {
-    const onResize = () => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; setIsMobile(window.innerWidth < (t ? 1366 : 768)); };
+    const onResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
