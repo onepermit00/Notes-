@@ -2084,7 +2084,7 @@ export const CaregiverDashboard = ({
         </nav>
 
         {/* Bottom branding */}
-        <div className="mobile-safe-bottom" style={{ flexShrink: 0, padding: collapsed ? '12px 0' : '20px 20px 24px', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start' }}>
+        <div style={{ flexShrink: 0, padding: collapsed ? '12px 0' : '20px 20px 0', paddingBottom: 'max(24px, env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start' }}>
           {!collapsed && <span style={{ fontFamily: "'Helvetica Neue','Arial',sans-serif", fontSize: 11, fontWeight: 300, color: TEXT, letterSpacing: '0.22em', textTransform: 'uppercase' }}>onepermit</span>}
         </div>
       </>
@@ -2417,7 +2417,7 @@ export const CaregiverDashboard = ({
                 <motion.div key="sb-panel"
                   initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}
                   transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                  style={{ position: 'fixed', left: 0, top: 0, width: 248, height: '100vh', background: SIDEBAR, borderRight: `1px solid ${BORDER}`, zIndex: 55, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 248, background: SIDEBAR, borderRight: `1px solid ${BORDER}`, zIndex: 55, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   {renderSidebarContent(true)}
                 </motion.div>
               </>

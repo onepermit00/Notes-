@@ -2536,7 +2536,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <motion.div key="mgr-sb-panel"
                   initial={{ x:-260 }} animate={{ x:0 }} exit={{ x:-260 }}
                   transition={{ type:'spring', damping:28, stiffness:280 }}
-                  style={{ position:'fixed', left:0, top:0, height:'100vh', width:248, background:CARD, borderRight:`1px solid ${BORDER}`, display:'flex', flexDirection:'column', overflow:'hidden', zIndex:55 }}>
+                  style={{ position:'fixed', left:0, top:0, bottom:0, width:248, background:CARD, borderRight:`1px solid ${BORDER}`, display:'flex', flexDirection:'column', overflow:'hidden', zIndex:55 }}>
                   {/* Profile — top on mobile, Latch-style */}
                   <div style={{ position:'relative', padding:'24px 20px 16px', flexShrink:0, borderBottom:`1px solid ${BORDER}` }}>
                     <button onClick={() => setSidebarOpen(false)}
@@ -2549,7 +2549,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     </div>
                     <div style={{ fontFamily:INTER, fontSize:13, color:MUTED, marginTop:6 }}>{(authUser?.email || '')}</div>
                   </div>
-                  <nav style={{ padding:'8px 8px 4px', overflow:'hidden' }}>
+                  <nav style={{ padding:'8px 8px 4px', overflowY:'auto', flex:1, minHeight:0 }}>
                     {NAV.map(({ id, Icon:NavIcon, label, action }) => {
                       const active = !action && tab === id;
                       const handleClick = () => {
@@ -2573,7 +2573,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     })}
                   </nav>
                   {/* Bottom branding */}
-                  <div style={{ marginTop:'auto', padding:'20px 20px 32px' }}>
+                  <div style={{ flexShrink:0, padding:'20px 20px 0', paddingBottom:'max(24px, env(safe-area-inset-bottom))', display:'flex', alignItems:'center' }}>
                     <span style={{ fontFamily:"'Helvetica Neue','Arial',sans-serif", fontSize:11, fontWeight:300, color:TEXT, letterSpacing:'0.22em', textTransform:'uppercase' }}>onepermit</span>
                   </div>
                 </motion.div>
