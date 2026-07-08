@@ -561,11 +561,10 @@ async def remove_concierge(concierge_id: str, request: Request, session_token: O
     if not session or session['user_type'] != 'manager':
         raise HTTPException(403, 'Manager access required.')
 
-    result = await db.concierges.update_one(
-        {'concierge_id': concierge_id, 'manager_id': session['user_id']},
-        {'$set': {'is_active': False}}
+    result = await db.concierges.delete_one(
+        {'concierge_id': concierge_id, 'manager_id': session['user_id']}
     )
-    if result.matched_count == 0:
+    if result.deleted_count == 0:
         raise HTTPException(404, 'Concierge not found.')
 
     return {'message': 'Concierge removed.'}
