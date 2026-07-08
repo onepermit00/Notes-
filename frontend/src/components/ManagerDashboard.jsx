@@ -2650,7 +2650,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             </div>
             <button
               onClick={() => setNewCredentials(null)}
-              style={{ width:'100%', padding:'14px', background:ACCENT||'#222', color:'white', border:'none', borderRadius:12, fontFamily:INTER, fontSize:15, fontWeight:700, cursor:'pointer' }}
+              style={{ width:'100%', padding:'14px', background:BLUE, color:'white', border:'none', borderRadius:12, fontFamily:INTER, fontSize:15, fontWeight:700, cursor:'pointer' }}
             >
               Got it
             </button>
