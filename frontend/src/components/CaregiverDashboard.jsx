@@ -1105,32 +1105,6 @@ export const CaregiverDashboard = ({
             )}
           </div>
 
-          {/* Quick Actions */}
-          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:20, boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
-              <Zap size={20} color={BLUE} />
-              <h3 style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:TEXT, margin:0 }}>Quick Actions</h3>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {[
-                { label:'Log a Package',    desc:'Record a delivery or pickup', Icon:Package,       tab:'packages', color:BLUE   },
-                { label:'Report a Lockout', desc:'Key or access request',       Icon:Lock,          tab:'lockout',  color:RED    },
-                { label:'File an Incident', desc:'Submit an incident report',   Icon:AlertTriangle, tab:'incident', color:ORANGE },
-              ].map(({ label, desc, Icon:QI, tab, color }) => (
-                <button key={label} onClick={()=>handleTabChange(tab)}
-                  style={{ display:'flex', alignItems:'center', gap:14, padding:16, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, cursor:'pointer', textAlign:'left' }}>
-                  <div style={{ width:44, height:44, borderRadius:12, background:`${color}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <QI size={20} color={color} />
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <p style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, margin:'0 0 2px' }}>{label}</p>
-                    <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>{desc}</p>
-                  </div>
-                  <ChevronRight size={18} color={MUTED} />
-                </button>
-              ))}
-            </div>
-          </div>
 
         </div>
       </div>
