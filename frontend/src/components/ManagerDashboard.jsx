@@ -1985,23 +1985,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   {isMobile ? (
                     <>
                       {/* Mobile: stacked */}
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-                        <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase' }}>DAR</div>
-                        <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'4px 10px' }}>
-                          <div style={{ width:6, height:6, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                          <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:GREEN }}>On Duty</span>
-                        </div>
-                      </div>
+                      <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:6 }}>DAR</div>
                       <div style={{ fontFamily:INTER, fontSize:17, fontWeight:800, color:'white', marginBottom:3 }}>{todayShift.concierge.name}</div>
                       <div style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.50)', marginBottom:12 }}>
                         {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {todayShift.clockIn}{todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Now'}
                       </div>
-                      <div style={{ display:'flex', gap:8 }}>
-                        <button onClick={() => setTab('shifts')} style={{ fontFamily:INTER, fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.55)', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, padding:'7px 12px', cursor:'pointer' }}>Full log →</button>
-                        <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:5, padding:'7px 12px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
-                          <Printer size={12} /> Export PDF
-                        </button>
-                      </div>
+                      <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:5, padding:'7px 12px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
+                        <Printer size={12} /> Export PDF
+                      </button>
                     </>
                   ) : (
                     /* Desktop: original two-column */
@@ -2013,16 +2004,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                           {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {todayShift.clockIn}{todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Present'}
                         </div>
                       </div>
-                      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10 }}>
-                        <div style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'7px 14px' }}>
-                          <div style={{ width:7, height:7, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                          <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:GREEN }}>On Duty</span>
-                        </div>
-                        <button onClick={() => setTab('shifts')} style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:'rgba(255,255,255,0.5)', background:'none', border:'none', cursor:'pointer', padding:0 }}>Full log →</button>
-                        <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
-                          <Printer size={13} /> Export PDF
-                        </button>
-                      </div>
+                      <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer', flexShrink:0 }}>
+                        <Printer size={13} /> Export PDF
+                      </button>
                     </div>
                   )}
                 </div>

@@ -966,13 +966,7 @@ export const CaregiverDashboard = ({
                 {isMobile ? (
                   <>
                     {/* Mobile: stacked */}
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-                      <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase' }}>DAR</div>
-                      <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'4px 10px' }}>
-                        <div style={{ width:6, height:6, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                        <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:GREEN }}>On Duty</span>
-                      </div>
-                    </div>
+                    <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:6 }}>DAR</div>
                     <div style={{ fontFamily:INTER, fontSize:17, fontWeight:800, color:'white', marginBottom:3 }}>{activeShift.concierge.name}</div>
                     <div style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.50)' }}>
                       {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {activeShift.clockIn} – Now
@@ -986,12 +980,6 @@ export const CaregiverDashboard = ({
                       <div style={{ fontFamily:INTER, fontSize:22, fontWeight:800, color:'white', marginBottom:5 }}>{activeShift.concierge.name}</div>
                       <div style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.55)' }}>
                         {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {activeShift.clockIn} – Present
-                      </div>
-                    </div>
-                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10 }}>
-                      <div style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'7px 14px' }}>
-                        <div style={{ width:7, height:7, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                        <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:GREEN }}>On Duty</span>
                       </div>
                     </div>
                   </div>
