@@ -10,7 +10,7 @@ import {
   Upload, FileText, Eye, EyeOff, Image,
   GraduationCap, Video, Play, Trash2,
   Printer, BarChart2, UserCog,
-  ClipboardCheck, RefreshCw, History, Activity,
+  ClipboardCheck, RefreshCw, Activity,
 } from 'lucide-react';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
@@ -3372,7 +3372,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div>
                   <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 2px' }}>{propertyName}</p>
                   <h2 style={{ fontFamily:INTER, fontSize:20, fontWeight:700, color:TEXT, margin:0, letterSpacing:'-0.01em' }}>
-                    {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', residents:'Residents Directory', analytics:'Analytics', scheduled:'Scheduled Tasks', audit:'Audit Log', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings' }[tab]}
+                    {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', residents:'Residents Directory', analytics:'Analytics', scheduled:'Scheduled Tasks', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings' }[tab]}
                   </h2>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
