@@ -2197,76 +2197,111 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
   /* ── Tasks list ───────────────────────────────────────────────────────────── */
   const renderTasks = () => {
-    const glassCard = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
     const groups = [
-      { key:'in_progress', label:'In Progress', color:ORANGE, SIcon:Send        },
-      { key:'pending',     label:'Pending',     color:BLUE,   SIcon:ClipboardList },
-      { key:'completed',   label:'Completed',   color:GREEN,  SIcon:CheckCircle  },
+      { key:'in_progress', label:'In Progress', accent:ORANGE },
+      { key:'pending',     label:'Pending',     accent:'#8FAEDD' },
+      { key:'completed',   label:'Completed',   accent:GREEN  },
     ];
+    const pc = p => ({ Urgent:RED, High:ORANGE, Standard:BLUE, Low:MUTED }[p] || MUTED);
+
     return (
       <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
-        {/* CTA */}
-        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:24 }}>
+
+        {/* Header row */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>
+            {tasks.filter(t=>t.status==='pending').length} pending · {tasks.filter(t=>t.status==='in_progress').length} in progress · {tasks.filter(t=>t.status==='completed').length} completed
+          </p>
           <button onClick={() => setTaskOpen(true)}
-            style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 18px', background:BLUE, border:'none', borderRadius:12, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer', boxShadow:`0 4px 14px rgba(255,56,92,0.28)` }}>
-            <Plus size={15} color="white" />
-            Assign Task
+            style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 16px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer' }}>
+            <Plus size={14} color="white" /> Assign Task
           </button>
         </div>
 
-        {/* Sections */}
-        <div style={{ display:'flex', flexDirection:'column', gap:28 }}>
-          {groups.map(({ key, label, color, SIcon }) => {
+        {/* DAR-style sections */}
+        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, overflow:'hidden' }}>
+          {groups.map(({ key, label, accent }, gi) => {
             const items = tasks.filter(t => t.status === key);
             return (
-              <div key={key}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <SIcon size={20} color={color} />
-                    <h2 style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>{label}</h2>
-                  </div>
-                  <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED, flexShrink:0 }}>
-                    {items.length}
-                  </span>
+              <div key={key} style={{ borderTop: gi === 0 ? 'none' : `1px solid ${BORDER}` }}>
+
+                {/* Section header — same style as DAR */}
+                <div style={{ background:accent, padding:'7px 28px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontFamily:INTER, fontSize:13, fontWeight:800, color: key==='pending' ? TEXT : 'white', letterSpacing:'0.10em', textTransform:'uppercase' }}>{label}</span>
+                  <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color: key==='pending' ? TEXT : 'rgba(255,255,255,0.75)', background:'rgba(0,0,0,0.12)', borderRadius:20, padding:'2px 9px' }}>{items.length}</span>
                 </div>
-                {items.length > 0 ? (
-                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                    {items.map(t => {
-                      const TIcon = CAT_ICON[t.category] ?? HelpCircle;
-                      const tc = CAT_COLOR[t.category] ?? MUTED;
-                      const pc = PRIORITY_COLOR[t.priority] ?? MUTED;
-                      const done = key === 'completed';
-                      const ip   = key === 'in_progress';
-                      return (
-                        <div key={t.id} style={{ ...glassCard, padding:20, display:'flex', alignItems:'flex-start', gap:16 }}>
-                          <div style={{ width:48, height:48, borderRadius:14, background:done?CARD2:`${tc}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                            {done ? <CheckCircle size={24} color={GREEN} /> : <TIcon size={24} color={tc} />}
-                          </div>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <p style={{ fontFamily:INTER, fontWeight:700, color:done?MUTED:TEXT, fontSize:15, textDecoration:done?'line-through':'none', margin:'0 0 6px', lineHeight:1.35 }}>{t.title}</p>
-                            <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:6 }}>
-                              {t.priority !== 'Standard' && <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:pc, background:`${pc}14`, borderRadius:6, padding:'3px 7px', textTransform:'uppercase', letterSpacing:'0.06em' }}>{t.priority}</span>}
-                              {t.category && <span style={{ fontFamily:INTER, fontSize:11, fontWeight:600, color:MUTED, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:6, padding:'3px 7px' }}>{t.category}</span>}
-                              {ip && <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:ORANGE, background:`${ORANGE}14`, borderRadius:6, padding:'3px 7px', textTransform:'uppercase', letterSpacing:'0.06em' }}>Active</span>}
-                            </div>
-                            {t.notes && <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, fontStyle:'italic', margin:'0 0 4px' }}>"{t.notes}"</p>}
-                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>→ {t.assignedTo} · Due: {t.dueTime}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div style={{ ...glassCard, padding:36, textAlign:'center' }}>
-                    <div style={{ width:56, height:56, background:CARD2, borderRadius:16, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px' }}>
-                      <SIcon size={28} color={MUTED} />
-                    </div>
-                    <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:15, margin:'0 0 4px' }}>No {label.toLowerCase()} tasks</p>
-                    <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>
-                      {key==='in_progress'?'Tasks being worked on appear here':key==='pending'?'Tap "Assign New Task" to dispatch work':'Finished tasks appear here'}
+
+                {/* Task rows */}
+                {items.length === 0 ? (
+                  <div style={{ padding:'22px 28px', display:'flex', alignItems:'center', gap:10 }}>
+                    <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0, fontStyle:'italic' }}>
+                      {key==='in_progress' ? 'No tasks currently in progress' : key==='pending' ? 'No pending tasks — assign one above' : 'No completed tasks yet'}
                     </p>
                   </div>
-                )}
+                ) : items.map((t, i) => {
+                  const done = key === 'completed';
+                  const priorityColor = pc(t.priority);
+                  return (
+                    <div key={t.id} style={{ borderTop: i === 0 ? 'none' : `1px solid ${BORDER}` }}>
+
+                      {/* Task title row */}
+                      <div style={{ display:'flex', alignItems:'flex-start', gap:20, padding: isMobile ? '12px 16px' : '14px 28px', borderBottom:`1px solid ${BORDER}` }}>
+                        <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isMobile ? 11 : 13, fontWeight:700, color:MUTED, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>Task</div>
+                        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+                          <span style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:done?MUTED:TEXT, textDecoration:done?'line-through':'none', lineHeight:1.4 }}>{t.title}</span>
+                          {/* Priority badge */}
+                          {t.priority && t.priority !== 'Standard' && (
+                            <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:priorityColor, background:`${priorityColor}14`, borderRadius:6, padding:'3px 8px', textTransform:'uppercase', letterSpacing:'0.06em', flexShrink:0 }}>{t.priority}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Category */}
+                      <div style={{ display:'flex', alignItems:'flex-start', gap:20, padding: isMobile ? '10px 16px' : '12px 28px', borderBottom:`1px solid ${BORDER}` }}>
+                        <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isMobile ? 11 : 13, color:MUTED, fontWeight: isMobile ? 700 : 400, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>Category</div>
+                        <span style={{ fontFamily:INTER, fontSize:14, color:TEXT }}>{t.category || '—'}</span>
+                      </div>
+
+                      {/* Assigned To + Due */}
+                      <div style={{ display:'flex', alignItems:'flex-start', gap:20, padding: isMobile ? '10px 16px' : '12px 28px', borderBottom:`1px solid ${BORDER}` }}>
+                        <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isMobile ? 11 : 13, color:MUTED, fontWeight: isMobile ? 700 : 400, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>Assigned To</div>
+                        <span style={{ fontFamily:INTER, fontSize:14, color:TEXT }}>{t.assignedTo || '—'} <span style={{ color:MUTED }}>· Due: {t.dueTime}</span></span>
+                      </div>
+
+                      {/* Notes (only if present) */}
+                      {t.notes && (
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:20, padding: isMobile ? '10px 16px' : '12px 28px', borderBottom:`1px solid ${BORDER}` }}>
+                          <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isMobile ? 11 : 13, color:MUTED, fontWeight: isMobile ? 700 : 400, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>Notes</div>
+                          <span style={{ fontFamily:INTER, fontSize:14, color:MUTED, fontStyle:'italic' }}>"{t.notes}"</span>
+                        </div>
+                      )}
+
+                      {/* Completed info */}
+                      {done && t.completedAt && (
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:20, padding: isMobile ? '10px 16px' : '12px 28px', borderBottom:`1px solid ${BORDER}` }}>
+                          <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isMobile ? 11 : 13, color:MUTED, fontWeight: isMobile ? 700 : 400 }}>Completed</div>
+                          <span style={{ fontFamily:INTER, fontSize:14, color:GREEN }}>{t.completedAt}{t.completedByName ? ` · ${t.completedByName}` : ''}</span>
+                        </div>
+                      )}
+
+                      {/* Action row */}
+                      {!done && (
+                        <div style={{ padding:'10px 28px', display:'flex', gap:8, justifyContent:'flex-end', background: key==='in_progress' ? `${ORANGE}06` : `${BLUE}04` }}>
+                          {key === 'pending' && (
+                            <button onClick={() => authApi.updateTask(t.id, { status:'in_progress' }).then(() => authApi.getTasks().then(list => setTasks(list)))}
+                              style={{ padding:'6px 14px', background:`${ORANGE}12`, border:`1px solid ${ORANGE}`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:ORANGE, cursor:'pointer' }}>
+                              Start
+                            </button>
+                          )}
+                          <button onClick={() => authApi.updateTask(t.id, { status:'completed' }).then(() => authApi.getTasks().then(list => setTasks(list)))}
+                            style={{ padding:'6px 14px', background:`${GREEN}12`, border:`1px solid ${GREEN}`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN, cursor:'pointer' }}>
+                            Mark Complete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
