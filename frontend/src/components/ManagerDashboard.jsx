@@ -2338,115 +2338,146 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     const active  = team.filter(c => c.status !== 'invited');
     const invited = team.filter(c => c.status === 'invited');
     const glassCard = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
-    return (
-      <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+    const SHADOW_SM = '0 2px 8px rgba(0,0,0,0.06)';
 
-        {/* CTA */}
-        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:24 }}>
+    const groups = [
+      { key:'active',  label:'Team Members',   SIcon:Users,    gc:GREEN,  items:active  },
+      { key:'invited', label:'Pending Invites', SIcon:UserPlus, gc:ORANGE, items:invited },
+    ];
+
+    return (
+      <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0, background:BG }}>
+
+        {/* ── Full-width CTA ── */}
+        <div style={{ padding:'0 0 20px' }}>
           <button onClick={() => setLeasingOpen(true)}
-            style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 18px', background:GREEN, border:'none', borderRadius:12, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer', boxShadow:`0 4px 14px rgba(52,199,89,0.28)` }}>
-            <UserPlus size={15} color="white" />
-            Add Team Member
+            style={{ width:'100%', padding:20, background:GREEN, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:'0 8px 24px rgba(52,199,89,0.30)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+              <div style={{ width:56, height:56, background:'rgba(255,255,255,0.20)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <UserPlus size={28} color="white" />
+              </div>
+              <div style={{ textAlign:'left' }}>
+                <p style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:0 }}>Add Team Member</p>
+                <p style={{ fontSize:14, color:'rgba(255,255,255,0.70)', margin:0 }}>Invite a concierge to your property</p>
+              </div>
+            </div>
+            <ChevronRight size={24} color="rgba(255,255,255,0.70)" />
           </button>
         </div>
 
-        {/* Active members */}
-        <div style={{ marginBottom:28 }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <Users size={20} color={GREEN} />
-              <h2 style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Team Members</h2>
-            </div>
-            <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED, flexShrink:0 }}>{active.length}</span>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {active.map(c => {
-              const onShift = c.status === 'on_shift';
-              const stColor = onShift ? GREEN : MUTED;
-              return (
-                <div key={c.id} style={{ ...glassCard, padding:20, display:'flex', alignItems:'center', gap:16 }}>
-                  <div style={{ position:'relative', flexShrink:0 }}>
-                    <div style={{ width:56, height:56, borderRadius:16, background:onShift?'rgba(52,199,89,0.12)':CARD2, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <span style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:stColor }}>{c.init}</span>
-                    </div>
-                    {onShift && <div style={{ position:'absolute', bottom:-2, right:-2, width:14, height:14, borderRadius:'50%', background:GREEN, border:`2px solid ${CARD}` }} />}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:2 }}>
-                      <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:0 }}>{c.name}</p>
-                      <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:stColor, background:`${stColor}14`, borderRadius:6, padding:'2px 7px', textTransform:'uppercase', letterSpacing:'0.06em' }}>{onShift?'On Shift':'Off Duty'}</span>
-                    </div>
-                    <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:'0 0 10px' }}>{c.title}</p>
-                    <div style={{ display:'flex', gap:20 }}>
-                      {[{l:'Shifts',v:c.shifts.toLocaleString()},{l:'Rating',v:c.rating?`${c.rating} ★`:'—'},{l:'Since',v:c.since??'—'}].map(({l,v}) => (
-                        <div key={l}>
-                          <span style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT }}>{v}</span>
-                          <span style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginLeft:4 }}>{l}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:8, flexShrink:0 }}>
-                    <a href={`tel:${c.phone.replace(/\D/g,'')}`} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, textDecoration:'none' }}>
-                      <Phone size={14} color={MUTED} /><span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:TEXT }}>Call</span>
-                    </a>
-                    <a href={`mailto:${c.email}`} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, textDecoration:'none' }}>
-                      <Mail size={14} color={MUTED} /><span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:TEXT }}>Email</span>
-                    </a>
-                    <button
-                      onClick={async () => {
-                        try {
-                          await authApi.resendCredentials(c.concierge_id);
-                          alert(`New credentials emailed to ${c.email}`);
-                        } catch { alert('Failed to resend credentials.'); }
-                      }}
-                      style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, cursor:'pointer', fontFamily:INTER }}>
-                      <KeyRound size={14} color={BLUE} /><span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:BLUE }}>Reset PW</span>
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (!window.confirm(`Remove ${c.name} from your team?`)) return;
-                        try {
-                          await authApi.removeConcierge(c.concierge_id);
-                          setTeam(p => p.filter(m => m.concierge_id !== c.concierge_id));
-                        } catch { alert('Failed to remove team member.'); }
-                      }}
-                      style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, cursor:'pointer', fontFamily:INTER }}>
-                      <Trash2 size={14} color="#ef4444" /><span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:'#ef4444' }}>Remove</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {/* ── Groups ── */}
+        {groups.map(({ key, label, SIcon, gc, items }) => {
+          if (key === 'invited' && items.length === 0) return null;
+          return (
+            <div key={key} style={{ marginBottom:28 }}>
 
-        {/* Pending invites */}
-        {invited.length > 0 && (
-          <div>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <UserPlus size={20} color={ORANGE} />
-                <h2 style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Pending Invites</h2>
-              </div>
-              <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED, flexShrink:0 }}>{invited.length}</span>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {invited.map(c => (
-                <div key={c.id} style={{ ...glassCard, padding:20, display:'flex', alignItems:'center', gap:16 }}>
-                  <div style={{ width:56, height:56, borderRadius:16, background:`${ORANGE}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <span style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:ORANGE }}>{c.init}</span>
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 2px' }}>{c.name}</p>
-                    <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>{c.email} · Invited {c.invitedAt} · Awaiting sign-up</p>
-                  </div>
-                  <span style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:ORANGE, background:`${ORANGE}12`, borderRadius:8, padding:'4px 12px', flexShrink:0 }}>Pending</span>
+              {/* Section header */}
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <SIcon size={20} color={gc} />
+                  <h2 style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>{label}</h2>
                 </div>
-              ))}
+                <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED, flexShrink:0 }}>
+                  {items.length}
+                </span>
+              </div>
+
+              {/* Empty state */}
+              {items.length === 0 ? (
+                <div style={{ ...glassCard, padding:32, textAlign:'center' }}>
+                  <div style={{ width:64, height:64, background:CARD2, borderRadius:18, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
+                    <SIcon size={30} color={MUTED} strokeWidth={1.5} />
+                  </div>
+                  <p style={{ fontWeight:700, color:TEXT, fontSize:15, margin:'0 0 4px' }}>No team members yet</p>
+                  <p style={{ fontSize:13, color:MUTED, margin:0 }}>Tap "Add Team Member" to invite your first concierge</p>
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {items.map(c => {
+                    const onShift   = c.status === 'on_shift';
+                    const isPending = c.status === 'invited';
+                    const stColor   = onShift ? GREEN : isPending ? ORANGE : MUTED;
+                    const stLabel   = onShift ? 'On Shift' : isPending ? 'Pending' : 'Off Duty';
+                    return (
+                      <div key={c.id} style={{ ...glassCard, padding:20, boxShadow:SHADOW_SM }}>
+
+                        {/* Top row: avatar + name + status */}
+                        <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom: isPending ? 0 : 14 }}>
+                          <div style={{ position:'relative', flexShrink:0 }}>
+                            <div style={{ width:56, height:56, borderRadius:16, background: isPending ? `${ORANGE}14` : onShift ? 'rgba(52,199,89,0.12)' : CARD2, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                              <span style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:stColor }}>{c.init}</span>
+                            </div>
+                            {onShift && <div style={{ position:'absolute', bottom:-2, right:-2, width:14, height:14, borderRadius:'50%', background:GREEN, border:`2px solid ${CARD}` }} />}
+                          </div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:3 }}>
+                              <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:0 }}>{c.name}</p>
+                              <span style={{ fontSize:10, fontWeight:800, color:stColor, background:`${stColor}14`, borderRadius:6, padding:'2px 7px', textTransform:'uppercase', letterSpacing:'0.06em', flexShrink:0 }}>{stLabel}</span>
+                            </div>
+                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>
+                              {isPending ? `${c.email} · Awaiting sign-up` : c.title}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Stats row */}
+                        {!isPending && (
+                          <div style={{ display:'flex', gap:24, padding:'12px 0', borderTop:`1px solid ${BORDER}`, borderBottom:`1px solid ${BORDER}`, marginBottom:14 }}>
+                            {[{l:'Shifts',v:c.shifts.toLocaleString()},{l:'Rating',v:c.rating?`${c.rating} ★`:'—'},{l:'Since',v:c.since??'—'}].map(({l,v}) => (
+                              <div key={l} style={{ display:'flex', flexDirection:'column' }}>
+                                <span style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT }}>{v}</span>
+                                <span style={{ fontFamily:INTER, fontSize:11, color:MUTED }}>{l}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Action buttons row */}
+                        {!isPending && (
+                          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                            <a href={`tel:${c.phone.replace(/\D/g,'')}`}
+                              style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, textDecoration:'none', boxShadow:SHADOW_SM }}>
+                              <Phone size={14} color={MUTED} />
+                              <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT }}>Call</span>
+                            </a>
+                            <a href={`mailto:${c.email}`}
+                              style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, textDecoration:'none', boxShadow:SHADOW_SM }}>
+                              <Mail size={14} color={MUTED} />
+                              <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT }}>Email</span>
+                            </a>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await authApi.resendCredentials(c.concierge_id);
+                                  alert(`New credentials emailed to ${c.email}`);
+                                } catch { alert('Failed to resend credentials.'); }
+                              }}
+                              style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, cursor:'pointer', fontFamily:INTER, boxShadow:SHADOW_SM }}>
+                              <KeyRound size={14} color={BLUE} />
+                              <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:BLUE }}>Reset PW</span>
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm(`Remove ${c.name} from your team?`)) return;
+                                try {
+                                  await authApi.removeConcierge(c.concierge_id);
+                                  setTeam(p => p.filter(m => m.concierge_id !== c.concierge_id));
+                                } catch { alert('Failed to remove team member.'); }
+                              }}
+                              style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, cursor:'pointer', fontFamily:INTER, boxShadow:SHADOW_SM }}>
+                              <Trash2 size={14} color="#ef4444" />
+                              <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:'#ef4444' }}>Remove</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })}
       </div>
     );
   };
