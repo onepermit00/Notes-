@@ -1057,7 +1057,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   /* ── Scheduled Tasks ──────────────────────────────────────────────────────── */
   const [schedTasks,    setSchedTasks]    = useState([]);
   const [schedLoading,  setSchedLoading]  = useState(false);
-  const [schedForm,     setSchedForm]     = useState({ title:'', category:'Administrative', priority:'Standard', recurrence:'shift_start', scheduledHour:8, assignedTo:'', assignedToId:'' });
+  const [schedForm,     setSchedForm]     = useState({ title:'', notes:'', category:'Administrative', priority:'Standard', recurrence:'shift_start', scheduledHour:8, shiftWindow:'all', assignedConciergeId:'', assignedConciergeName:'' });
   const [schedAddOpen,  setSchedAddOpen]  = useState(false);
   const [schedSaving,   setSchedSaving]   = useState(false);
 
@@ -1066,15 +1066,22 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     authApi.getScheduledTasks().then(list => { setSchedTasks(list); setSchedLoading(false); }).catch(() => setSchedLoading(false));
   }, []);
 
+  const EMPTY_SCHED_FORM = { title:'', notes:'', category:'Administrative', priority:'Standard', recurrence:'shift_start', scheduledHour:8, shiftWindow:'all', assignedConciergeId:'', assignedConciergeName:'' };
+
   const saveScheduled = async () => {
     if (!schedForm.title.trim()) return;
     setSchedSaving(true);
     try {
       const created = await authApi.createScheduledTask(schedForm);
       setSchedTasks(prev => [created, ...prev]);
-      setSchedForm({ title:'', category:'Administrative', priority:'Standard', recurrence:'shift_start', scheduledHour:8, assignedTo:'', assignedToId:'' });
+      setSchedForm(EMPTY_SCHED_FORM);
       setSchedAddOpen(false);
     } catch {} finally { setSchedSaving(false); }
+  };
+
+  const toggleSchedActive = async (taskId, currentActive) => {
+    const updated = await authApi.updateScheduledTask(taskId, { active: !currentActive });
+    setSchedTasks(prev => prev.map(t => t.scheduled_task_id === taskId ? { ...t, active: updated.active } : t));
   };
 
   const deleteScheduled = async (id) => {
@@ -1084,27 +1091,48 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     } catch {}
   };
 
-  const RECURRENCE_LABELS = { shift_start: 'Every Shift Start', daily: 'Daily at Scheduled Hour' };
+  const RECURRENCE_LABELS = { shift_start: 'Every Shift Start', daily: 'Daily at Hour' };
   const SCHED_CATEGORIES  = ['Administrative', 'Safety / Security', 'Delivery', 'Amenity', 'Maintenance', 'Other'];
+  const PRIORITIES        = ['Low', 'Standard', 'High', 'Urgent'];
+  const SHIFT_WINDOWS     = [
+    { val:'all',       label:'All Shifts',              color:'#6B7280', hours:'Always fires' },
+    { val:'morning',   label:'Morning',                 color:'#F59E0B', hours:'6 AM – 2 PM' },
+    { val:'afternoon', label:'Afternoon',               color:'#3B82F6', hours:'2 PM – 10 PM' },
+    { val:'night',     label:'Night',                   color:'#8B5CF6', hours:'10 PM – 6 AM' },
+  ];
+  const windowMeta = w => SHIFT_WINDOWS.find(s => s.val === w) || SHIFT_WINDOWS[0];
 
   const renderScheduled = () => (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>{schedTasks.length} scheduled task{schedTasks.length !== 1 ? 's' : ''}</p>
-        <button onClick={() => setSchedAddOpen(true)}
+        <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>
+          {schedTasks.filter(t => t.active !== false).length} active · {schedTasks.length} total
+        </p>
+        <button onClick={() => { setSchedForm(EMPTY_SCHED_FORM); setSchedAddOpen(true); }}
           style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer' }}>
           <Plus size={14} /> New Schedule
         </button>
       </div>
 
       {schedAddOpen && (
-        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:20, display:'flex', flexDirection:'column', gap:12 }}>
+        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:20, display:'flex', flexDirection:'column', gap:14 }}>
           <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:0 }}>New Scheduled Task</p>
+
+          {/* Title */}
           <div>
             <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Task Title *</p>
             <input value={schedForm.title} onChange={e => setSchedForm(p => ({ ...p, title:e.target.value }))} placeholder="e.g. Lobby round check, Elevator log"
               style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
           </div>
+
+          {/* Notes */}
+          <div>
+            <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Instructions / Notes</p>
+            <textarea value={schedForm.notes} onChange={e => setSchedForm(p => ({ ...p, notes:e.target.value }))} placeholder="Steps or details for the concierge…" rows={2}
+              style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', resize:'vertical' }} />
+          </div>
+
+          {/* Category + Priority */}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
             <div>
               <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Category</p>
@@ -1114,6 +1142,51 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               </select>
             </div>
             <div>
+              <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Priority</p>
+              <select value={schedForm.priority} onChange={e => setSchedForm(p => ({ ...p, priority:e.target.value }))}
+                style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none' }}>
+                {PRIORITIES.map(pr => <option key={pr}>{pr}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Shift Window */}
+          <div>
+            <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 8px' }}>Shift Window</p>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
+              {SHIFT_WINDOWS.map(sw => (
+                <button key={sw.val} onClick={() => setSchedForm(p => ({ ...p, shiftWindow:sw.val }))}
+                  style={{ padding:'10px 6px', borderRadius:10, border:`2px solid ${schedForm.shiftWindow === sw.val ? sw.color : BORDER}`, background: schedForm.shiftWindow === sw.val ? `${sw.color}14` : CARD2, cursor:'pointer', textAlign:'center' }}>
+                  <p style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color: schedForm.shiftWindow === sw.val ? sw.color : TEXT, margin:'0 0 2px' }}>{sw.label}</p>
+                  <p style={{ fontFamily:INTER, fontSize:10, color:MUTED, margin:0 }}>{sw.hours}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Assign to Concierge */}
+          <div>
+            <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Assign to Concierge</p>
+            <select
+              value={schedForm.assignedConciergeId}
+              onChange={e => {
+                const c = concierges.find(x => x.id === e.target.value);
+                setSchedForm(p => ({ ...p, assignedConciergeId: e.target.value, assignedConciergeName: c ? c.name : '' }));
+              }}
+              style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none' }}>
+              <option value=''>All Concierges (fires for everyone)</option>
+              {concierges.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            {schedForm.assignedConciergeId && (
+              <p style={{ fontFamily:INTER, fontSize:12, color:BLUE, margin:'6px 0 0' }}>
+                This task will only appear for {schedForm.assignedConciergeName} when they clock in.
+              </p>
+            )}
+          </div>
+
+          {/* Recurrence + Hour */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <div>
               <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Recurrence</p>
               <select value={schedForm.recurrence} onChange={e => setSchedForm(p => ({ ...p, recurrence:e.target.value }))}
                 style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none' }}>
@@ -1121,14 +1194,15 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <option value="daily">Daily (set hour)</option>
               </select>
             </div>
+            {schedForm.recurrence === 'daily' && (
+              <div>
+                <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>At Hour (24h)</p>
+                <input type="number" min={0} max={23} value={schedForm.scheduledHour} onChange={e => setSchedForm(p => ({ ...p, scheduledHour:parseInt(e.target.value)||8 }))}
+                  style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
+              </div>
+            )}
           </div>
-          {schedForm.recurrence === 'daily' && (
-            <div>
-              <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Scheduled Hour (24h)</p>
-              <input type="number" min={0} max={23} value={schedForm.scheduledHour} onChange={e => setSchedForm(p => ({ ...p, scheduledHour:parseInt(e.target.value)||8 }))}
-                style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
-            </div>
-          )}
+
           <div style={{ display:'flex', gap:8 }}>
             <button onClick={() => setSchedAddOpen(false)}
               style={{ flex:1, padding:'12px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, cursor:'pointer' }}>Cancel</button>
@@ -1145,24 +1219,68 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       ) : schedTasks.length === 0 ? (
         <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'48px 24px', textAlign:'center' }}>
           <ClipboardCheck size={32} color={MUTED} strokeWidth={1.5} style={{ marginBottom:12 }} />
-          <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 6px' }}>No scheduled tasks</p>
-          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Create tasks that auto-appear when a concierge starts a shift.</p>
+          <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 6px' }}>No scheduled tasks yet</p>
+          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Create tasks that auto-appear when a concierge starts their shift.</p>
         </div>
       ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {schedTasks.map(t => (
-            <div key={t.scheduled_task_id} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:14 }}>
-              <div style={{ width:40, height:40, borderRadius:12, background:`${BLUE}12`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <ClipboardCheck size={18} color={BLUE} />
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {schedTasks.map(t => {
+            const wm     = windowMeta(t.shift_window || 'all');
+            const isOff  = t.active === false;
+            const priBg  = { Urgent:'rgba(255,59,48,0.10)', High:'rgba(255,149,0,0.10)', Standard:`${BLUE}10`, Low:'rgba(107,114,128,0.10)' };
+            const priCol = { Urgent:RED, High:ORANGE, Standard:BLUE, Low:MUTED };
+            const pri    = t.priority || 'Standard';
+            return (
+              <div key={t.scheduled_task_id}
+                style={{ background:CARD, border:`1px solid ${isOff ? BORDER : BORDER}`, borderRadius:14, padding:'14px 16px', opacity: isOff ? 0.55 : 1, transition:'opacity 0.2s' }}>
+                {/* Top row */}
+                <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
+                  <div style={{ width:38, height:38, borderRadius:10, background:`${wm.color}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <ClipboardCheck size={17} color={wm.color} />
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', marginBottom:3 }}>
+                      <p style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, margin:0 }}>{t.title}</p>
+                      {isOff && <span style={{ fontSize:10, fontWeight:700, color:MUTED, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:5, padding:'2px 6px' }}>PAUSED</span>}
+                    </div>
+                    <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                      {/* Shift window badge */}
+                      <span style={{ fontSize:11, fontWeight:600, color:wm.color, background:`${wm.color}12`, borderRadius:6, padding:'2px 7px' }}>{wm.label} · {wm.hours}</span>
+                      {/* Priority badge */}
+                      <span style={{ fontSize:11, fontWeight:600, color:priCol[pri], background:priBg[pri], borderRadius:6, padding:'2px 7px' }}>{pri}</span>
+                      {/* Recurrence badge */}
+                      <span style={{ fontSize:11, fontWeight:600, color:MUTED, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:6, padding:'2px 7px' }}>
+                        {t.recurrence === 'daily' ? `Daily ${t.scheduled_hour}:00` : 'Every Shift'}
+                      </span>
+                      {/* Category */}
+                      <span style={{ fontSize:11, color:MUTED, borderRadius:6, padding:'2px 7px', background:CARD2, border:`1px solid ${BORDER}` }}>{t.category}</span>
+                    </div>
+                    {/* Assigned person */}
+                    {t.assigned_concierge_name && (
+                      <p style={{ fontFamily:INTER, fontSize:12, color:BLUE, margin:'5px 0 0' }}>
+                        Assigned to {t.assigned_concierge_name} only
+                      </p>
+                    )}
+                    {/* Notes */}
+                    {t.notes && (
+                      <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'5px 0 0', fontStyle:'italic' }}>{t.notes}</p>
+                    )}
+                  </div>
+                </div>
+                {/* Action row */}
+                <div style={{ display:'flex', gap:8, marginTop:12, justifyContent:'flex-end' }}>
+                  <button onClick={() => toggleSchedActive(t.scheduled_task_id, t.active !== false)}
+                    style={{ padding:'6px 14px', background: isOff ? `${BLUE}12` : 'rgba(255,149,0,0.10)', border:`1px solid ${isOff ? BLUE : ORANGE}`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color: isOff ? BLUE : ORANGE, cursor:'pointer' }}>
+                    {isOff ? 'Resume' : 'Pause'}
+                  </button>
+                  <button onClick={() => deleteScheduled(t.scheduled_task_id)}
+                    style={{ padding:'6px 14px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.20)`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:RED, cursor:'pointer' }}>
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <p style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, margin:'0 0 2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.title}</p>
-                <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>{t.category} · {RECURRENCE_LABELS[t.recurrence] || t.recurrence}{t.recurrence === 'daily' ? ` · ${t.scheduled_hour}:00` : ''}</p>
-              </div>
-              <button onClick={() => deleteScheduled(t.scheduled_task_id)}
-                style={{ padding:'7px 12px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.20)`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:RED, cursor:'pointer', flexShrink:0 }}>Remove</button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

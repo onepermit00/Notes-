@@ -618,7 +618,24 @@ async def start_shift(request: Request, session_token: Optional[str] = Cookie(de
         ]
     }, {'_id': 0}).to_list(100)
 
+    concierge_id = concierge['concierge_id']
+    current_hour = now.hour
+
     for st in scheduled:
+        # Filter by shift window
+        window = st.get('shift_window', 'all')
+        if window == 'morning' and not (6 <= current_hour < 14):
+            continue
+        elif window == 'afternoon' and not (14 <= current_hour < 22):
+            continue
+        elif window == 'night' and not (current_hour >= 22 or current_hour < 6):
+            continue
+
+        # Filter by assigned concierge (empty = all concierges)
+        assigned_cid = st.get('assigned_concierge_id', '')
+        if assigned_cid and assigned_cid != concierge_id:
+            continue
+
         task_id = f'task_{uuid.uuid4().hex[:12]}'
         await db.tasks.insert_one({
             'task_id':          task_id,
@@ -629,7 +646,7 @@ async def start_shift(request: Request, session_token: Optional[str] = Cookie(de
             'category':         st.get('category', 'Administrative'),
             'priority':         st.get('priority', 'Standard'),
             'assigned_to':      concierge['first_name'] + ' ' + concierge['last_name'],
-            'assigned_to_id':   concierge['concierge_id'],
+            'assigned_to_id':   concierge_id,
             'due_time':         'Shift Start' if st['recurrence'] == 'shift_start' else f"{st.get('scheduled_hour', 8):02d}:00",
             'status':           'pending',
             'created_by_type':  'scheduled',
@@ -1014,14 +1031,20 @@ async def shift_handover(data: ShiftHandoverRequest, request: Request, session_t
 # ══════════════════════════════════════════════════════════════════════════════
 
 class ScheduledTaskCreate(BaseModel):
-    title:          str
-    notes:          Optional[str] = ''
-    category:       Optional[str] = 'Administrative'
-    priority:       Optional[str] = 'Standard'
-    recurrence:     str = 'shift_start'   # 'shift_start' | 'daily'
-    scheduled_hour: Optional[int] = 8     # For 'daily' — hour in 24h (local)
-    assigned_to:    Optional[str] = ''
-    assigned_to_id: Optional[str] = ''
+    title:                   str
+    notes:                   Optional[str] = ''
+    category:                Optional[str] = 'Administrative'
+    priority:                Optional[str] = 'Standard'
+    recurrence:              str = 'shift_start'   # 'shift_start' | 'daily'
+    scheduled_hour:          Optional[int] = 8     # For 'daily' — hour in 24h (local)
+    shift_window:            Optional[str] = 'all' # 'all' | 'morning' | 'afternoon' | 'night'
+    assigned_concierge_id:   Optional[str] = ''    # empty = all concierges
+    assigned_concierge_name: Optional[str] = ''
+    assigned_to:             Optional[str] = ''
+    assigned_to_id:          Optional[str] = ''
+
+class ScheduledTaskUpdate(BaseModel):
+    active: Optional[bool] = None
 
 class PackageNotifyRequest(BaseModel):
     unit:           str
@@ -1297,24 +1320,41 @@ async def create_scheduled_task(data: ScheduledTaskCreate, request: Request, ses
     task_id = f'sched_{uuid.uuid4().hex[:12]}'
     now = datetime.now(timezone.utc)
     doc = {
-        'scheduled_task_id': task_id,
-        'manager_id':        mgr_id,
-        'title':             data.title,
-        'notes':             data.notes or '',
-        'category':          data.category or 'Administrative',
-        'priority':          data.priority or 'Standard',
-        'recurrence':        data.recurrence,
-        'scheduled_hour':    data.scheduled_hour,
-        'assigned_to':       data.assigned_to or '',
-        'assigned_to_id':    data.assigned_to_id or '',
-        'active':            True,
-        'created_at':        now,
+        'scheduled_task_id':      task_id,
+        'manager_id':             mgr_id,
+        'title':                  data.title,
+        'notes':                  data.notes or '',
+        'category':               data.category or 'Administrative',
+        'priority':               data.priority or 'Standard',
+        'recurrence':             data.recurrence,
+        'scheduled_hour':         data.scheduled_hour,
+        'shift_window':           data.shift_window or 'all',
+        'assigned_concierge_id':  data.assigned_concierge_id or '',
+        'assigned_concierge_name':data.assigned_concierge_name or '',
+        'assigned_to':            data.assigned_to or '',
+        'assigned_to_id':         data.assigned_to_id or '',
+        'active':                 True,
+        'created_at':             now,
     }
     await db.scheduled_tasks.insert_one(doc)
     doc.pop('_id', None)
     doc['created_at'] = now.isoformat()
     await _audit(mgr_id, user['manager_id'], 'manager', 'create', 'scheduled_task', task_id, {'title': data.title})
     return doc
+
+@api.put('/scheduled-tasks/{task_id}')
+async def update_scheduled_task(task_id: str, data: ScheduledTaskUpdate, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if user_type != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    patch = {k: v for k, v in data.dict().items() if v is not None}
+    if not patch:
+        raise HTTPException(400, 'Nothing to update.')
+    await db.scheduled_tasks.update_one({'scheduled_task_id': task_id, 'manager_id': mgr_id}, {'$set': patch})
+    doc = await db.scheduled_tasks.find_one({'scheduled_task_id': task_id}, {'_id': 0})
+    if doc and isinstance(doc.get('created_at'), datetime):
+        doc['created_at'] = doc['created_at'].isoformat()
+    return doc or {}
 
 @api.delete('/scheduled-tasks/{task_id}')
 async def delete_scheduled_task(task_id: str, request: Request, session_token: Optional[str] = Cookie(default=None)):

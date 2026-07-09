@@ -271,15 +271,23 @@ export const authApi = {
 
   async createScheduledTask(form) {
     const { data } = await api.post('/scheduled-tasks', {
-      title:          form.title,
-      notes:          form.notes || '',
-      category:       form.category || 'Administrative',
-      priority:       form.priority || 'Standard',
-      recurrence:     form.recurrence || 'shift_start',
-      scheduled_hour: form.scheduledHour || 8,
-      assigned_to:    form.assignedTo || '',
-      assigned_to_id: form.assignedToId || '',
+      title:                   form.title,
+      notes:                   form.notes || '',
+      category:                form.category || 'Administrative',
+      priority:                form.priority || 'Standard',
+      recurrence:              form.recurrence || 'shift_start',
+      scheduled_hour:          form.scheduledHour || 8,
+      shift_window:            form.shiftWindow || 'all',
+      assigned_concierge_id:   form.assignedConciergeId || '',
+      assigned_concierge_name: form.assignedConciergeName || '',
+      assigned_to:             form.assignedConciergeName || '',
+      assigned_to_id:          form.assignedConciergeId || '',
     });
+    return data;
+  },
+
+  async updateScheduledTask(taskId, patch) {
+    const { data } = await api.put(`/scheduled-tasks/${taskId}`, patch);
     return data;
   },
 
