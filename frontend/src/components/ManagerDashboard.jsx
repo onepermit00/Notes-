@@ -758,73 +758,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       }));
     };
 
-    /* ── Add form view ── */
-    if (showAddSection) {
-      const canSubmit = !!newSectionDraft.label.trim();
-      return (
-        <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
+    const canSubmit = !!newSectionDraft.label.trim();
 
-          {/* Wizard header */}
-          <div style={{ flexShrink:0, paddingBottom:14, borderBottom:`1px solid ${BORDER}`, marginBottom:24 }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <div>
-                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>New Shift Section</h2>
-                <p style={{ fontSize:13, color:MUTED, margin:'2px 0 0' }}>Appears in every concierge's shift dashboard</p>
-              </div>
-              <button onClick={() => { setShowAddSection(false); setNewSectionDraft({ label:'', desc:'' }); }}
-                style={{ padding:'10px 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontSize:14, fontWeight:600, color:TEXT, cursor:'pointer', fontFamily:INTER }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-
-          {/* Inputs */}
-          <div style={{ display:'flex', flexDirection:'column', gap:20, marginBottom:24 }}>
-            <div>
-              <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Section Name *</h3>
-              <input
-                value={newSectionDraft.label}
-                onChange={e => setNewSectionDraft(d => ({ ...d, label:e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && canSubmit && handleAddCustomSection()}
-                placeholder="e.g. Key Handovers, Amenity Access"
-                style={{ ...baseInput, border:newSectionDraft.label ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }}
-              />
-            </div>
-            <div>
-              <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Description <span style={{ fontWeight:400, color:MUTED }}>(optional)</span></h3>
-              <input
-                value={newSectionDraft.desc}
-                onChange={e => setNewSectionDraft(d => ({ ...d, desc:e.target.value }))}
-                placeholder="Short description of what this section tracks"
-                style={{ ...baseInput, border:newSectionDraft.desc ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }}
-              />
-            </div>
-          </div>
-
-          {/* Footer — exact incident report footer */}
-          <div style={{ paddingTop:24, borderTop:`1px solid ${BORDER}` }}>
-            <div style={{ display:'flex', gap:12 }}>
-              <button onClick={() => { setShowAddSection(false); setNewSectionDraft({ label:'', desc:'' }); }}
-                style={{ flex:1, padding:'16px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
-                Cancel
-              </button>
-              <button onClick={handleAddCustomSection} disabled={!canSubmit}
-                style={{ flex:2, padding:'16px 0', background:canSubmit ? BLUE : CARD2, border:canSubmit ? 'none' : `1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:canSubmit ? 'white' : MUTED, cursor:canSubmit ? 'pointer' : 'not-allowed', boxShadow:canSubmit ? `0 8px 24px ${BLUE}40` : 'none' }}>
-                Add Section
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    /* ── List view ── */
     return (
       <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
 
         {/* CTA — full-width incident-style */}
         <div style={{ paddingBottom:20 }}>
-          <button onClick={() => { setNewSectionDraft({ label:'', desc:'' }); setShowAddSection(true); }}
+          <button onClick={() => { setNewSectionDraft({ label:'', desc:'' }); setShowAddSection(s => !s); }}
             style={{ width:'100%', padding:20, background:BLUE, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:`0 8px 24px ${BLUE}40` }}>
             <div style={{ display:'flex', alignItems:'center', gap:16 }}>
               <div style={{ width:56, height:56, background:'rgba(255,255,255,0.2)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -838,6 +779,52 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <ChevronRight size={24} color="rgba(255,255,255,0.7)" />
           </button>
         </div>
+
+        {/* Inline add form — drops in below CTA, list stays visible underneath */}
+        {showAddSection && (
+          <div style={{ ...glassCard, padding:20, marginBottom:20 }}>
+            {/* Form header */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:`${BLUE}12`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Plus size={18} color={BLUE} />
+                </div>
+                <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:0 }}>New Shift Section</p>
+              </div>
+              <button onClick={() => { setShowAddSection(false); setNewSectionDraft({ label:'', desc:'' }); }}
+                style={{ width:32, height:32, borderRadius:8, background:CARD2, border:`1px solid ${BORDER}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                <X size={14} color={MUTED} />
+              </button>
+            </div>
+            {/* Inputs */}
+            <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:16 }}>
+              <input
+                value={newSectionDraft.label}
+                onChange={e => setNewSectionDraft(d => ({ ...d, label:e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && canSubmit && handleAddCustomSection()}
+                placeholder="Section name  e.g. Key Handovers"
+                style={{ ...baseInput, border:newSectionDraft.label ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }}
+              />
+              <input
+                value={newSectionDraft.desc}
+                onChange={e => setNewSectionDraft(d => ({ ...d, desc:e.target.value }))}
+                placeholder="Short description (optional)"
+                style={{ ...baseInput, border:newSectionDraft.desc ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }}
+              />
+            </div>
+            {/* Action buttons */}
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => { setShowAddSection(false); setNewSectionDraft({ label:'', desc:'' }); }}
+                style={{ flex:1, padding:'13px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, cursor:'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={handleAddCustomSection} disabled={!canSubmit}
+                style={{ flex:2, padding:'13px 0', background:canSubmit ? BLUE : CARD2, border:canSubmit ? 'none' : `1px solid ${BORDER}`, borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:canSubmit ? 'white' : MUTED, cursor:canSubmit ? 'pointer' : 'not-allowed', boxShadow:canSubmit ? `0 8px 24px ${BLUE}40` : 'none' }}>
+                Add Section
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Section header */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
