@@ -3992,11 +3992,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Emergency Contacts</h2>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button onClick={() => { setShowAddContact(s => !s); setNewContactDraft({ label:'', number:'' }); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: showAddContact ? CARD2 : BLUE, border: `1px solid ${showAddContact ? BORDER : BLUE}`, borderRadius: 10, cursor: 'pointer', transition: 'all 150ms' }}>
-                  <Plus size={14} color={showAddContact ? MUTED : 'white'} />
-                  <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: showAddContact ? MUTED : 'white' }}>Add</span>
-                </button>
                 <button onClick={() => { setConOpen(false); setShowAddContact(false); }}
                   style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${BORDER}`, background: CARD, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                   <X size={18} color={MUTED} />
@@ -4006,42 +4001,75 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-              {/* Add contact form — shown at top so it's immediately visible */}
-              {showAddContact && (
-                <div style={{ padding: 20, background: CARD, border: `2px dashed ${BLUE}50`, borderRadius: 16 }}>
-                  <p style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 14px' }}>New Contact</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-                    <input
-                      value={newContactDraft.label}
-                      onChange={e => setNewContactDraft(d => ({ ...d, label: e.target.value }))}
-                      placeholder="Name or role  e.g. Night Security"
-                      style={{ fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 10, padding: '12px 14px', outline: 'none', width: '100%', boxSizing: 'border-box' }}
-                    />
-                    <input
-                      value={newContactDraft.number}
-                      onChange={e => setNewContactDraft(d => ({ ...d, number: e.target.value }))}
-                      placeholder="Phone number  e.g. (215) 555-0199"
-                      style={{ fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 10, padding: '12px 14px', outline: 'none', width: '100%', boxSizing: 'border-box' }}
-                    />
+              {/* CTA — full-width incident-style */}
+              <button onClick={() => { setNewContactDraft({ label:'', number:'' }); setShowAddContact(s => !s); }}
+                style={{ width: '100%', padding: 20, background: RED, borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', boxShadow: `0 8px 24px rgba(255,59,48,0.35)` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ width: 56, height: 56, background: 'rgba(255,255,255,0.2)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Plus size={28} color="white" />
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      onClick={() => {
-                        if (!newContactDraft.label.trim() || !newContactDraft.number.trim()) return;
-                        setCustomContacts(prev => [...prev, { id: Date.now(), label: newContactDraft.label.trim(), number: newContactDraft.number.trim() }]);
-                        setNewContactDraft({ label:'', number:'' });
-                        setShowAddContact(false);
-                      }}
-                      style={{ flex: 1, padding: '11px', background: BLUE, border: 'none', borderRadius: 10, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: 'white', cursor: 'pointer' }}>
-                      Add Contact
-                    </button>
-                    <button onClick={() => { setShowAddContact(false); setNewContactDraft({ label:'', number:'' }); }}
-                      style={{ padding: '11px 16px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 10, fontFamily: INTER, fontSize: 14, fontWeight: 600, color: MUTED, cursor: 'pointer' }}>
-                      Cancel
-                    </button>
+                  <div>
+                    <p style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.01em', margin: 0 }}>Add Emergency Contact</p>
+                    <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', margin: 0 }}>Add a custom contact to the directory</p>
                   </div>
                 </div>
-              )}
+                <ChevronRight size={24} color="rgba(255,255,255,0.7)" />
+              </button>
+
+              {/* Inline add form — drops in below CTA */}
+              {showAddContact && (() => {
+                const canAdd = !!newContactDraft.label.trim() && !!newContactDraft.number.trim();
+                return (
+                  <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20 }}>
+                    {/* Form header */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,59,48,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Phone size={18} color={RED} />
+                        </div>
+                        <p style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: 0 }}>New Emergency Contact</p>
+                      </div>
+                      <button onClick={() => { setShowAddContact(false); setNewContactDraft({ label:'', number:'' }); }}
+                        style={{ width: 32, height: 32, borderRadius: 8, background: CARD2, border: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        <X size={14} color={MUTED} />
+                      </button>
+                    </div>
+                    {/* Inputs */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                      <input
+                        value={newContactDraft.label}
+                        onChange={e => setNewContactDraft(d => ({ ...d, label: e.target.value }))}
+                        placeholder="Name or role  e.g. Night Security"
+                        style={{ width: '100%', padding: '14px 16px', background: CARD2, borderRadius: 12, border: newContactDraft.label ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}`, color: TEXT, outline: 'none', fontSize: 16, fontFamily: INTER, boxSizing: 'border-box' }}
+                      />
+                      <input
+                        value={newContactDraft.number}
+                        onChange={e => setNewContactDraft(d => ({ ...d, number: e.target.value }))}
+                        placeholder="Phone number  e.g. (215) 555-0199"
+                        style={{ width: '100%', padding: '14px 16px', background: CARD2, borderRadius: 12, border: newContactDraft.number ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}`, color: TEXT, outline: 'none', fontSize: 16, fontFamily: INTER, boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => { setShowAddContact(false); setNewContactDraft({ label:'', number:'' }); }}
+                        style={{ flex: 1, padding: '13px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 600, color: TEXT, cursor: 'pointer' }}>
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!canAdd) return;
+                          setCustomContacts(prev => [...prev, { id: Date.now(), label: newContactDraft.label.trim(), number: newContactDraft.number.trim() }]);
+                          setNewContactDraft({ label:'', number:'' });
+                          setShowAddContact(false);
+                        }}
+                        disabled={!canAdd}
+                        style={{ flex: 2, padding: '13px 0', background: canAdd ? RED : CARD2, border: canAdd ? 'none' : `1px solid ${BORDER}`, borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: canAdd ? 'white' : MUTED, cursor: canAdd ? 'pointer' : 'not-allowed', boxShadow: canAdd ? '0 8px 24px rgba(255,59,48,0.35)' : 'none' }}>
+                        Add Contact
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Emergency Numbers section */}
               <div>
