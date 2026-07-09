@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Response, Request, Cookie, UploadFile, File, Form
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from contextlib import asynccontextmanager
@@ -51,6 +51,7 @@ async def _ensure_indexes():
     await db.incidents.create_index('incident_id',            background=True)
     await db.incidents.create_index([('manager_id', 1), ('created_at', -1)], background=True)
     await db.messages.create_index([('manager_id', 1), ('created_at', 1)],  background=True)
+    await db.residents.create_index([('manager_id', 1), ('unit', 1)],       background=True)
     logger.info('MongoDB indexes ensured.')
 
 
@@ -753,6 +754,11 @@ async def create_task(task: TaskCreate, request: Request, session_token: Optiona
     await db.tasks.insert_one(doc)
     doc.pop('_id', None)
     doc['created_at'] = doc['created_at'].isoformat()
+    # Notify assigned concierge by email when manager creates a task
+    if user_type == 'manager' and task.assigned_to_id:
+        concierge = await db.concierges.find_one({'concierge_id': task.assigned_to_id})
+        if concierge:
+            await _notify_task_assigned(doc, user, concierge)
     return doc
 
 
@@ -764,12 +770,15 @@ async def update_task(task_id: str, update: TaskUpdate, request: Request, sessio
     if update.completion_note: patch['completion_note'] = update.completion_note
     if update.evidence_url:    patch['evidence_url']    = update.evidence_url
     if update.status == 'completed':
-        patch['completed_at']        = datetime.now(timezone.utc).isoformat()
+        patch['completed_at']        = datetime.now(timezone.utc)
         patch['completed_by_name']   = f"{user['first_name']} {user['last_name']}"
     result = await db.tasks.update_one({'task_id': task_id, 'manager_id': mgr_id}, {'$set': patch})
     if result.matched_count == 0:
         raise HTTPException(404, 'Task not found.')
     updated = await db.tasks.find_one({'task_id': task_id}, {'_id': 0})
+    for f in ('created_at', 'completed_at'):
+        if isinstance(updated.get(f), datetime):
+            updated[f] = updated[f].isoformat()
     return updated
 
 
@@ -812,6 +821,11 @@ async def create_incident(incident: IncidentCreate, request: Request, session_to
     await db.incidents.insert_one(doc)
     doc.pop('_id', None)
     doc['created_at'] = doc['created_at'].isoformat()
+    # Notify manager by email when concierge files an incident
+    if user_type == 'concierge':
+        manager = await db.managers.find_one({'manager_id': mgr_id})
+        if manager:
+            await _notify_incident_filed(doc, manager, doc['created_by'])
     return doc
 
 
@@ -867,6 +881,301 @@ async def send_message(msg: MessageCreate, request: Request, session_token: Opti
     doc.pop('_id', None)
     doc['created_at'] = doc['created_at'].isoformat()
     return doc
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SERVER-SENT EVENTS — real-time push to both dashboards
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _serialize(doc: dict) -> dict:
+    """Convert all datetime values in a doc to ISO strings."""
+    return {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in doc.items()}
+
+@api.get('/events')
+async def sse_events(request: Request, session_token: Optional[str] = Cookie(default=None), token: Optional[str] = None):
+    # EventSource can't set headers, so accept token as query param too
+    effective_token = session_token or token
+    session = await get_session(request, effective_token)
+    if not session:
+        raise HTTPException(401, 'Not authenticated.')
+    if session['user_type'] == 'manager':
+        user = await db.managers.find_one({'manager_id': session['user_id']})
+        mgr_id = user['manager_id']
+    else:
+        user = await db.concierges.find_one({'concierge_id': session['user_id']})
+        mgr_id = user['manager_id']
+
+    async def generator():
+        # Send initial heartbeat so client knows the connection is live
+        yield 'event: connected\ndata: {}\n\n'
+        last_check = datetime.now(timezone.utc) - timedelta(seconds=2)
+        while True:
+            if await request.is_disconnected():
+                break
+            now_check = datetime.now(timezone.utc)
+            tasks = await db.tasks.find(
+                {'manager_id': mgr_id, 'created_at': {'$gte': last_check}},
+                {'_id': 0}
+            ).to_list(50)
+            incidents = await db.incidents.find(
+                {'manager_id': mgr_id, 'created_at': {'$gte': last_check}},
+                {'_id': 0}
+            ).to_list(20)
+            last_check = now_check
+            if tasks or incidents:
+                payload = _json.dumps({
+                    'tasks':     [_serialize(t) for t in tasks],
+                    'incidents': [_serialize(i) for i in incidents],
+                })
+                yield f'event: update\ndata: {payload}\n\n'
+            else:
+                yield ':\n\n'   # SSE comment = keepalive ping
+            await asyncio.sleep(6)
+
+    return StreamingResponse(
+        generator(),
+        media_type='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'},
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SHIFT HANDOVER
+# ══════════════════════════════════════════════════════════════════════════════
+
+class ShiftHandoverRequest(BaseModel):
+    handover_notes: str = ''
+    open_items:     Optional[List[str]] = []
+
+@api.post('/shifts/handover')
+async def shift_handover(data: ShiftHandoverRequest, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    session = await get_session(request, session_token)
+    if not session or session['user_type'] != 'concierge':
+        raise HTTPException(403, 'Concierge access required.')
+    now = datetime.now(timezone.utc)
+    result = await db.shifts.update_one(
+        {'concierge_id': session['user_id'], 'status': 'active'},
+        {'$set': {
+            'status':          'completed',
+            'clock_out':       now,
+            'handover_notes':  data.handover_notes.strip(),
+            'open_items':      data.open_items or [],
+        }}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, 'No active shift to hand over.')
+    return {'message': 'Shift closed with handover notes.', 'clock_out': now.isoformat()}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RESIDENTS DIRECTORY
+# ══════════════════════════════════════════════════════════════════════════════
+
+class ResidentCreate(BaseModel):
+    name:  str
+    unit:  str
+    phone: Optional[str] = ''
+    email: Optional[str] = ''
+    notes: Optional[str] = ''
+
+class ResidentUpdate(BaseModel):
+    name:  Optional[str] = None
+    unit:  Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    notes: Optional[str] = None
+
+@api.get('/residents')
+async def list_residents(request: Request, session_token: Optional[str] = Cookie(default=None)):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    docs = await db.residents.find({'manager_id': mgr_id}, {'_id': 0}).sort('unit', 1).to_list(2000)
+    for d in docs:
+        if isinstance(d.get('created_at'), datetime): d['created_at'] = d['created_at'].isoformat()
+    return {'residents': docs}
+
+@api.post('/residents')
+async def create_resident(data: ResidentCreate, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if user_type != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    res_id = f'res_{uuid.uuid4().hex[:12]}'
+    doc = {
+        'resident_id': res_id,
+        'manager_id':  mgr_id,
+        'name':        data.name.strip(),
+        'unit':        data.unit.strip(),
+        'phone':       data.phone or '',
+        'email':       data.email or '',
+        'notes':       data.notes or '',
+        'created_at':  datetime.now(timezone.utc),
+    }
+    await db.residents.insert_one(doc)
+    doc.pop('_id', None)
+    doc['created_at'] = doc['created_at'].isoformat()
+    return doc
+
+@api.put('/residents/{resident_id}')
+async def update_resident(resident_id: str, data: ResidentUpdate, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if user_type != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    patch = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not patch:
+        raise HTTPException(400, 'Nothing to update.')
+    result = await db.residents.update_one({'resident_id': resident_id, 'manager_id': mgr_id}, {'$set': patch})
+    if result.matched_count == 0:
+        raise HTTPException(404, 'Resident not found.')
+    updated = await db.residents.find_one({'resident_id': resident_id}, {'_id': 0})
+    if isinstance(updated.get('created_at'), datetime): updated['created_at'] = updated['created_at'].isoformat()
+    return updated
+
+@api.delete('/residents/{resident_id}')
+async def delete_resident(resident_id: str, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if user_type != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    result = await db.residents.delete_one({'resident_id': resident_id, 'manager_id': mgr_id})
+    if result.deleted_count == 0:
+        raise HTTPException(404, 'Resident not found.')
+    return {'message': 'Resident removed.'}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ANALYTICS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@api.get('/analytics')
+async def get_analytics(request: Request, session_token: Optional[str] = Cookie(default=None)):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if user_type != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+
+    # Activity by category
+    cat_pipeline = [
+        {'$match': {'manager_id': mgr_id}},
+        {'$group': {'_id': '$category', 'count': {'$sum': 1}}},
+        {'$sort': {'count': -1}},
+    ]
+    cat_counts = await db.tasks.aggregate(cat_pipeline).to_list(20)
+
+    # Task status breakdown
+    status_pipeline = [
+        {'$match': {'manager_id': mgr_id}},
+        {'$group': {'_id': '$status', 'count': {'$sum': 1}}},
+    ]
+    status_counts = await db.tasks.aggregate(status_pipeline).to_list(10)
+
+    # Incident severity breakdown
+    inc_pipeline = [
+        {'$match': {'manager_id': mgr_id}},
+        {'$group': {'_id': '$severity', 'count': {'$sum': 1}}},
+        {'$sort': {'count': -1}},
+    ]
+    inc_counts = await db.incidents.aggregate(inc_pipeline).to_list(10)
+
+    # Incident type breakdown
+    inc_type_pipeline = [
+        {'$match': {'manager_id': mgr_id}},
+        {'$group': {'_id': '$type', 'count': {'$sum': 1}}},
+        {'$sort': {'count': -1}},
+        {'$limit': 10},
+    ]
+    inc_types = await db.incidents.aggregate(inc_type_pipeline).to_list(10)
+
+    # Concierge activity totals (tasks per concierge)
+    con_pipeline = [
+        {'$match': {'manager_id': mgr_id, 'created_by_type': 'concierge'}},
+        {'$group': {'_id': '$created_by_name', 'count': {'$sum': 1}}},
+        {'$sort': {'count': -1}},
+    ]
+    con_counts = await db.tasks.aggregate(con_pipeline).to_list(20)
+
+    # Hourly activity distribution (last 30 days)
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    hour_pipeline = [
+        {'$match': {'manager_id': mgr_id, 'created_at': {'$gte': thirty_days_ago}}},
+        {'$group': {'_id': {'$hour': '$created_at'}, 'count': {'$sum': 1}}},
+        {'$sort': {'_id': 1}},
+    ]
+    hourly = await db.tasks.aggregate(hour_pipeline).to_list(24)
+
+    # Total counts
+    total_tasks     = await db.tasks.count_documents({'manager_id': mgr_id})
+    completed_tasks = await db.tasks.count_documents({'manager_id': mgr_id, 'status': 'completed'})
+    total_incidents = await db.incidents.count_documents({'manager_id': mgr_id})
+    open_incidents  = await db.incidents.count_documents({'manager_id': mgr_id, 'status': 'new'})
+    total_shifts    = await db.shifts.count_documents({'manager_id': mgr_id})
+
+    return {
+        'totals': {
+            'tasks':           total_tasks,
+            'completed_tasks': completed_tasks,
+            'completion_rate': round(completed_tasks / total_tasks * 100, 1) if total_tasks else 0,
+            'incidents':       total_incidents,
+            'open_incidents':  open_incidents,
+            'shifts':          total_shifts,
+        },
+        'by_category':  [{'category': r['_id'] or 'Other', 'count': r['count']} for r in cat_counts],
+        'by_status':    [{'status':   r['_id'] or 'unknown', 'count': r['count']} for r in status_counts],
+        'incidents_by_severity': [{'severity': r['_id'] or 'medium', 'count': r['count']} for r in inc_counts],
+        'incidents_by_type':     [{'type': r['_id'] or 'Other', 'count': r['count']} for r in inc_types],
+        'by_concierge': [{'name': r['_id'] or 'Unknown', 'count': r['count']} for r in con_counts],
+        'hourly_activity': [{'hour': r['_id'], 'count': r['count']} for r in hourly],
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NOTIFICATIONS — email alerts for critical events
+# ══════════════════════════════════════════════════════════════════════════════
+
+async def _notify_task_assigned(task_doc: dict, manager: dict, concierge: dict):
+    """Email concierge when manager assigns a task."""
+    html = f"""
+    <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
+      <div style="background:#FF385C;border-radius:16px 16px 0 0;padding:28px 32px;text-align:center">
+        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 6px">onepermit · Task Assignment</p>
+        <h1 style="color:white;font-size:20px;font-weight:800;margin:0">New task assigned to you</h1>
+      </div>
+      <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
+        <p style="color:#444;font-size:15px;line-height:1.7">Hi {concierge['first_name']},</p>
+        <p style="color:#444;font-size:15px;line-height:1.7">
+          <strong>{manager['first_name']} {manager['last_name']}</strong> has assigned you a new task:
+        </p>
+        <div style="background:#f8f8f8;border:1px solid #ebebeb;border-radius:12px;padding:20px 24px;margin:20px 0">
+          <p style="font-size:17px;font-weight:700;color:#111;margin:0 0 8px">{task_doc['title']}</p>
+          <p style="color:#666;font-size:14px;margin:0 0 6px">Due: {task_doc.get('due_time','ASAP')} · Priority: {task_doc.get('priority','Standard')}</p>
+          {f'<p style="color:#444;font-size:14px;margin:8px 0 0">{task_doc["notes"]}</p>' if task_doc.get('notes') else ''}
+        </div>
+        <p style="color:#aaa;font-size:13px;margin-top:20px">Log in to onepermit to view and complete this task.</p>
+      </div>
+    </div>"""
+    asyncio.create_task(send_email(concierge['email'], f"New task: {task_doc['title']}", html))
+
+async def _notify_incident_filed(incident_doc: dict, manager: dict, concierge_name: str):
+    """Email manager when concierge files an incident."""
+    sev_color = {'critical': '#FF3B30', 'high': '#FF3B30', 'medium': '#FF9500', 'low': '#34C759'}.get(incident_doc.get('severity','medium'), '#FF9500')
+    html = f"""
+    <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
+      <div style="background:#111827;border-radius:16px 16px 0 0;padding:28px 32px">
+        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin:0 0 6px">onepermit · Incident Report</p>
+        <h1 style="color:white;font-size:20px;font-weight:800;margin:0">{incident_doc['type']} — {incident_doc['location']}</h1>
+        <span style="display:inline-block;margin-top:10px;padding:4px 12px;background:{sev_color};border-radius:999px;font-size:12px;font-weight:700;color:white;text-transform:uppercase;letter-spacing:0.05em">{incident_doc.get('severity','medium')}</span>
+      </div>
+      <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
+        <p style="color:#444;font-size:15px;line-height:1.7">Hi {manager['first_name']},</p>
+        <p style="color:#444;font-size:15px;line-height:1.7">
+          <strong>{concierge_name}</strong> filed an incident report at <strong>{manager['property_name']}</strong>:
+        </p>
+        <div style="background:#f8f8f8;border:1px solid #ebebeb;border-radius:12px;padding:20px 24px;margin:20px 0">
+          <p style="font-weight:700;color:#111;margin:0 0 8px">{incident_doc['description']}</p>
+          {f'<p style="color:#444;font-size:14px;margin:6px 0 0">{incident_doc["notes"]}</p>' if incident_doc.get('notes') else ''}
+          {f'<p style="color:#666;font-size:13px;margin:8px 0 0">Unit: {incident_doc["unit_number"]}</p>' if incident_doc.get('unit_number') else ''}
+          {f'<p style="color:#666;font-size:13px;margin:4px 0 0">Person: {incident_doc["person_involved"]}</p>' if incident_doc.get('person_involved') else ''}
+        </div>
+        <p style="color:#aaa;font-size:13px">Log in to onepermit to review and resolve this incident.</p>
+      </div>
+    </div>"""
+    asyncio.create_task(send_email(manager['email'], f"🚨 Incident: {incident_doc['type']} at {manager['property_name']}", html))
 
 
 # ══════════════════════════════════════════════════════════════════════════════

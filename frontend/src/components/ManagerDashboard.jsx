@@ -9,6 +9,7 @@ import {
   CheckCircle, Send, Mail, UserPlus, Archive, ArrowUpDown, Menu, Search, Clock, Bell, Sliders, Lock, ShoppingCart, UserCheck, KeyRound, Sun, Moon,
   Upload, FileText, Eye, EyeOff, Image,
   GraduationCap, Video, Play, Trash2,
+  Printer, BarChart2, UserCog,
 } from 'lucide-react';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
@@ -259,16 +260,18 @@ const EMERGENCY_CONTACTS = [
 ];
 
 const NAV = [
-  { id:'home',        Icon:Home,      label:'Overview'            },
-  { id:'tasks',       Icon:Send,      label:'Tasks'               },
-  { id:'assign-task', Icon:Plus,      label:'Assign Task',        action:'task'      },
-  { id:'shifts',      Icon:Calendar,  label:'Shifts'              },
-  { id:'team',        Icon:Users,     label:'Team'                },
-  { id:'more',        Icon:BookOpen,       label:'SOPs'      },
-  { id:'training',    Icon:GraduationCap, label:'Training'  },
-  { id:'sections',    Icon:Sliders,       label:'Shift Sections' },
-  { id:'emergency',   Icon:Phone,     label:'Emergency Contacts', action:'emergency' },
-  { id:'settings',    Icon:Settings,  label:'Settings'            },
+  { id:'home',        Icon:Home,          label:'Overview'            },
+  { id:'tasks',       Icon:Send,          label:'Tasks'               },
+  { id:'assign-task', Icon:Plus,          label:'Assign Task',        action:'task'      },
+  { id:'shifts',      Icon:Calendar,      label:'Shifts'              },
+  { id:'team',        Icon:Users,         label:'Team'                },
+  { id:'residents',   Icon:UserCog,       label:'Residents'           },
+  { id:'analytics',   Icon:BarChart2,     label:'Analytics'           },
+  { id:'more',        Icon:BookOpen,      label:'SOPs'                },
+  { id:'training',    Icon:GraduationCap, label:'Training'            },
+  { id:'sections',    Icon:Sliders,       label:'Shift Sections'      },
+  { id:'emergency',   Icon:Phone,         label:'Emergency Contacts', action:'emergency' },
+  { id:'settings',    Icon:Settings,      label:'Settings'            },
 ];
 
 const EMPTY_ADD  = { name:'', email:'', phone:'', title:'Concierge', co:'Maverick Concierge Services', access:'Full Access' };
@@ -407,6 +410,36 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     return () => clearInterval(timer);
   }, []); // eslint-disable-line
 
+  // Real-time SSE — new tasks/incidents appear without polling
+  useEffect(() => {
+    const es = authApi.openEventStream(({ tasks: newTasks = [], incidents: newInc = [] }) => {
+      if (newTasks.length) {
+        setTasks(prev => {
+          const ids = new Set(prev.map(x => x.task_id));
+          const fresh = newTasks
+            .filter(t => !ids.has(t.task_id))
+            .map(t => ({
+              id: t.task_id, task_id: t.task_id, title: t.title || '', notes: t.notes || '',
+              category: t.category || 'Other', priority: t.priority || 'Standard',
+              assignedTo: t.assigned_to || '', toId: t.assigned_to_id || '',
+              dueTime: t.due_time || 'ASAP', status: t.status || 'pending',
+              createdAt: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
+              createdBy: t.created_by_name || '', createdByType: t.created_by_type || 'concierge',
+            }));
+          return fresh.length ? [...fresh, ...prev] : prev;
+        });
+      }
+      if (newInc.length) {
+        setIncidents(prev => {
+          const ids = new Set(prev.map(x => x.incident_id || x.id));
+          const fresh = newInc.filter(i => !ids.has(i.incident_id));
+          return fresh.length ? [...fresh, ...prev] : prev;
+        });
+      }
+    });
+    return () => es.close();
+  }, []);
+
   // Sync authUser into editInfoMgr
   useEffect(() => {
     if (authUser) {
@@ -489,7 +522,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     return () => el.removeEventListener('keydown', trap);
   }, [leasingOpen]);
 
-  const nowStr = () => new Date().toLocaleTimeString('en-US',{ hour:'numeric', minute:'2-digit' });
+  const nowStr = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   const closeAdd  = () => { setAddOpen(false);  setAddStep(1);  setAddForm(EMPTY_ADD); setAddError(''); };
   const closeTask = () => { setTaskOpen(false); setTaskStep(1); setTaskForm(EMPTY_TASK); };
@@ -801,6 +834,223 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     );
   };
 
+  /* ── Residents Directory ──────────────────────────────────────────────────── */
+  const [residents,      setResidents]      = useState([]);
+  const [resLoading,     setResLoading]     = useState(false);
+  const [resForm,        setResForm]        = useState({ name:'', unit:'', phone:'', email:'', notes:'' });
+  const [resAddOpen,     setResAddOpen]     = useState(false);
+  const [resEditId,      setResEditId]      = useState(null);
+  const [resSaving,      setResSaving]      = useState(false);
+
+  useEffect(() => {
+    setResLoading(true);
+    authApi.getResidents().then(list => { setResidents(list); setResLoading(false); }).catch(() => setResLoading(false));
+  }, []);
+
+  const saveResident = async () => {
+    if (!resForm.name.trim() || !resForm.unit.trim()) return;
+    setResSaving(true);
+    try {
+      if (resEditId) {
+        const updated = await authApi.updateResident(resEditId, resForm);
+        setResidents(prev => prev.map(r => r.resident_id === resEditId ? updated : r));
+        setResEditId(null);
+      } else {
+        const created = await authApi.createResident(resForm);
+        setResidents(prev => [created, ...prev]);
+      }
+      setResForm({ name:'', unit:'', phone:'', email:'', notes:'' });
+      setResAddOpen(false);
+    } catch {} finally { setResSaving(false); }
+  };
+
+  const deleteResident = async (id) => {
+    try {
+      await authApi.deleteResident(id);
+      setResidents(prev => prev.filter(r => r.resident_id !== id));
+    } catch {}
+  };
+
+  const renderResidents = () => (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>{residents.length} resident{residents.length !== 1 ? 's' : ''} on record</p>
+        <button onClick={() => { setResAddOpen(true); setResEditId(null); setResForm({ name:'', unit:'', phone:'', email:'', notes:'' }); }}
+          style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer' }}>
+          <Plus size={14} /> Add Resident
+        </button>
+      </div>
+
+      {/* Add/edit form */}
+      {resAddOpen && (
+        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:20, display:'flex', flexDirection:'column', gap:12 }}>
+          <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:0 }}>{resEditId ? 'Edit Resident' : 'New Resident'}</p>
+          {[
+            { key:'name',  label:'Full Name *',   placeholder:'e.g. Maria Lopez'   },
+            { key:'unit',  label:'Unit Number *',  placeholder:'e.g. 312'           },
+            { key:'phone', label:'Phone',          placeholder:'(555) 000-0000'     },
+            { key:'email', label:'Email',          placeholder:'resident@email.com' },
+          ].map(({ key, label, placeholder }) => (
+            <div key={key}>
+              <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>{label}</p>
+              <input value={resForm[key]} onChange={e => setResForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder}
+                style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
+            </div>
+          ))}
+          <div>
+            <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Notes</p>
+            <textarea value={resForm.notes} onChange={e => setResForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Pet policy, parking, vehicle info…"
+              style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, outline:'none', resize:'none', boxSizing:'border-box' }} />
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={() => { setResAddOpen(false); setResEditId(null); }}
+              style={{ flex:1, padding:'12px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, cursor:'pointer' }}>Cancel</button>
+            <button onClick={saveResident} disabled={resSaving || !resForm.name.trim() || !resForm.unit.trim()}
+              style={{ flex:2, padding:'12px 0', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer', opacity:resSaving ? 0.7 : 1 }}>
+              {resSaving ? 'Saving…' : resEditId ? 'Save Changes' : 'Add Resident'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Residents list */}
+      {resLoading ? (
+        <div style={{ textAlign:'center', padding:'40px 0', color:MUTED, fontFamily:INTER, fontSize:14 }}>Loading…</div>
+      ) : residents.length === 0 ? (
+        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'48px 24px', textAlign:'center' }}>
+          <UserCog size={32} color={MUTED} strokeWidth={1.5} style={{ marginBottom:12 }} />
+          <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 6px' }}>No residents yet</p>
+          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Add residents so concierges can look them up by name or unit.</p>
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {residents.map(r => (
+            <div key={r.resident_id} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:14 }}>
+              <div style={{ width:44, height:44, borderRadius:'50%', background:`${BLUE}12`, border:`2px solid ${BLUE}30`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <span style={{ fontFamily:INTER, fontSize:14, fontWeight:800, color:BLUE }}>{r.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.name}</p>
+                <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Unit {r.unit}{r.phone ? ` · ${r.phone}` : ''}</p>
+              </div>
+              <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                <button onClick={() => { setResForm({ name:r.name, unit:r.unit, phone:r.phone||'', email:r.email||'', notes:r.notes||'' }); setResEditId(r.resident_id); setResAddOpen(true); }}
+                  style={{ padding:'7px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:TEXT, cursor:'pointer' }}>Edit</button>
+                <button onClick={() => deleteResident(r.resident_id)}
+                  style={{ padding:'7px 12px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.20)`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:RED, cursor:'pointer' }}>Remove</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  /* ── Analytics ─────────────────────────────────────────────────────────────── */
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  const loadAnalytics = () => {
+    setAnalyticsLoading(true);
+    authApi.getAnalytics().then(d => { setAnalyticsData(d); setAnalyticsLoading(false); }).catch(() => setAnalyticsLoading(false));
+  };
+
+  useEffect(() => { if (tab === 'analytics') loadAnalytics(); }, [tab]); // eslint-disable-line
+
+  const renderAnalytics = () => {
+    if (analyticsLoading) return <div style={{ textAlign:'center', padding:'60px 0', fontFamily:INTER, fontSize:14, color:MUTED }}>Loading analytics…</div>;
+    if (!analyticsData) return (
+      <div style={{ textAlign:'center', padding:'60px 0' }}>
+        <BarChart2 size={32} color={MUTED} strokeWidth={1.5} style={{ marginBottom:12 }} />
+        <p style={{ fontFamily:INTER, fontSize:14, color:MUTED }}>No data yet — analytics appear once shifts are logged.</p>
+      </div>
+    );
+    const { totals, by_category, incidents_by_severity, by_concierge, hourly_activity } = analyticsData;
+    const barMax = (arr) => Math.max(1, ...arr.map(x => x.count));
+    const BAR_H = 12;
+    const BarRow = ({ label, count, max, color }) => (
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:10 }}>
+        <div style={{ width:130, flexShrink:0, fontFamily:INTER, fontSize:13, color:TEXT, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</div>
+        <div style={{ flex:1, background:CARD2, borderRadius:BAR_H/2, height:BAR_H, overflow:'hidden' }}>
+          <div style={{ width:`${Math.round(count/max*100)}%`, height:BAR_H, background:color, borderRadius:BAR_H/2, transition:'width 500ms ease' }} />
+        </div>
+        <div style={{ width:32, flexShrink:0, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, textAlign:'right' }}>{count}</div>
+      </div>
+    );
+    const SEV_COLOR = { critical:RED, high:RED, medium:ORANGE, low:GREEN };
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
+        {/* KPI tiles */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
+          {[
+            { label:'Total Activities', value:totals.tasks,           color:BLUE   },
+            { label:'Completed',        value:totals.completed_tasks,  color:GREEN  },
+            { label:'Completion Rate',  value:`${totals.completion_rate}%`, color:GREEN },
+            { label:'Incidents',        value:totals.incidents,        color:ORANGE },
+            { label:'Open Incidents',   value:totals.open_incidents,   color:RED    },
+            { label:'Total Shifts',     value:totals.shifts,           color:BLUE   },
+          ].map(({ label, value, color }) => (
+            <div key={label} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:14, padding:'14px 12px', textAlign:'center' }}>
+              <div style={{ fontFamily:INTER, fontSize:22, fontWeight:800, color, letterSpacing:'-0.02em', lineHeight:1 }}>{value}</div>
+              <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:5, fontWeight:600 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Activity by category */}
+        {by_category?.length > 0 && (
+          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'18px 20px' }}>
+            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 16px' }}>Activity by Category</p>
+            {by_category.map(r => <BarRow key={r.category} label={r.category} count={r.count} max={barMax(by_category)} color={BLUE} />)}
+          </div>
+        )}
+
+        {/* Incidents by severity */}
+        {incidents_by_severity?.length > 0 && (
+          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'18px 20px' }}>
+            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 16px' }}>Incidents by Severity</p>
+            {incidents_by_severity.map(r => <BarRow key={r.severity} label={r.severity.charAt(0).toUpperCase()+r.severity.slice(1)} count={r.count} max={barMax(incidents_by_severity)} color={SEV_COLOR[r.severity]||ORANGE} />)}
+          </div>
+        )}
+
+        {/* Activity by concierge */}
+        {by_concierge?.length > 0 && (
+          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'18px 20px' }}>
+            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 16px' }}>Activity by Concierge</p>
+            {by_concierge.map(r => <BarRow key={r.name} label={r.name} count={r.count} max={barMax(by_concierge)} color={GREEN} />)}
+          </div>
+        )}
+
+        {/* Hourly heatmap */}
+        {hourly_activity?.length > 0 && (
+          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'18px 20px' }}>
+            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 16px' }}>Activity by Hour (last 30 days)</p>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(12,1fr)', gap:4 }}>
+              {Array.from({length:24}).map((_,h) => {
+                const entry = hourly_activity.find(x => x.hour === h);
+                const cnt   = entry?.count || 0;
+                const maxH  = Math.max(1, ...hourly_activity.map(x=>x.count));
+                const intensity = Math.round(cnt/maxH*10)/10;
+                const ampm = h < 12 ? 'AM' : 'PM';
+                const h12  = h === 0 ? 12 : h > 12 ? h-12 : h;
+                return (
+                  <div key={h} title={`${h12}${ampm}: ${cnt} activities`} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+                    <div style={{ width:'100%', height:40, borderRadius:6, background:`rgba(255,56,92,${0.08 + intensity * 0.72})`, transition:'background 300ms' }} />
+                    <span style={{ fontFamily:INTER, fontSize:9, color:MUTED }}>{h12}{ampm}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <button onClick={loadAnalytics} style={{ alignSelf:'flex-start', padding:'10px 18px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, cursor:'pointer' }}>
+          Refresh
+        </button>
+      </div>
+    );
+  };
+
   /* ── Settings ─────────────────────────────────────────────────────────────── */
   const renderSettings = () => {
     const toggle = (id) => setSettingExpMgr(e => e === id ? null : id);
@@ -935,7 +1185,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'1fr 460px', gap:24 }}>
 
         {/* Daily Activity Report */}
-        <div style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
+        <div className="dar-print-target" style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
           {!todayShift ? (
             <div style={{ padding:40, textAlign:'center', fontFamily:INTER, fontSize:14, color:MUTED }}>No shift active today</div>
           ) : (() => {
@@ -973,6 +1223,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                         <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:GREEN }}>On Duty</span>
                       </div>
                       <button onClick={() => setTab('shifts')} style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:'rgba(255,255,255,0.5)', background:'none', border:'none', cursor:'pointer', padding:0 }}>Full log →</button>
+                      <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
+                        <Printer size={13} /> Export PDF
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2614,7 +2867,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div>
                   <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 2px' }}>{propertyName}</p>
                   <h2 style={{ fontFamily:INTER, fontSize:20, fontWeight:700, color:TEXT, margin:0, letterSpacing:'-0.01em' }}>
-                    {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings' }[tab]}
+                    {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', residents:'Residents Directory', analytics:'Analytics', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings' }[tab]}
                   </h2>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -2637,6 +2890,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 {tab==='shifts'    && renderShifts()}
                 {tab==='tasks'     && renderTasks()}
                 {tab==='team'      && renderTeam()}
+                {tab==='residents' && renderResidents()}
+                {tab==='analytics' && renderAnalytics()}
                 {tab==='more'      && renderMore()}
                 {tab==='training'  && renderTraining()}
                 {tab==='sections'  && renderConciergeSetup()}

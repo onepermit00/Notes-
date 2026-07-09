@@ -31,7 +31,7 @@ const SOURCE_CONFIG = [
   { id: 'Other',          Icon: HelpCircle,    desc: 'Other source not listed'                       },
 ];
 
-const now = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+const now = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 function Label({ children }) {
   const { colors } = useTheme();

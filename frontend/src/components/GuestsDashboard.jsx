@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { UserCheck, MessageCircle, Clock, Check, LogOut, User, UtensilsCrossed, Package, Wrench, Truck, HelpCircle } from 'lucide-react';
+import { UserCheck, MessageCircle, Clock, Check, LogOut, User, UtensilsCrossed, Package, Wrench, Truck, HelpCircle, Camera } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
 const ORANGE = '#FF9500';
 
-const now = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+const now = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 const PURPOSE_CONFIG = [
   { id: 'Personal Visit',        Icon: User,            desc: 'Friend, family, or social visit'         },
@@ -80,7 +80,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   const [guests,   setGuests]   = useState([]);
   const [view,     setView]     = useState('list');
   const [gStep,    setGStep]    = useState(1);
-  const [form,     setForm]     = useState({ guestName: '', residentName: '', unit: '', purpose: '' });
+  const [form,     setForm]     = useState({ guestName: '', residentName: '', unit: '', purpose: '', photo: null, photoPreview: null });
   const [toastId,  setToastId]  = useState(null);
   const [toastMsg, setToastMsg] = useState('');
 
@@ -93,7 +93,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   const goBack = () => {
     setView('list');
     setGStep(1);
-    setForm({ guestName: '', residentName: '', unit: '', purpose: '' });
+    setForm({ guestName: '', residentName: '', unit: '', purpose: '', photo: null, photoPreview: null });
   };
 
   const logGuest = () => {
@@ -110,7 +110,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
       departedAt:   null,
     };
     setGuests(prev => [entry, ...prev]);
-    onActivityLogged?.({ title: `Guest arrival · ${entry.guestName} → ${entry.residentName} · Unit ${entry.unit}`, category: 'Resident Assist', notes: entry.purpose });
+    onActivityLogged?.({ title: `Guest arrival · ${entry.guestName} → ${entry.residentName} · Unit ${entry.unit}`, category: 'Resident Assist', notes: entry.purpose, evidenceUrls: form.photoPreview ? [form.photoPreview] : [] });
     goBack();
     showToast(`Guest logged · Notify ${entry.residentName} now`, entry.id);
   };
@@ -205,6 +205,32 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
             <Label>Unit Number *</Label>
             <input type="text" placeholder="e.g. 412" value={form.unit} onChange={e => setForm(p => ({ ...p, unit: e.target.value }))}
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+
+          {/* Optional photo */}
+          <div>
+            <Label>Photo <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
+            {form.photoPreview ? (
+              <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
+                <img src={form.photoPreview} alt="Guest" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
+                <button onClick={() => setForm(p => ({ ...p, photo: null, photoPreview: null }))}
+                  style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: 'white', fontSize: 14, lineHeight: 1 }}>✕</span>
+                </button>
+              </div>
+            ) : (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: CARD2, border: `1px dashed ${BORDER}`, borderRadius: 12, cursor: 'pointer' }}>
+                <Camera size={20} color={MUTED} />
+                <span style={{ fontFamily: INTER, fontSize: 14, color: MUTED }}>Take or upload a photo</span>
+                <input type="file" accept="image/*" capture="environment" onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onloadend = () => setForm(p => ({ ...p, photo: file, photoPreview: reader.result }));
+                  reader.readAsDataURL(file);
+                }} style={{ display: 'none' }} />
+              </label>
+            )}
           </div>
 
           <div style={{ background: 'rgba(255,56,92,0.06)', border: '1px solid rgba(255,56,92,0.18)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>

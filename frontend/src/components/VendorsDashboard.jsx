@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wrench, CheckCircle, Clock, Plus, Check, LogOut, ChevronRight, FileText, Thermometer, Droplets, Zap, Wifi, Shield, Truck, Hammer, Sparkles, HelpCircle, Building2 } from 'lucide-react';
+import { Wrench, CheckCircle, Clock, Plus, Check, LogOut, ChevronRight, FileText, Thermometer, Droplets, Zap, Wifi, Shield, Truck, Hammer, Sparkles, HelpCircle, Building2, Camera } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 const GREEN  = '#34C759';
@@ -20,8 +20,8 @@ const PURPOSE_CONFIG = [
 ];
 
 const ID_METHODS = ['Photo ID checked', 'Work order on file', 'Management pre-authorized', 'Resident vouched'];
-const now        = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-const EMPTY_FORM = { company: '', contact: '', purpose: '', unit: '', authorizedBy: '', workOrder: '', idMethod: '' };
+const now        = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const EMPTY_FORM = { company: '', contact: '', purpose: '', unit: '', authorizedBy: '', workOrder: '', idMethod: '', photo: null, photoPreview: null };
 
 function Label({ children }) {
   const { colors } = useTheme();
@@ -91,7 +91,7 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
   const checkIn = () => {
     if (!form.company || !form.purpose || !form.unit || !form.authorizedBy || !form.idMethod) return;
     setVendors(p => [...p, { id: Date.now(), ...form, checkInTime: now(), checkOutTime: null, status: 'active' }]);
-    onActivityLogged?.({ title: `Vendor check-in · ${form.company} · ${form.purpose}`, category: 'Vendor / Contractor', notes: `${form.unit} · Auth: ${form.authorizedBy}` });
+    onActivityLogged?.({ title: `Vendor check-in · ${form.company} · ${form.purpose}`, category: 'Vendor / Contractor', notes: `${form.unit} · Auth: ${form.authorizedBy}`, evidenceUrls: form.photoPreview ? [form.photoPreview] : [] });
     goBack();
   };
 
@@ -215,6 +215,31 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
                 );
               })}
             </div>
+          </div>
+          {/* Optional ID / badge photo */}
+          <div>
+            <Label>ID Photo <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
+            {form.photoPreview ? (
+              <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
+                <img src={form.photoPreview} alt="ID" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
+                <button onClick={() => setForm(p => ({ ...p, photo: null, photoPreview: null }))}
+                  style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: 'white', fontSize: 14, lineHeight: 1 }}>✕</span>
+                </button>
+              </div>
+            ) : (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: CARD2, border: `1px dashed ${BORDER}`, borderRadius: 12, cursor: 'pointer' }}>
+                <Camera size={20} color={MUTED} />
+                <span style={{ fontFamily: INTER, fontSize: 14, color: MUTED }}>Photograph vendor ID or badge</span>
+                <input type="file" accept="image/*" capture="environment" onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onloadend = () => setForm(p => ({ ...p, photo: file, photoPreview: reader.result }));
+                  reader.readAsDataURL(file);
+                }} style={{ display: 'none' }} />
+              </label>
+            )}
           </div>
         </div>
         <WizardFooter onBack={() => setVStep(2)} onContinue={checkIn} continueLabel="Check In Vendor" continueDisabled={!form.unit || !form.authorizedBy || !form.idMethod} />

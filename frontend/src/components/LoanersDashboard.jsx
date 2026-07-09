@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingCart, Archive, Key, Flame, AlertTriangle, Check, FileText, ChevronRight, RotateCcw } from 'lucide-react';
+import { ShoppingCart, Archive, Key, Flame, AlertTriangle, Check, FileText, ChevronRight, RotateCcw, Camera } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 const GREEN  = '#34C759';
@@ -14,7 +14,7 @@ const LOANER_INIT = [
   { id: 'tv-key',  name: 'TV Cabinet Key', desc: 'Common room TV cabinet key',        Icon: Key,          checkedOut: false, resident: null, unit: null, checkoutTime: null },
 ];
 
-const now = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+const now = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 function Label({ children }) {
   const { colors } = useTheme();
@@ -77,11 +77,11 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
   const [view,         setView]         = useState('main');
   const [lStep,        setLStep]        = useState(1);
   const [selectedItem, setSelectedItem] = useState(null);
-  const [lForm,        setLF]           = useState({ resident: '', unit: '' });
+  const [lForm,        setLF]           = useState({ resident: '', unit: '', photo: null, photoPreview: null });
 
   const openCheckout = (item) => { setSelectedItem(item); setView('checkout'); setLStep(1); };
   const openReturn   = (item) => { setSelectedItem(item); setView('return'); };
-  const goBack       = () => { setView('main'); setSelectedItem(null); setLF({ resident: '', unit: '' }); setLStep(1); };
+  const goBack       = () => { setView('main'); setSelectedItem(null); setLF({ resident: '', unit: '', photo: null, photoPreview: null }); setLStep(1); };
 
   const checkoutLoaner = () => {
     if (!lForm.resident || !lForm.unit) return;
@@ -89,7 +89,7 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
       ? { ...l, checkedOut: true, resident: lForm.resident, unit: lForm.unit, checkoutTime: now() }
       : l
     ));
-    onActivityLogged?.({ title: `Loaner checkout · ${selectedItem.name} · ${lForm.resident} · Unit ${lForm.unit}`, category: 'Amenity' });
+    onActivityLogged?.({ title: `Loaner checkout · ${selectedItem.name} · ${lForm.resident} · Unit ${lForm.unit}`, category: 'Amenity', evidenceUrls: lForm.photoPreview ? [lForm.photoPreview] : [] });
     goBack();
   };
 
@@ -171,6 +171,32 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
             <Label>Unit Number *</Label>
             <input type="text" placeholder="e.g. 412" value={lForm.unit} onChange={e => setLF(p => ({ ...p, unit: e.target.value }))}
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+
+          {/* Optional condition photo */}
+          <div>
+            <Label>Item Condition Photo <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
+            {lForm.photoPreview ? (
+              <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
+                <img src={lForm.photoPreview} alt="Item" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
+                <button onClick={() => setLF(p => ({ ...p, photo: null, photoPreview: null }))}
+                  style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: 'white', fontSize: 14, lineHeight: 1 }}>✕</span>
+                </button>
+              </div>
+            ) : (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: CARD2, border: `1px dashed ${BORDER}`, borderRadius: 12, cursor: 'pointer' }}>
+                <Camera size={20} color={MUTED} />
+                <span style={{ fontFamily: INTER, fontSize: 14, color: MUTED }}>Document item condition at checkout</span>
+                <input type="file" accept="image/*" capture="environment" onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onloadend = () => setLF(p => ({ ...p, photo: file, photoPreview: reader.result }));
+                  reader.readAsDataURL(file);
+                }} style={{ display: 'none' }} />
+              </label>
+            )}
           </div>
 
           <div style={{ background: 'rgba(255,56,92,0.06)', border: '1px solid rgba(255,56,92,0.18)', borderRadius: 12, padding: '12px 16px' }}>

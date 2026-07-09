@@ -16,21 +16,25 @@ function saveToken(data) {
 
 // ── Field normalizers ─────────────────────────────────────────────────────────
 
+const fmtTs = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+
 function normalizeTask(t) {
   return {
-    id:            t.task_id,
-    task_id:       t.task_id,
-    title:         t.title || '',
-    notes:         t.notes || t.description || '',
-    category:      t.category || 'Other',
-    priority:      t.priority || 'Standard',
-    assignedTo:    t.assigned_to || '',
-    toId:          t.assigned_to_id || '',
-    dueTime:       t.due_time || t.scheduled_time || 'ASAP',
-    status:        t.status || 'pending',
-    createdAt:     t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
-    createdBy:     t.created_by_name || '',
-    createdByType: t.created_by_type || 'concierge',
+    id:              t.task_id,
+    task_id:         t.task_id,
+    title:           t.title || '',
+    notes:           t.notes || t.description || '',
+    category:        t.category || 'Other',
+    priority:        t.priority || 'Standard',
+    assignedTo:      t.assigned_to || '',
+    toId:            t.assigned_to_id || '',
+    dueTime:         t.due_time || t.scheduled_time || 'ASAP',
+    status:          t.status || 'pending',
+    createdAt:       fmtTs(t.created_at),
+    completedAt:     fmtTs(t.completed_at),
+    completedByName: t.completed_by_name || '',
+    createdBy:       t.created_by_name || '',
+    createdByType:   t.created_by_type || 'concierge',
   };
 }
 
@@ -200,6 +204,54 @@ export const authApi = {
   async updateTask(taskId, update) {
     const { data } = await api.put(`/tasks/${taskId}`, update);
     return normalizeTask(data);
+  },
+
+  // Shift handover (replaces plain endShift when notes are provided)
+  async handoverShift(handoverNotes = '', openItems = []) {
+    const { data } = await api.post('/shifts/handover', { handover_notes: handoverNotes, open_items: openItems });
+    return data;
+  },
+
+  // Residents directory
+  async getResidents() {
+    try {
+      const { data } = await api.get('/residents');
+      return data.residents || [];
+    } catch { return []; }
+  },
+
+  async createResident(form) {
+    const { data } = await api.post('/residents', form);
+    return data;
+  },
+
+  async updateResident(residentId, patch) {
+    const { data } = await api.put(`/residents/${residentId}`, patch);
+    return data;
+  },
+
+  async deleteResident(residentId) {
+    await api.delete(`/residents/${residentId}`);
+  },
+
+  // Analytics
+  async getAnalytics() {
+    try {
+      const { data } = await api.get('/analytics');
+      return data;
+    } catch { return null; }
+  },
+
+  // SSE — returns an EventSource; caller must close it on unmount
+  openEventStream(onUpdate) {
+    const token = localStorage.getItem('op_token');
+    const BACKEND = process.env.REACT_APP_API_URL || 'http://localhost:8001/api';
+    const url = `${BACKEND}/events${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    const es = new EventSource(url);
+    es.addEventListener('update', (e) => {
+      try { onUpdate(JSON.parse(e.data)); } catch {}
+    });
+    return es;
   },
 
   // Incidents

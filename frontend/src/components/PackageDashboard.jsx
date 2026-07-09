@@ -37,7 +37,7 @@ const PICKUP_TYPES = [
   { id: 'third_party', Icon: Users, label: 'Third Party',     desc: 'Authorized person picking up on behalf of resident' },
 ];
 
-const now = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+const now = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 function Label({ children }) {
   const { colors } = useTheme();

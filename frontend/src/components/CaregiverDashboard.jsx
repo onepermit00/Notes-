@@ -348,8 +348,8 @@ export const CaregiverDashboard = ({
           title: t.title,
           category: t.category || 'Other',
           notes: t.notes || '',
-          completedAt: t.created_at ? new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
-          startedAt: t.created_at ? new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+          completedAt: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
+          startedAt:   t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
           status: 'completed',
         }));
         setSelfTasks(prevActivities);
@@ -368,11 +368,12 @@ export const CaregiverDashboard = ({
           clockIn,
           clockOut,
           duration: hours > 0 ? `${hours}h ${mins}m` : `${mins}m`,
-          note: '',
+          note:       s.handover_notes || '',
+          openItems:  s.open_items || [],
           incidents: (s.incidents || []).map(i => `${i.type || ''}: ${i.description || ''}`),
           activities: (s.activities || []).map(t => ({
             id: t.task_id,
-            time: t.created_at ? new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+            time: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
             title: t.title,
             notes: t.notes || '',
             category: t.category || 'Other',
@@ -417,6 +418,35 @@ export const CaregiverDashboard = ({
     };
   }, [isPhone]);
 
+  // Real-time SSE — manager-assigned tasks & incidents appear instantly
+  useEffect(() => {
+    const es = authApi.openEventStream(({ tasks: newTasks = [], incidents: newInc = [] }) => {
+      if (newTasks.length) {
+        const normalized = newTasks.map(t => ({
+          id: t.task_id, task_id: t.task_id, title: t.title || '', notes: t.notes || '',
+          category: t.category || 'Other', priority: t.priority || 'Standard',
+          assignedTo: t.assigned_to || '', toId: t.assigned_to_id || '',
+          dueTime: t.due_time || 'ASAP', status: t.status || 'pending',
+          createdAt: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
+          createdBy: t.created_by_name || '', createdByType: t.created_by_type || 'concierge',
+        }));
+        setTasks(prev => {
+          const ids = new Set(prev.map(x => x.task_id));
+          const fresh = normalized.filter(t => !ids.has(t.task_id));
+          return fresh.length ? [...fresh, ...prev] : prev;
+        });
+      }
+      if (newInc.length) {
+        setIncidents(prev => {
+          const ids = new Set(prev.map(x => x.incident_id));
+          const fresh = newInc.filter(i => !ids.has(i.incident_id));
+          return fresh.length ? [...fresh, ...prev] : prev;
+        });
+      }
+    });
+    return () => es.close();
+  }, []);
+
   // Ctrl+K / Cmd+K → focus the main search bar
   const searchInputRef = React.useRef(null);
   const [ddIdx, setDdIdx] = useState(-1);
@@ -450,7 +480,7 @@ export const CaregiverDashboard = ({
     }));
   };
 
-  const nowStr  = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const nowStr  = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   const staffId = () => { const n = (authUser?.name || 'Concierge').split(' '); return `${n[0]} ${n[1][0]}.`; };
 
   const openAmenityCount  = amenities.filter(a => a.open).length;
@@ -567,16 +597,31 @@ export const CaregiverDashboard = ({
       setShowClockAlert(true);
     } catch { /* silently ignore */ }
   };
-  const handleClockOut = async () => {
+  const [showHandover,   setShowHandover]   = useState(false);
+  const [handoverNotes,  setHandoverNotes]  = useState('');
+  const [handoverItems,  setHandoverItems]  = useState('');
+  const [handoverSaving, setHandoverSaving] = useState(false);
+
+  const handleClockOut = () => {
+    // Open handover modal instead of ending shift immediately
+    setHandoverNotes('');
+    setHandoverItems('');
+    setShowHandover(true);
+  };
+
+  const submitHandover = async () => {
+    setHandoverSaving(true);
     try {
-      const res = await authApi.endShift();
+      const openItems = handoverItems.split('\n').map(s => s.trim()).filter(Boolean);
+      const res = await authApi.handoverShift(handoverNotes, openItems);
       setIsShiftActive(false);
       setCurrentShiftId(null);
+      setShowHandover(false);
       setClockOutTime(new Date(res.clock_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
-      setClockAlertTitle('Clocked Out');
-      setClockAlertMsg('Shift ended. Make sure your Shift Handoff Report has been submitted.');
+      setClockAlertTitle('Shift Handed Over');
+      setClockAlertMsg('Shift ended. Your handover notes have been saved for the next concierge.');
       setShowClockAlert(true);
-    } catch { /* silently ignore */ }
+    } catch { /* silently ignore */ } finally { setHandoverSaving(false); }
   };
   const handleActivityLogged = ({ title, category = '', notes = '', evidenceUrls = [] }) => {
     const t = nowStr();
@@ -803,9 +848,17 @@ export const CaregiverDashboard = ({
                   <ActRows items={rounds} last />
                 </>
               )}
+              {prevShift.openItems?.length > 0 && (
+                <>
+                  <Sect title="Open Items (Carry Over)" accent={ORANGE} />
+                  {prevShift.openItems.map((item, i, arr) => (
+                    <Field key={i} label={`Item ${i + 1}`} value={item} last={i === arr.length - 1} />
+                  ))}
+                </>
+              )}
               {prevShift.note && (
                 <>
-                  <Sect title="Shift Notes" />
+                  <Sect title="Handover Notes" />
                   <div style={{ padding: '16px 28px 20px' }}>
                     <p style={{ fontFamily: INTER, fontSize: 16, color: TEXT, lineHeight: 1.7, margin: 0 }}>{prevShift.note}</p>
                   </div>
@@ -2544,6 +2597,58 @@ export const CaregiverDashboard = ({
 
       {/* AI Copilot */}
       <AICopilot isOpen={showCopilot} onClose={() => setShowCopilot(false)} role="concierge" patientName={propertyName} />
+
+      {/* ── Shift Handover Modal ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showHandover && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 32, stiffness: 280 }}
+              style={{ ...glass(), borderRadius: isPhone ? '20px 20px 0 0' : 20, width: '100%', maxWidth: isPhone ? '100%' : 480, overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+              {/* Header */}
+              <div style={{ padding: '20px 20px 14px', borderBottom: `1px solid ${BORDER}` }}>
+                <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 800, color: MUTED, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>End of Shift</div>
+                <div style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>Shift Handover</div>
+                <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 4 }}>Leave notes for the next concierge before clocking out.</div>
+              </div>
+              {/* Open items */}
+              <div style={{ padding: '16px 20px 0' }}>
+                <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 700, color: MUTED, letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 8 }}>Open Items</div>
+                <textarea
+                  placeholder={'One item per line, e.g.\n- Package for Unit 412 unclaimed\n- Gym HVAC making noise'}
+                  value={handoverItems}
+                  onChange={e => setHandoverItems(e.target.value)}
+                  rows={3}
+                  style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+                />
+              </div>
+              {/* Handover notes */}
+              <div style={{ padding: '12px 20px 0' }}>
+                <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 700, color: MUTED, letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 8 }}>Handover Notes</div>
+                <textarea
+                  placeholder="Anything the next concierge needs to know about the shift…"
+                  value={handoverNotes}
+                  onChange={e => setHandoverNotes(e.target.value)}
+                  rows={4}
+                  style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+                />
+              </div>
+              {/* Footer */}
+              <div style={{ padding: '16px 20px 20px', display: 'flex', gap: 10 }}>
+                <button onClick={() => setShowHandover(false)}
+                  style={{ flex: 1, padding: '14px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button onClick={submitHandover} disabled={handoverSaving}
+                  style={{ flex: 2, padding: '14px 0', background: RED, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: handoverSaving ? 'not-allowed' : 'pointer', opacity: handoverSaving ? 0.7 : 1, boxShadow: '0 4px 14px rgba(255,59,48,0.30)' }}>
+                  {handoverSaving ? 'Saving…' : 'Clock Out & Hand Over'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Clock alert */}
       <AnimatePresence>

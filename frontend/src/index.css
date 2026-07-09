@@ -4,6 +4,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Print / DAR Export ─────────────────────────────────────────────────── */
+@media print {
+  body * { visibility: hidden; }
+  /* Show only the DAR card and its children */
+  .dar-print-target, .dar-print-target * { visibility: visible; }
+  .dar-print-target {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    overflow: visible;
+    background: white;
+    color: black;
+  }
+  /* Strip nav, sidebars, buttons from print */
+  nav, aside, button, header { display: none !important; }
+}
+
 /* Hide scrollbars globally */
 * {
   scrollbar-width: none; /* Firefox */
