@@ -269,7 +269,6 @@ const NAV = [
   { id:'residents',   Icon:UserCog,       label:'Residents'           },
   { id:'analytics',   Icon:BarChart2,     label:'Analytics'           },
   { id:'scheduled',   Icon:ClipboardCheck,label:'Scheduled Tasks'     },
-  { id:'audit',       Icon:History,       label:'Audit Log'           },
   { id:'more',        Icon:BookOpen,      label:'SOPs'                },
   { id:'training',    Icon:GraduationCap, label:'Training'            },
   { id:'sections',    Icon:Sliders,       label:'Shift Sections'      },
@@ -1347,151 +1346,89 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     </div>
   );
 
-  /* ── Audit Log ─────────────────────────────────────────────────────────────── */
-  const [auditLogs,      setAuditLogs]      = useState([]);
-  const [auditLoading,   setAuditLoading]   = useState(false);
-  const [auditSearch,    setAuditSearch]    = useState('');
-  const [auditTypeFilter,setAuditTypeFilter]= useState('all');   // resource_type filter
-  const [auditActFilter, setAuditActFilter] = useState('all');   // action filter
+  /* ── Global Search (replaces Audit Log tab) ────────────────────────────────── */
+  const [gsOpen,     setGsOpen]     = useState(false);
+  const [gsQuery,    setGsQuery]    = useState('');
+  const [gsSection,  setGsSection]  = useState('all');
+  const [gsRange,    setGsRange]    = useState('today');
+  const [gsDateFrom, setGsDateFrom] = useState('');
+  const [gsDateTo,   setGsDateTo]   = useState('');
+  const [gsLogs,     setGsLogs]     = useState([]);
+  const [gsLoading,  setGsLoading]  = useState(false);
+  const [gsLoaded,   setGsLoaded]   = useState(false);
 
-  const loadAudit = () => {
-    setAuditLoading(true);
-    authApi.getAuditLog(500).then(logs => { setAuditLogs(logs); setAuditLoading(false); }).catch(() => setAuditLoading(false));
-  };
-
-  useEffect(() => { if (tab === 'audit') loadAudit(); }, [tab]); // eslint-disable-line
-
+  const GS_SECTIONS = [
+    { id:'all',       label:'All'       },
+    { id:'task',      label:'Tasks'     },
+    { id:'incident',  label:'Incidents' },
+    { id:'shift',     label:'Shifts'    },
+    { id:'resident',  label:'Residents' },
+    { id:'package',   label:'Packages'  },
+    { id:'guest',     label:'Guests'    },
+    { id:'lockout',   label:'Lockouts'  },
+    { id:'vendor',    label:'Vendors'   },
+    { id:'tour',      label:'Tours'     },
+    { id:'loaner',    label:'Loaners'   },
+  ];
+  const GS_RANGES = [
+    { id:'today',     label:'Today'     },
+    { id:'yesterday', label:'Yesterday' },
+    { id:'week',      label:'7 Days'    },
+    { id:'month',     label:'Month'     },
+    { id:'all',       label:'All Time'  },
+    { id:'custom',    label:'Custom'    },
+  ];
   const ACTION_COLORS = { create:GREEN, update:BLUE, delete:RED, clock_in:GREEN, clock_out:ORANGE };
   const ACTION_LABELS = { create:'Created', update:'Updated', delete:'Deleted', clock_in:'Clocked In', clock_out:'Clocked Out' };
-  const RESOURCE_ICONS = { task:'Task', incident:'Incident', shift:'Shift', resident:'Resident', package:'Package', scheduled_task:'Schedule' };
+  const SEC_LABELS    = { task:'Task', incident:'Incident', shift:'Shift', resident:'Resident', package:'Package', scheduled_task:'Schedule', guest:'Guest', lockout:'Lockout', vendor:'Vendor', tour:'Tour', loaner:'Loaner' };
 
-  const renderAudit = () => {
-    // Build filtered list
-    const q = auditSearch.trim().toLowerCase();
-    const filtered = auditLogs.filter(log => {
-      if (auditTypeFilter !== 'all' && log.resource_type !== auditTypeFilter) return false;
-      if (auditActFilter  !== 'all' && log.action        !== auditActFilter)  return false;
-      if (!q) return true;
-      // Search across all searchable fields
-      const detail = Object.values(log.detail || {}).join(' ').toLowerCase();
-      return (
-        detail.includes(q) ||
-        (log.resource_type || '').includes(q) ||
-        (log.action        || '').includes(q) ||
-        (log.user_type     || '').includes(q) ||
-        (log.resource_id   || '').toLowerCase().includes(q)
-      );
+  const openGlobalSearch = () => {
+    setGsOpen(true);
+    if (!gsLoaded) {
+      setGsLoading(true);
+      authApi.getAuditLog(2000).then(logs => { setGsLogs(logs); setGsLoaded(true); setGsLoading(false); }).catch(() => setGsLoading(false));
+    }
+  };
+
+  const getGsDar = () => {
+    const q = gsQuery.trim().toLowerCase();
+    const now = new Date();
+    let from = null, to = null;
+    if (gsRange === 'today') {
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (gsRange === 'yesterday') {
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      to   = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (gsRange === 'week') {
+      from = new Date(now); from.setDate(from.getDate() - 7);
+    } else if (gsRange === 'month') {
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (gsRange === 'custom') {
+      if (gsDateFrom) from = new Date(gsDateFrom);
+      if (gsDateTo)   to   = new Date(gsDateTo + 'T23:59:59');
+    }
+
+    let filtered = gsLogs;
+    if (gsSection !== 'all') filtered = filtered.filter(l => l.resource_type === gsSection);
+    if (from) filtered = filtered.filter(l => new Date(l.created_at) >= from);
+    if (to)   filtered = filtered.filter(l => new Date(l.created_at) <= to);
+    if (q)    filtered = filtered.filter(l => {
+      const detail = Object.values(l.detail || {}).join(' ').toLowerCase();
+      return detail.includes(q) || (l.resource_type||'').includes(q) || (l.action||'').includes(q) || (l.user_id||'').toLowerCase().includes(q);
     });
 
-    const FILTER_BTN = (active, onClick, label) => (
-      <button onClick={onClick}
-        style={{ padding:'6px 12px', borderRadius:8, border:`1px solid ${active ? BLUE : BORDER}`, background: active ? `${BLUE}12` : CARD2, fontFamily:INTER, fontSize:12, fontWeight: active ? 700 : 500, color: active ? BLUE : MUTED, cursor:'pointer', whiteSpace:'nowrap' }}>
-        {label}
-      </button>
-    );
-
-    return (
-      <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-
-        {/* ── Search bar ── */}
-        <div style={{ position:'relative' }}>
-          <Search size={15} color={MUTED} style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
-          <input
-            value={auditSearch}
-            onChange={e => setAuditSearch(e.target.value)}
-            placeholder="Search by unit, resident name, task title, incident…"
-            style={{ width:'100%', padding:'12px 14px 12px 38px', borderRadius:12, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }}
-          />
-          {auditSearch && (
-            <button onClick={() => setAuditSearch('')}
-              style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:4, display:'flex' }}>
-              <X size={14} color={MUTED} />
-            </button>
-          )}
-        </div>
-
-        {/* ── Filter chips ── */}
-        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-{[['task','Tasks'],['package','Packages'],['guest','Guests'],['lockout','Lockouts'],['vendor','Vendors'],['tour','Tours'],['loaner','Loaners'],['incident','Incidents'],['resident','Residents'],['shift','Shifts']].map(([val,lbl]) =>
-            FILTER_BTN(auditTypeFilter === val, () => setAuditTypeFilter(val), lbl)
-          )}
-        </div>
-
-        {/* ── Header row ── */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>
-            {filtered.length} of {auditLogs.length} {auditLogs.length === 1 ? 'entry' : 'entries'}
-            {q && <span style={{ color:BLUE }}> · "{auditSearch}"</span>}
-          </p>
-          <button onClick={loadAudit}
-            style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:9, fontFamily:INTER, fontSize:12, fontWeight:700, color:TEXT, cursor:'pointer' }}>
-            <RefreshCw size={12} /> Refresh
-          </button>
-        </div>
-
-        {/* ── Results ── */}
-        {auditLoading ? (
-          <div style={{ textAlign:'center', padding:'40px 0', fontFamily:INTER, fontSize:14, color:MUTED }}>Loading…</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'40px 24px', textAlign:'center' }}>
-            <History size={28} color={MUTED} strokeWidth={1.5} style={{ marginBottom:10 }} />
-            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 4px' }}>
-              {auditLogs.length === 0 ? 'No audit entries yet' : 'No matches found'}
-            </p>
-            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>
-              {auditLogs.length === 0
-                ? 'Every action — tasks, incidents, residents, shifts — is logged here permanently.'
-                : 'Try a different search term or clear the filters.'}
-            </p>
-            {(q || auditTypeFilter !== 'all' || auditActFilter !== 'all') && (
-              <button onClick={() => { setAuditSearch(''); setAuditTypeFilter('all'); setAuditActFilter('all'); }}
-                style={{ marginTop:14, padding:'9px 18px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, cursor:'pointer' }}>
-                Clear Filters
-              </button>
-            )}
-          </div>
-        ) : (
-          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-            {filtered.map((log, i) => {
-              const color    = ACTION_COLORS[log.action] || MUTED;
-              const label    = ACTION_LABELS[log.action] || log.action;
-              const resLabel = RESOURCE_ICONS[log.resource_type] || log.resource_type;
-              const ts       = log.created_at ? new Date(log.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
-              const details  = log.detail ? Object.entries(log.detail) : [];
-              // Highlight matching text in detail values
-              const detailStr = details.map(([k,v]) => `${k.replace(/_/g,' ')}: ${v}`).join(' · ');
-              return (
-                <div key={log.log_id || i} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:'12px 14px' }}>
-                  {/* Top row: action badge + resource + timestamp */}
-                  <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom: details.length ? 6 : 0 }}>
-                    <span style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color, background:`${color}15`, borderRadius:6, padding:'3px 8px', textTransform:'uppercase', letterSpacing:'0.06em' }}>{label}</span>
-                    <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT }}>{resLabel}</span>
-                    <span style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginLeft:'auto' }}>{ts}</span>
-                  </div>
-                  {/* Detail row */}
-                  {details.length > 0 && (
-                    <p style={{ fontFamily:INTER, fontSize:13, color:TEXT, margin:'0 0 4px', lineHeight:1.5 }}>
-                      {details.map(([k,v]) => (
-                        <span key={k}>
-                          <span style={{ color:MUTED, fontSize:12 }}>{k.replace(/_/g,' ')}: </span>
-                          <span style={{ fontWeight:600 }}>{String(v)}</span>
-                          {'  '}
-                        </span>
-                      ))}
-                    </p>
-                  )}
-                  {/* Footer: who + role */}
-                  <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>
-                    {log.user_type === 'manager' ? '👔 Manager' : '🪪 Concierge'} · ID {log.user_id?.slice(-8)}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
+    // Group by calendar day (newest first), then by section within each day
+    const dayMap = {};
+    [...filtered].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).forEach(l => {
+      const dayKey = new Date(l.created_at).toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+      if (!dayMap[dayKey]) dayMap[dayKey] = {};
+      const sec = l.resource_type || 'other';
+      if (!dayMap[dayKey][sec]) dayMap[dayKey][sec] = [];
+      dayMap[dayKey][sec].push(l);
+    });
+    return { dayMap, total: filtered.length };
   };
+
 
   /* ── Settings ─────────────────────────────────────────────────────────────── */
   const renderSettings = () => {
@@ -3128,9 +3065,18 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <input
               ref={searchInputRef}
               aria-label="Search residents, tasks, shifts, incidents"
-              placeholder="Search residents, tasks, shifts, incidents…"
-              style={{ width:'100%', height:34, background:'#FFFFFF', border:'none', borderRadius:6, paddingLeft:36, paddingRight:14, fontFamily:INTER, fontSize:13, color:'#111827', outline:'none', boxSizing:'border-box' }}
+              placeholder="Search residents, tasks, incidents, units…"
+              value={gsQuery}
+              onChange={e => { setGsQuery(e.target.value); if (!gsOpen) openGlobalSearch(); }}
+              onFocus={openGlobalSearch}
+              style={{ width:'100%', height:34, background:'#FFFFFF', border:'none', borderRadius:6, paddingLeft:36, paddingRight: gsQuery ? 30 : 14, fontFamily:INTER, fontSize:13, color:'#111827', outline:'none', boxSizing:'border-box' }}
             />
+            {gsQuery && (
+              <button onClick={() => setGsQuery('')}
+                style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:2, display:'flex', alignItems:'center' }}>
+                <X size={13} color="#6B7280" />
+              </button>
+            )}
           </div>
 
           {/* Dark/light toggle */}
@@ -3147,6 +3093,123 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           </button>
         </div>
       )}
+
+      {/* ── Global Search DAR Overlay ──────────────────────────────────────────── */}
+      {gsOpen && !isMobile && (() => {
+        const { dayMap, total } = getGsDar();
+        const days = Object.keys(dayMap);
+        const CHIP = (active, onClick, label) => (
+          <button onClick={onClick} style={{ padding:'5px 12px', borderRadius:7, border:`1px solid ${active ? BLUE : 'rgba(255,255,255,0.15)'}`, background: active ? BLUE : 'rgba(255,255,255,0.08)', fontFamily:INTER, fontSize:12, fontWeight: active ? 700 : 400, color: active ? 'white' : 'rgba(255,255,255,0.70)', cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+            {label}
+          </button>
+        );
+        return (
+          <div style={{ position:'relative', zIndex:400 }}>
+            {/* Backdrop */}
+            <div onClick={() => setGsOpen(false)} style={{ position:'fixed', inset:0, top:52, background:'rgba(0,0,0,0.45)', zIndex:390 }} />
+            {/* Panel */}
+            <div style={{ position:'absolute', left:'50%', transform:'translateX(-50%)', width:'min(780px, calc(100vw - 40px))', background:CARD, border:`1px solid ${BORDER}`, borderRadius:'0 0 18px 18px', boxShadow:'0 12px 48px rgba(0,0,0,0.18)', zIndex:400, maxHeight:'calc(100vh - 80px)', display:'flex', flexDirection:'column' }}>
+
+              {/* ── Controls bar ── */}
+              <div style={{ background:'#111827', padding:'12px 18px', display:'flex', flexDirection:'column', gap:10, borderRadius:'0 0 0 0' }}>
+                {/* Date range row */}
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+                  <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', letterSpacing:'0.1em', textTransform:'uppercase', marginRight:4, flexShrink:0 }}>Date</span>
+                  {GS_RANGES.map(r => CHIP(gsRange === r.id, () => setGsRange(r.id), r.label))}
+                </div>
+                {/* Custom date inputs */}
+                {gsRange === 'custom' && (
+                  <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                    <input type="date" value={gsDateFrom} onChange={e => setGsDateFrom(e.target.value)}
+                      style={{ padding:'6px 10px', borderRadius:7, border:'1px solid rgba(255,255,255,0.2)', background:'rgba(255,255,255,0.08)', fontFamily:INTER, fontSize:12, color:'white', outline:'none' }} />
+                    <span style={{ color:'rgba(255,255,255,0.4)', fontFamily:INTER, fontSize:12 }}>to</span>
+                    <input type="date" value={gsDateTo} onChange={e => setGsDateTo(e.target.value)}
+                      style={{ padding:'6px 10px', borderRadius:7, border:'1px solid rgba(255,255,255,0.2)', background:'rgba(255,255,255,0.08)', fontFamily:INTER, fontSize:12, color:'white', outline:'none' }} />
+                  </div>
+                )}
+                {/* Section row */}
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+                  <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', letterSpacing:'0.1em', textTransform:'uppercase', marginRight:4, flexShrink:0 }}>Section</span>
+                  {GS_SECTIONS.map(s => CHIP(gsSection === s.id, () => setGsSection(s.id), s.label))}
+                </div>
+              </div>
+
+              {/* ── Results ── */}
+              <div style={{ overflowY:'auto', flex:1, padding:'0 18px 18px' }}>
+                {/* Summary row */}
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0 8px' }}>
+                  <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>
+                    {gsLoading ? 'Loading…' : `${total} entr${total === 1 ? 'y' : 'ies'}${gsQuery ? ` matching "${gsQuery}"` : ''}`}
+                  </p>
+                  <button onClick={() => setGsOpen(false)} style={{ background:'none', border:'none', cursor:'pointer', fontFamily:INTER, fontSize:13, color:MUTED, padding:'4px 8px' }}>✕ Close</button>
+                </div>
+
+                {gsLoading ? (
+                  <div style={{ textAlign:'center', padding:'40px 0', fontFamily:INTER, fontSize:14, color:MUTED }}>Loading activity log…</div>
+                ) : days.length === 0 ? (
+                  <div style={{ textAlign:'center', padding:'48px 0' }}>
+                    <Search size={28} color={MUTED} strokeWidth={1.5} style={{ marginBottom:12 }} />
+                    <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 6px' }}>No activity found</p>
+                    <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Try a different date range, section, or search term.</p>
+                  </div>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+                    {days.map(day => (
+                      <div key={day}>
+                        {/* Day header */}
+                        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+                          <div style={{ height:1, flex:1, background:BORDER }} />
+                          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:MUTED, whiteSpace:'nowrap' }}>{day}</span>
+                          <div style={{ height:1, flex:1, background:BORDER }} />
+                        </div>
+                        {/* Sections within the day */}
+                        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                          {Object.entries(dayMap[day]).map(([sec, entries]) => (
+                            <div key={sec} style={{ background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, overflow:'hidden' }}>
+                              {/* Section header */}
+                              <div style={{ padding:'10px 14px', borderBottom:`1px solid ${BORDER}`, display:'flex', alignItems:'center', gap:8 }}>
+                                <span style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:TEXT, textTransform:'uppercase', letterSpacing:'0.08em' }}>{SEC_LABELS[sec] || sec}s</span>
+                                <span style={{ fontFamily:INTER, fontSize:11, color:MUTED, background:CARD, border:`1px solid ${BORDER}`, borderRadius:5, padding:'1px 7px' }}>{entries.length}</span>
+                              </div>
+                              {/* Entries */}
+                              {entries.map((log, i) => {
+                                const actColor = ACTION_COLORS[log.action] || MUTED;
+                                const actLabel = ACTION_LABELS[log.action] || log.action;
+                                const ts = log.created_at ? new Date(log.created_at).toLocaleString('en-US', { hour:'numeric', minute:'2-digit' }) : '';
+                                const details = Object.entries(log.detail || {});
+                                return (
+                                  <div key={log.log_id || i} style={{ padding:'10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${BORDER}`, display:'flex', gap:12, alignItems:'flex-start' }}>
+                                    {/* Time */}
+                                    <span style={{ fontFamily:INTER, fontSize:11, color:MUTED, whiteSpace:'nowrap', flexShrink:0, marginTop:2, minWidth:60 }}>{ts}</span>
+                                    {/* Action badge */}
+                                    <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:actColor, background:`${actColor}15`, borderRadius:5, padding:'2px 7px', textTransform:'uppercase', letterSpacing:'0.06em', flexShrink:0, marginTop:1 }}>{actLabel}</span>
+                                    {/* Details */}
+                                    <div style={{ flex:1, minWidth:0 }}>
+                                      {details.map(([k,v]) => (
+                                        <span key={k} style={{ fontFamily:INTER, fontSize:13, color:TEXT, marginRight:10 }}>
+                                          <span style={{ color:MUTED, fontSize:11 }}>{k.replace(/_/g,' ')}: </span>
+                                          <span style={{ fontWeight:600 }}>{String(v)}</span>
+                                        </span>
+                                      ))}
+                                      {details.length === 0 && <span style={{ fontFamily:INTER, fontSize:12, color:MUTED, fontStyle:'italic' }}>No detail</span>}
+                                    </div>
+                                    {/* Who */}
+                                    <span style={{ fontFamily:INTER, fontSize:11, color:MUTED, flexShrink:0 }}>{log.user_type === 'manager' ? 'Manager' : 'Concierge'}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Body row: sidebar + content ───────────────────────────────────────── */}
       <div style={{ display:'flex', flex:1, minHeight:0 }}>
@@ -3335,7 +3398,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 {tab==='residents' && renderResidents()}
                 {tab==='analytics' && renderAnalytics()}
                 {tab==='scheduled' && renderScheduled()}
-                {tab==='audit'     && renderAudit()}
                 {tab==='more'      && renderMore()}
                 {tab==='training'  && renderTraining()}
                 {tab==='sections'  && renderConciergeSetup()}
