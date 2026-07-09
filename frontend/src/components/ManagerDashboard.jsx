@@ -2931,7 +2931,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               );
             })}
           </nav>
-          <div style={{ flexShrink:0, padding: sidebarCollapsed ? '12px 0' : '20px 20px 32px', display:'flex', alignItems:'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start', borderTop:`1px solid ${BORDER}` }}>
+          <div style={{ flexShrink:0, padding: sidebarCollapsed ? '12px 0' : '20px 20px 32px', display:'flex', alignItems:'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
             {!sidebarCollapsed && <span style={{ fontFamily:"'Helvetica Neue','Arial',sans-serif", fontSize:11, fontWeight:300, color:TEXT, letterSpacing:'0.22em', textTransform:'uppercase' }}>onepermit</span>}
           </div>
         </div>
