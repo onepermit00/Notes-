@@ -235,9 +235,12 @@ export const authApi = {
   },
 
   // Analytics
-  async getAnalytics() {
+  async getAnalytics(fromDate = null, toDate = null) {
     try {
-      const { data } = await api.get('/analytics');
+      const params = {};
+      if (fromDate) params.from_date = fromDate;
+      if (toDate)   params.to_date   = toDate;
+      const { data } = await api.get('/analytics', { params });
       return data;
     } catch { return null; }
   },

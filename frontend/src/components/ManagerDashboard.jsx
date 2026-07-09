@@ -950,12 +950,35 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   );
 
   /* ── Analytics ─────────────────────────────────────────────────────────────── */
-  const [analyticsData, setAnalyticsData] = useState(null);
+  const [analyticsData,    setAnalyticsData]    = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsRange,   setAnalyticsRange]   = useState('all');
+  const [analyticsFrom,    setAnalyticsFrom]    = useState('');
+  const [analyticsTo,      setAnalyticsTo]      = useState('');
 
-  const loadAnalytics = () => {
+  const loadAnalytics = (fromDate = null, toDate = null) => {
     setAnalyticsLoading(true);
-    authApi.getAnalytics().then(d => { setAnalyticsData(d); setAnalyticsLoading(false); }).catch(() => setAnalyticsLoading(false));
+    authApi.getAnalytics(fromDate, toDate)
+      .then(d => { setAnalyticsData(d); setAnalyticsLoading(false); })
+      .catch(() => setAnalyticsLoading(false));
+  };
+
+  const applyRange = (range, from = analyticsFrom, to = analyticsTo) => {
+    setAnalyticsRange(range);
+    const now = new Date();
+    let fromDate = null, toDate = null;
+    if (range === 'today') {
+      fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    } else if (range === 'week') {
+      const d = new Date(now); d.setDate(d.getDate() - 7);
+      fromDate = d.toISOString();
+    } else if (range === 'month') {
+      fromDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    } else if (range === 'custom') {
+      fromDate = from  ? new Date(from).toISOString()              : null;
+      toDate   = to    ? new Date(to + 'T23:59:59').toISOString()  : null;
+    }
+    loadAnalytics(fromDate, toDate);
   };
 
   useEffect(() => { if (tab === 'analytics') loadAnalytics(); }, [tab]); // eslint-disable-line
@@ -980,9 +1003,47 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         <div style={{ width:32, flexShrink:0, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, textAlign:'right' }}>{count}</div>
       </div>
     );
+    const RANGES = [
+      { id:'all',   label:'All Time' },
+      { id:'today', label:'Today'    },
+      { id:'week',  label:'7 Days'   },
+      { id:'month', label:'Month'    },
+      { id:'custom',label:'Custom'   },
+    ];
     const SEV_COLOR = { critical:RED, high:RED, medium:ORANGE, low:GREEN };
     return (
       <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
+
+        {/* ── Date range picker ── */}
+        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'16px 18px', display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            {RANGES.map(r => (
+              <button key={r.id} onClick={() => applyRange(r.id)}
+                style={{ padding:'7px 14px', borderRadius:8, border:`1px solid ${analyticsRange === r.id ? BLUE : BORDER}`, background: analyticsRange === r.id ? `${BLUE}12` : CARD2, fontFamily:INTER, fontSize:13, fontWeight: analyticsRange === r.id ? 700 : 500, color: analyticsRange === r.id ? BLUE : MUTED, cursor:'pointer' }}>
+                {r.label}
+              </button>
+            ))}
+          </div>
+          {analyticsRange === 'custom' && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:10, alignItems:'flex-end' }}>
+              <div>
+                <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 5px' }}>From</p>
+                <input type="date" value={analyticsFrom} onChange={e => setAnalyticsFrom(e.target.value)}
+                  style={{ width:'100%', padding:'10px 12px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
+              </div>
+              <div>
+                <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 5px' }}>To</p>
+                <input type="date" value={analyticsTo} onChange={e => setAnalyticsTo(e.target.value)}
+                  style={{ width:'100%', padding:'10px 12px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
+              </div>
+              <button onClick={() => applyRange('custom', analyticsFrom, analyticsTo)} disabled={!analyticsFrom}
+                style={{ padding:'10px 16px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer', opacity: analyticsFrom ? 1 : 0.5 }}>
+                Apply
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* KPI tiles */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
           {[
@@ -1047,7 +1108,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           </div>
         )}
 
-        <button onClick={loadAnalytics} style={{ alignSelf:'flex-start', padding:'10px 18px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, cursor:'pointer' }}>
+        <button onClick={() => applyRange(analyticsRange)} style={{ alignSelf:'flex-start', padding:'10px 18px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, cursor:'pointer' }}>
           Refresh
         </button>
       </div>
