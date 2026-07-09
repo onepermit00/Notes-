@@ -1088,7 +1088,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         {/* Hourly heatmap */}
         {hourly_activity?.length > 0 && (
           <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'18px 20px' }}>
-            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 16px' }}>Activity by Hour (last 30 days)</p>
+            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 16px' }}>Activity by Hour — {RANGES.find(r => r.id === analyticsRange)?.label || 'All Time'}</p>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(12,1fr)', gap:4 }}>
               {Array.from({length:24}).map((_,h) => {
                 const entry = hourly_activity.find(x => x.hour === h);
