@@ -747,7 +747,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   const renderConciergeSetup = () => {
-    const access = sectionAccess[setupConcierge] || {};
+    const glassCard  = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
+    const baseInput  = { width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box' };
+    const access     = sectionAccess[setupConcierge] || {};
     const allSections = [...CONCIERGE_SECTIONS, ...customSections];
     const toggleSection = (sectionId) => {
       setSectionAccess(prev => ({
@@ -755,82 +757,137 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         [setupConcierge]: { ...prev[setupConcierge], [sectionId]: !prev[setupConcierge][sectionId] },
       }));
     };
-    return (
-      <div style={{ display:'flex', flexDirection:'column', gap:20, padding:'28px 24px 40px' }}>
 
-        {/* Add-section form */}
-        {showAddSection && (
-          <div style={{ padding:20, background:CARD, border:`2px dashed ${BLUE}50`, borderRadius:16 }}>
-            <p style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:BLUE, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 14px' }}>New Section</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
-              <input
-                value={newSectionDraft.label}
-                onChange={e => setNewSectionDraft(d => ({ ...d, label:e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && handleAddCustomSection()}
-                placeholder="Section name  e.g. Key Handovers"
-                style={{ fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, padding:'12px 14px', outline:'none', width:'100%', boxSizing:'border-box' }}
-              />
-              <input
-                value={newSectionDraft.desc}
-                onChange={e => setNewSectionDraft(d => ({ ...d, desc:e.target.value }))}
-                placeholder="Short description (optional)"
-                style={{ fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, padding:'12px 14px', outline:'none', width:'100%', boxSizing:'border-box' }}
-              />
-            </div>
-            <div style={{ display:'flex', gap:8 }}>
-              <button onClick={handleAddCustomSection}
-                style={{ flex:1, padding:'11px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer' }}>
-                Add Section
-              </button>
+    /* ── Add form view ── */
+    if (showAddSection) {
+      const canSubmit = !!newSectionDraft.label.trim();
+      return (
+        <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
+
+          {/* Wizard header */}
+          <div style={{ flexShrink:0, paddingBottom:14, borderBottom:`1px solid ${BORDER}`, marginBottom:24 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div>
+                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>New Shift Section</h2>
+                <p style={{ fontSize:13, color:MUTED, margin:'2px 0 0' }}>Appears in every concierge's shift dashboard</p>
+              </div>
               <button onClick={() => { setShowAddSection(false); setNewSectionDraft({ label:'', desc:'' }); }}
-                style={{ padding:'11px 16px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:600, color:MUTED, cursor:'pointer' }}>
+                style={{ padding:'10px 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontSize:14, fontWeight:600, color:TEXT, cursor:'pointer', fontFamily:INTER }}>
                 Cancel
               </button>
             </div>
           </div>
-        )}
 
-        {/* Section toggles */}
-        <div>
-          <p style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:MUTED, letterSpacing:'0.14em', textTransform:'uppercase', margin:'0 0 14px' }}>Dashboard Sections</p>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            {allSections.map(({ id, Icon:SI, label, desc, color, required, custom }) => {
-              const enabled = access[id] !== false;
-              return (
-                <div key={id} style={{ display:'flex', alignItems:'center', gap:16, padding:20, background:CARD, border:`1px solid ${enabled ? `${color}25` : BORDER}`, borderRadius:16, boxShadow:'0 2px 8px rgba(0,0,0,0.04)', transition:'border-color 200ms' }}>
-                  <div style={{ width:52, height:52, borderRadius:14, background:enabled ? `${color}12` : CARD2, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 200ms' }}>
-                    <SI size={22} color={enabled ? color : MUTED} />
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3 }}>
-                      <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:enabled ? TEXT : MUTED, margin:0, transition:'color 200ms' }}>{label}</p>
-                      {required && <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:GREEN, background:'rgba(52,199,89,0.12)', borderRadius:6, padding:'2px 7px', textTransform:'uppercase', letterSpacing:'0.06em' }}>Required</span>}
-                      {custom && <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, background:`${BLUE}12`, borderRadius:6, padding:'2px 7px', textTransform:'uppercase', letterSpacing:'0.06em' }}>Custom</span>}
-                    </div>
-                    <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>{desc}</p>
-                  </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-                    {custom && (
-                      <button onClick={() => handleDeleteCustomSection(id)}
-                        style={{ width:32, height:32, borderRadius:8, border:`1px solid ${BORDER}`, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-                        <X size={14} color={MUTED} />
-                      </button>
-                    )}
-                    {required ? (
-                      <div style={{ width:48, height:28, borderRadius:14, background:GREEN, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <Check size={14} color="white" strokeWidth={3} />
-                      </div>
-                    ) : (
-                      <button onClick={() => toggleSection(id)}
-                        style={{ width:48, height:28, borderRadius:14, background:enabled ? GREEN : '#D1D5DB', border:'none', cursor:'pointer', position:'relative', transition:'background 200ms' }}>
-                        <div style={{ position:'absolute', top:3, left:enabled ? 23 : 3, width:22, height:22, borderRadius:'50%', background:'white', boxShadow:'0 1px 6px rgba(0,0,0,0.25)', transition:'left 200ms' }} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          {/* Inputs */}
+          <div style={{ display:'flex', flexDirection:'column', gap:20, marginBottom:24 }}>
+            <div>
+              <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Section Name *</h3>
+              <input
+                value={newSectionDraft.label}
+                onChange={e => setNewSectionDraft(d => ({ ...d, label:e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && canSubmit && handleAddCustomSection()}
+                placeholder="e.g. Key Handovers, Amenity Access"
+                style={{ ...baseInput, border:newSectionDraft.label ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }}
+              />
+            </div>
+            <div>
+              <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Description <span style={{ fontWeight:400, color:MUTED }}>(optional)</span></h3>
+              <input
+                value={newSectionDraft.desc}
+                onChange={e => setNewSectionDraft(d => ({ ...d, desc:e.target.value }))}
+                placeholder="Short description of what this section tracks"
+                style={{ ...baseInput, border:newSectionDraft.desc ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }}
+              />
+            </div>
           </div>
+
+          {/* Footer — exact incident report footer */}
+          <div style={{ paddingTop:24, borderTop:`1px solid ${BORDER}` }}>
+            <div style={{ display:'flex', gap:12 }}>
+              <button onClick={() => { setShowAddSection(false); setNewSectionDraft({ label:'', desc:'' }); }}
+                style={{ flex:1, padding:'16px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={handleAddCustomSection} disabled={!canSubmit}
+                style={{ flex:2, padding:'16px 0', background:canSubmit ? BLUE : CARD2, border:canSubmit ? 'none' : `1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:canSubmit ? 'white' : MUTED, cursor:canSubmit ? 'pointer' : 'not-allowed', boxShadow:canSubmit ? `0 8px 24px ${BLUE}40` : 'none' }}>
+                Add Section
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ── List view ── */
+    return (
+      <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
+
+        {/* CTA — full-width incident-style */}
+        <div style={{ paddingBottom:20 }}>
+          <button onClick={() => { setNewSectionDraft({ label:'', desc:'' }); setShowAddSection(true); }}
+            style={{ width:'100%', padding:20, background:BLUE, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:`0 8px 24px ${BLUE}40` }}>
+            <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+              <div style={{ width:56, height:56, background:'rgba(255,255,255,0.2)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <Plus size={28} color="white" />
+              </div>
+              <div>
+                <p style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:0 }}>Add New Section</p>
+                <p style={{ fontSize:14, color:'rgba(255,255,255,0.7)', margin:0 }}>Create a custom shift section for concierges</p>
+              </div>
+            </div>
+            <ChevronRight size={24} color="rgba(255,255,255,0.7)" />
+          </button>
+        </div>
+
+        {/* Section header */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <Sliders size={20} color={MUTED} />
+            <h2 style={{ fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Shift Sections</h2>
+          </div>
+          <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED }}>
+            {allSections.length}
+          </span>
+        </div>
+
+        {/* Section toggle cards */}
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {allSections.map(({ id, Icon:SI, label, desc, color, required, custom }) => {
+            const enabled = access[id] !== false;
+            return (
+              <div key={id} style={{ ...glassCard, padding:20, display:'flex', alignItems:'center', gap:16 }}>
+                <div style={{ width:48, height:48, borderRadius:14, background:enabled ? `${color}12` : CARD2, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 200ms' }}>
+                  <SI size={22} color={enabled ? color : MUTED} />
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3 }}>
+                    <p style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:enabled ? TEXT : MUTED, margin:0, transition:'color 200ms' }}>{label}</p>
+                    {required && <span style={{ fontSize:10, fontWeight:800, color:GREEN, background:'rgba(52,199,89,0.12)', borderRadius:6, padding:'2px 7px', textTransform:'uppercase', letterSpacing:'0.06em' }}>Required</span>}
+                    {custom   && <span style={{ fontSize:10, fontWeight:800, color:BLUE,  background:`${BLUE}12`,             borderRadius:6, padding:'2px 7px', textTransform:'uppercase', letterSpacing:'0.06em' }}>Custom</span>}
+                  </div>
+                  <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>{desc}</p>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                  {custom && (
+                    <button onClick={() => handleDeleteCustomSection(id)}
+                      style={{ width:32, height:32, borderRadius:8, border:`1px solid ${BORDER}`, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                      <X size={14} color={MUTED} />
+                    </button>
+                  )}
+                  {required ? (
+                    <div style={{ width:48, height:28, borderRadius:14, background:GREEN, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <Check size={14} color="white" strokeWidth={3} />
+                    </div>
+                  ) : (
+                    <button onClick={() => toggleSection(id)}
+                      style={{ width:48, height:28, borderRadius:14, background:enabled ? GREEN : '#D1D5DB', border:'none', cursor:'pointer', position:'relative', transition:'background 200ms' }}>
+                      <div style={{ position:'absolute', top:3, left:enabled ? 23 : 3, width:22, height:22, borderRadius:'50%', background:'white', boxShadow:'0 1px 6px rgba(0,0,0,0.25)', transition:'left 200ms' }} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -1284,6 +1341,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [schedForm,     setSchedForm]     = useState({ title:'', notes:'', category:'Administrative', priority:'Standard', recurrence:'shift_start', scheduledHour:8, shiftWindow:'all', assignedConciergeId:'', assignedConciergeName:'' });
   const [schedAddOpen,  setSchedAddOpen]  = useState(false);
   const [schedSaving,   setSchedSaving]   = useState(false);
+  const [schedStep,     setSchedStep]     = useState(1);
 
   useEffect(() => {
     setSchedLoading(true);
@@ -1326,189 +1384,374 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   ];
   const windowMeta = w => SHIFT_WINDOWS.find(s => s.val === w) || SHIFT_WINDOWS[0];
 
-  const renderScheduled = () => (
-    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>
-          {schedTasks.filter(t => t.active !== false).length} active · {schedTasks.length} total
-        </p>
-        <button onClick={() => { setSchedForm(EMPTY_SCHED_FORM); setSchedAddOpen(true); }}
-          style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer' }}>
-          <Plus size={14} /> New Schedule
-        </button>
-      </div>
+  const renderScheduled = () => {
+    const glassCard  = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
+    const baseInput  = { width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box' };
+    const priColor   = { Urgent:RED, High:ORANGE, Standard:BLUE, Low:'#6B7280' };
 
-      {schedAddOpen && (
-        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:20, display:'flex', flexDirection:'column', gap:14 }}>
-          <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:0 }}>New Scheduled Task</p>
+    const SCHED_CATS = [
+      { id:'Administrative',  Icon:ClipboardList, desc:'Checklists, logs, and documentation tasks'        },
+      { id:'Safety / Security', Icon:Shield,      desc:'Lock checks, patrol rounds, access verification'  },
+      { id:'Delivery',        Icon:Package,       desc:'Package audits, courier handoffs, mail sorting'   },
+      { id:'Amenity',         Icon:Waves,         desc:'Pool, gym, lounge, and facility readiness'        },
+      { id:'Maintenance',     Icon:Wrench,        desc:'Equipment checks, repair follow-ups, upkeep'      },
+      { id:'Other',           Icon:HelpCircle,    desc:'Any recurring task not listed above'              },
+    ];
 
-          {/* Title */}
-          <div>
-            <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Task Title *</p>
-            <input value={schedForm.title} onChange={e => setSchedForm(p => ({ ...p, title:e.target.value }))} placeholder="e.g. Lobby round check, Elevator log"
-              style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
-          </div>
+    /* ── Wizard form view ── */
+    if (schedAddOpen) {
+      const cat       = SCHED_CATS.find(c => c.id === schedForm.category);
+      const step2Ok   = !!schedForm.title.trim();
+      const isLastStep = schedStep === 3;
+      const isDisabled = (schedStep === 1 && !schedForm.category) || (schedStep === 2 && !step2Ok);
 
-          {/* Notes */}
-          <div>
-            <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Instructions / Notes</p>
-            <textarea value={schedForm.notes} onChange={e => setSchedForm(p => ({ ...p, notes:e.target.value }))} placeholder="Steps or details for the concierge…" rows={2}
-              style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box', resize:'vertical' }} />
-          </div>
+      const handleNext = () => { if (schedStep < 3) setSchedStep(s => s + 1); };
+      const handleBack = () => {
+        if (schedStep > 1) setSchedStep(s => s - 1);
+        else { setSchedAddOpen(false); setSchedStep(1); setSchedForm(EMPTY_SCHED_FORM); }
+      };
 
-          {/* Category + Priority */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-            <div>
-              <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Category</p>
-              <select value={schedForm.category} onChange={e => setSchedForm(p => ({ ...p, category:e.target.value }))}
-                style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none' }}>
-                {SCHED_CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
+      return (
+        <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
+
+          {/* Wizard header — exact incident report header */}
+          <div style={{ flexShrink:0, paddingBottom:14, borderBottom:`1px solid ${BORDER}`, marginBottom:24 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+              <div>
+                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>New Scheduled Task</h2>
+                <p style={{ fontSize:13, color:MUTED, margin:'2px 0 0' }}>Step {schedStep} of 3</p>
+              </div>
+              <button onClick={() => { setSchedAddOpen(false); setSchedStep(1); setSchedForm(EMPTY_SCHED_FORM); }}
+                style={{ padding:'10px 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontSize:14, fontWeight:600, color:TEXT, cursor:'pointer', fontFamily:INTER }}>
+                Cancel
+              </button>
             </div>
-            <div>
-              <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Priority</p>
-              <select value={schedForm.priority} onChange={e => setSchedForm(p => ({ ...p, priority:e.target.value }))}
-                style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none' }}>
-                {PRIORITIES.map(pr => <option key={pr}>{pr}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Shift Window */}
-          <div>
-            <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 8px' }}>Shift Window</p>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
-              {SHIFT_WINDOWS.map(sw => (
-                <button key={sw.val} onClick={() => setSchedForm(p => ({ ...p, shiftWindow:sw.val }))}
-                  style={{ padding:'10px 6px', borderRadius:10, border:`2px solid ${schedForm.shiftWindow === sw.val ? sw.color : BORDER}`, background: schedForm.shiftWindow === sw.val ? `${sw.color}14` : CARD2, cursor:'pointer', textAlign:'center' }}>
-                  <p style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color: schedForm.shiftWindow === sw.val ? sw.color : TEXT, margin:'0 0 2px' }}>{sw.label}</p>
-                  <p style={{ fontFamily:INTER, fontSize:10, color:MUTED, margin:0 }}>{sw.hours}</p>
-                </button>
+            {/* Step progress bar — exact incident report bar */}
+            <div style={{ display:'flex', gap:6 }}>
+              {[1,2,3].map(s => (
+                <div key={s} style={{ height:4, flex:1, borderRadius:999, background: s <= schedStep ? BLUE : 'rgba(0,0,0,0.10)' }} />
               ))}
             </div>
           </div>
 
-          {/* Assign to Concierge */}
-          <div>
-            <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Assign to Concierge</p>
-            <select
-              value={schedForm.assignedConciergeId}
-              onChange={e => {
-                const c = team.find(x => x.id === e.target.value);
-                setSchedForm(p => ({ ...p, assignedConciergeId: e.target.value, assignedConciergeName: c ? c.name : '' }));
-              }}
-              style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none' }}>
-              <option value=''>All Concierges (fires for everyone)</option>
-              {team.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            {schedForm.assignedConciergeId && (
-              <p style={{ fontFamily:INTER, fontSize:12, color:BLUE, margin:'6px 0 0' }}>
-                This task will only appear for {schedForm.assignedConciergeName} when they clock in.
-              </p>
-            )}
-          </div>
-
-          {/* Recurrence + Hour */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-            <div>
-              <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Recurrence</p>
-              <select value={schedForm.recurrence} onChange={e => setSchedForm(p => ({ ...p, recurrence:e.target.value }))}
-                style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none' }}>
-                <option value="shift_start">Every Shift Start</option>
-                <option value="daily">Daily (set hour)</option>
-              </select>
+          {/* ── Step 1: Category selection cards ── */}
+          {schedStep === 1 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+              <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:20 }}>
+                What type of recurring task?
+              </h3>
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {SCHED_CATS.map(c => {
+                  const sel = schedForm.category === c.id;
+                  return (
+                    <button key={c.id} onClick={() => setSchedForm(p => ({ ...p, category:c.id }))}
+                      style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%',
+                        background: sel ? `${BLUE}08` : CARD,
+                        border:     sel ? `2px solid ${BLUE}` : `2px solid ${BORDER}`,
+                        boxShadow:  sel ? `0 4px 20px ${BLUE}20` : '0 2px 8px rgba(0,0,0,0.04)',
+                      }}>
+                      <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: sel ? `${BLUE}14` : CARD2 }}>
+                        <c.Icon size={24} color={sel ? BLUE : MUTED} />
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <p style={{ fontWeight:700, color:TEXT, fontSize:18, marginBottom:2 }}>{c.id}</p>
+                        <p style={{ fontSize:14, color:MUTED, margin:0 }}>{c.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            {schedForm.recurrence === 'daily' && (
+          )}
+
+          {/* ── Step 2: Details ── */}
+          {schedStep === 2 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+              <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Task details</h3>
+
+              {/* Shift Window — severity-button style */}
               <div>
-                <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>At Hour (24h)</p>
-                <input type="number" min={0} max={23} value={schedForm.scheduledHour} onChange={e => setSchedForm(p => ({ ...p, scheduledHour:parseInt(e.target.value)||8 }))}
-                  style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Shift Window</h3>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
+                  {SHIFT_WINDOWS.map(sw => {
+                    const sel = schedForm.shiftWindow === sw.val;
+                    return (
+                      <button key={sw.val} onClick={() => setSchedForm(p => ({ ...p, shiftWindow:sw.val }))}
+                        style={{ padding:'12px 0', borderRadius:12, textAlign:'center', fontFamily:INTER, fontSize:12, fontWeight:600, cursor:'pointer',
+                          background: sel ? sw.color : CARD2,
+                          border:     sel ? 'none' : `1px solid ${BORDER}`,
+                          color:      sel ? 'white' : MUTED,
+                        }}>
+                        {sw.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Priority — severity-button style */}
+              <div>
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Priority</h3>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
+                  {PRIORITIES.map(p => {
+                    const sel = schedForm.priority === p;
+                    const pc  = priColor[p] || MUTED;
+                    return (
+                      <button key={p} onClick={() => setSchedForm(f => ({ ...f, priority:p }))}
+                        style={{ padding:'12px 0', borderRadius:12, textAlign:'center', fontFamily:INTER, fontSize:13, fontWeight:600, cursor:'pointer',
+                          background: sel ? pc : CARD2,
+                          border:     sel ? 'none' : `1px solid ${BORDER}`,
+                          color:      sel ? 'white' : MUTED,
+                        }}>
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Title */}
+              <div>
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Task Title *</h3>
+                <input value={schedForm.title} onChange={e => setSchedForm(p => ({ ...p, title:e.target.value }))}
+                  placeholder="e.g. Lobby round check, Elevator log"
+                  style={{ ...baseInput, border:schedForm.title ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }} />
+              </div>
+
+              {/* Assign to Concierge */}
+              <div>
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Assign to Concierge</h3>
+                <select value={schedForm.assignedConciergeId}
+                  onChange={e => { const c = team.find(x => x.id === e.target.value); setSchedForm(p => ({ ...p, assignedConciergeId:e.target.value, assignedConciergeName:c?c.name:'' })); }}
+                  style={{ ...baseInput, border:`1.5px solid ${schedForm.assignedConciergeId ? BLUE : BORDER}` }}>
+                  <option value=''>All Concierges — fires for everyone</option>
+                  {team.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                {schedForm.assignedConciergeId && (
+                  <p style={{ fontFamily:INTER, fontSize:12, color:BLUE, margin:'6px 0 0' }}>
+                    Only appears for {schedForm.assignedConciergeName} when they clock in
+                  </p>
+                )}
+              </div>
+
+              {/* Notes */}
+              <div>
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Instructions / Notes</h3>
+                <textarea value={schedForm.notes} onChange={e => setSchedForm(p => ({ ...p, notes:e.target.value }))} rows={3}
+                  placeholder="Steps or details for the concierge…"
+                  style={{ ...baseInput, border:schedForm.notes ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}`, resize:'none' }} />
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 3: Schedule & Review ── */}
+          {schedStep === 3 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+              <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Schedule & Review</h3>
+
+              {/* Recurrence — severity-button style */}
+              <div>
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Recurrence</h3>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  {[{val:'shift_start',label:'Every Shift Start'},{val:'daily',label:'Daily at Set Hour'}].map(r => {
+                    const sel = schedForm.recurrence === r.val;
+                    return (
+                      <button key={r.val} onClick={() => setSchedForm(p => ({ ...p, recurrence:r.val }))}
+                        style={{ padding:'14px 0', borderRadius:12, textAlign:'center', fontFamily:INTER, fontSize:13, fontWeight:600, cursor:'pointer',
+                          background: sel ? BLUE : CARD2,
+                          border:     sel ? 'none' : `1px solid ${BORDER}`,
+                          color:      sel ? 'white' : MUTED,
+                        }}>
+                        {r.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {schedForm.recurrence === 'daily' && (
+                  <div style={{ marginTop:12 }}>
+                    <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>At Hour (24h)</h3>
+                    <input type="number" min={0} max={23} value={schedForm.scheduledHour}
+                      onChange={e => setSchedForm(p => ({ ...p, scheduledHour:parseInt(e.target.value)||8 }))}
+                      style={{ ...baseInput, border:`1.5px solid ${BLUE}`, width:120 }} />
+                  </div>
+                )}
+              </div>
+
+              {/* Review card — exact incident Step 5 summary card */}
+              <div style={{ ...glassCard, padding:20 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, paddingBottom:16, borderBottom:`1px solid ${BORDER}` }}>
+                  {cat && (
+                    <>
+                      <div style={{ width:48, height:48, background:`${BLUE}12`, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <cat.Icon size={24} color={BLUE} />
+                      </div>
+                      <span style={{ fontWeight:700, color:TEXT, fontSize:18 }}>{schedForm.category}</span>
+                    </>
+                  )}
+                  <span style={{ marginLeft:'auto', padding:'6px 14px', borderRadius:10, fontSize:12, fontWeight:700, background:priColor[schedForm.priority]||MUTED, color:'white' }}>
+                    {(schedForm.priority||'Standard').toUpperCase()}
+                  </span>
+                </div>
+                {[
+                  { label:'Task Title',    value:schedForm.title                                                    },
+                  { label:'Shift Window',  value:windowMeta(schedForm.shiftWindow).label + ' · ' + windowMeta(schedForm.shiftWindow).hours },
+                  { label:'Recurrence',    value:schedForm.recurrence === 'daily' ? `Daily at ${schedForm.scheduledHour}:00` : 'Every Shift Start' },
+                  { label:'Assigned To',   value:schedForm.assignedConciergeName || 'All Concierges'               },
+                  { label:'Notes',         value:schedForm.notes || '—'                                             },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ marginBottom:12 }}>
+                    <p style={{ fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', marginBottom:4 }}>{label}</p>
+                    <p style={{ fontSize:14, color:TEXT, margin:0, lineHeight:1.5 }}>{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Footer — exact incident Back + Continue/Submit pattern */}
+          <div style={{ paddingTop:24, borderTop:`1px solid ${BORDER}`, marginTop:24 }}>
+            <div style={{ display:'flex', gap:12 }}>
+              <button onClick={handleBack}
+                style={{ flex:1, padding:'16px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
+                {schedStep === 1 ? 'Cancel' : 'Back'}
+              </button>
+              {!isLastStep ? (
+                <button onClick={handleNext} disabled={isDisabled}
+                  style={{ flex:2, padding:'16px 0', background:isDisabled?CARD2:BLUE, border:isDisabled?`1px solid ${BORDER}`:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:isDisabled?MUTED:'white', cursor:isDisabled?'not-allowed':'pointer', boxShadow:isDisabled?'none':`0 8px 24px ${BLUE}40` }}>
+                  Continue
+                </button>
+              ) : (
+                <button onClick={saveScheduled} disabled={schedSaving}
+                  style={{ flex:2, padding:'16px 0', background:BLUE, border:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:schedSaving?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:`0 8px 24px ${BLUE}40` }}>
+                  {schedSaving ? 'Creating…' : 'Create Schedule'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ── List view ── */
+    const active = schedTasks.filter(t => t.active !== false);
+    const paused = schedTasks.filter(t => t.active === false);
+
+    const SchedCard = ({ t }) => {
+      const wm    = windowMeta(t.shift_window || 'all');
+      const isOff = t.active === false;
+      const CIcon = CAT_ICON[t.category] ?? ClipboardCheck;
+      const tc    = CAT_COLOR[t.category] ?? MUTED;
+      return (
+        <div style={{ ...glassCard, padding:20, display:'flex', alignItems:'center', gap:16, opacity: isOff ? 0.55 : 1, transition:'opacity 0.2s' }}>
+          {/* 48×48 icon — exact incident card icon */}
+          <div style={{ width:48, height:48, borderRadius:14, background:`${wm.color}12`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <CIcon size={24} color={isOff ? MUTED : wm.color} />
+          </div>
+          {/* Content */}
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 2px' }}>{t.title}</p>
+            <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:3 }}>
+              <span style={{ fontSize:12, color:MUTED, fontWeight:600 }}>{wm.label} · {wm.hours}</span>
+              <span style={{ fontSize:12, color:MUTED }}>· {t.category}</span>
+              <span style={{ fontSize:12, color:MUTED }}>· {t.recurrence === 'daily' ? `Daily ${t.scheduled_hour}:00` : 'Every Shift'}</span>
+            </div>
+            {t.assigned_concierge_name && (
+              <p style={{ fontSize:12, color:BLUE, margin:'3px 0 0' }}>→ {t.assigned_concierge_name} only</p>
+            )}
+            {t.notes && <p style={{ fontSize:12, color:MUTED, fontStyle:'italic', margin:'3px 0 0' }}>"{t.notes}"</p>}
+            {/* Action buttons — small, inside info block */}
+            <div style={{ display:'flex', gap:6, marginTop:10 }}>
+              <button onClick={() => toggleSchedActive(t.scheduled_task_id, t.active !== false)}
+                style={{ padding:'6px 12px', background: isOff ? `${BLUE}12` : 'rgba(255,149,0,0.10)', border:`1px solid ${isOff ? BLUE : ORANGE}`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:600, color: isOff ? BLUE : ORANGE, cursor:'pointer' }}>
+                {isOff ? 'Resume' : 'Pause'}
+              </button>
+              <button onClick={() => deleteScheduled(t.scheduled_task_id)}
+                style={{ padding:'6px 12px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.20)`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:600, color:RED, cursor:'pointer' }}>
+                Delete
+              </button>
+            </div>
+          </div>
+          {/* Status badge — exact severity badge pill */}
+          <span style={{ padding:'6px 14px', borderRadius:10, fontSize:12, fontWeight:700, background: isOff ? '#6B7280' : GREEN, color:'white', flexShrink:0 }}>
+            {isOff ? 'PAUSED' : 'ACTIVE'}
+          </span>
+        </div>
+      );
+    };
+
+    return (
+      <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
+
+        {/* CTA — exact incident report button */}
+        <div style={{ padding:'0 0 20px' }}>
+          <button onClick={() => { setSchedForm(EMPTY_SCHED_FORM); setSchedStep(1); setSchedAddOpen(true); }}
+            style={{ width:'100%', padding:20, background:BLUE, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:`0 8px 24px ${BLUE}40` }}>
+            <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+              <div style={{ width:56, height:56, background:'rgba(255,255,255,0.2)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <Plus size={28} color="white" />
+              </div>
+              <div>
+                <p style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:0 }}>Create Scheduled Task</p>
+                <p style={{ fontSize:14, color:'rgba(255,255,255,0.7)', margin:0 }}>Auto-assign tasks at every shift start</p>
+              </div>
+            </div>
+            <ChevronRight size={24} color="rgba(255,255,255,0.7)" />
+          </button>
+        </div>
+
+        {schedLoading ? (
+          <div style={{ ...glassCard, padding:40, textAlign:'center' }}>
+            <div style={{ width:80, height:80, background:CARD2, borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
+              <ClipboardCheck size={40} color={MUTED} strokeWidth={1.5} />
+            </div>
+            <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>Loading…</p>
+          </div>
+        ) : schedTasks.length === 0 ? (
+          /* Empty state — exact incident pattern */
+          <div style={{ ...glassCard, padding:40, textAlign:'center' }}>
+            <div style={{ width:80, height:80, background:CARD2, borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
+              <ClipboardCheck size={40} color={MUTED} strokeWidth={1.5} />
+            </div>
+            <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>No scheduled tasks yet</p>
+            <p style={{ fontSize:14, color:MUTED }}>Create tasks that auto-appear when a concierge starts their shift</p>
+          </div>
+        ) : (
+          <>
+            {/* Active section */}
+            {active.length > 0 && (
+              <div style={{ marginBottom:28 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <CheckCircle size={20} color={GREEN} />
+                    <h2 style={{ fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Active</h2>
+                  </div>
+                  <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED }}>{active.length}</span>
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {active.map(t => <SchedCard key={t.scheduled_task_id} t={t} />)}
+                </div>
               </div>
             )}
-          </div>
-
-          <div style={{ display:'flex', gap:8 }}>
-            <button onClick={() => setSchedAddOpen(false)}
-              style={{ flex:1, padding:'12px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, cursor:'pointer' }}>Cancel</button>
-            <button onClick={saveScheduled} disabled={schedSaving || !schedForm.title.trim()}
-              style={{ flex:2, padding:'12px 0', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer', opacity:schedSaving ? 0.7 : 1 }}>
-              {schedSaving ? 'Saving…' : 'Create Schedule'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {schedLoading ? (
-        <div style={{ textAlign:'center', padding:'40px 0', fontFamily:INTER, fontSize:14, color:MUTED }}>Loading…</div>
-      ) : schedTasks.length === 0 ? (
-        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'48px 24px', textAlign:'center' }}>
-          <ClipboardCheck size={32} color={MUTED} strokeWidth={1.5} style={{ marginBottom:12 }} />
-          <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 6px' }}>No scheduled tasks yet</p>
-          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Create tasks that auto-appear when a concierge starts their shift.</p>
-        </div>
-      ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-          {schedTasks.map(t => {
-            const wm     = windowMeta(t.shift_window || 'all');
-            const isOff  = t.active === false;
-            const priBg  = { Urgent:'rgba(255,59,48,0.10)', High:'rgba(255,149,0,0.10)', Standard:`${BLUE}10`, Low:'rgba(107,114,128,0.10)' };
-            const priCol = { Urgent:RED, High:ORANGE, Standard:BLUE, Low:MUTED };
-            const pri    = t.priority || 'Standard';
-            return (
-              <div key={t.scheduled_task_id}
-                style={{ background:CARD, border:`1px solid ${isOff ? BORDER : BORDER}`, borderRadius:14, padding:'14px 16px', opacity: isOff ? 0.55 : 1, transition:'opacity 0.2s' }}>
-                {/* Top row */}
-                <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
-                  <div style={{ width:38, height:38, borderRadius:10, background:`${wm.color}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <ClipboardCheck size={17} color={wm.color} />
+            {/* Paused section */}
+            {paused.length > 0 && (
+              <div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <Clock size={20} color={MUTED} />
+                    <h2 style={{ fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Paused</h2>
                   </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', marginBottom:3 }}>
-                      <p style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, margin:0 }}>{t.title}</p>
-                      {isOff && <span style={{ fontSize:10, fontWeight:700, color:MUTED, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:5, padding:'2px 6px' }}>PAUSED</span>}
-                    </div>
-                    <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                      {/* Shift window badge */}
-                      <span style={{ fontSize:11, fontWeight:600, color:wm.color, background:`${wm.color}12`, borderRadius:6, padding:'2px 7px' }}>{wm.label} · {wm.hours}</span>
-                      {/* Priority badge */}
-                      <span style={{ fontSize:11, fontWeight:600, color:priCol[pri], background:priBg[pri], borderRadius:6, padding:'2px 7px' }}>{pri}</span>
-                      {/* Recurrence badge */}
-                      <span style={{ fontSize:11, fontWeight:600, color:MUTED, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:6, padding:'2px 7px' }}>
-                        {t.recurrence === 'daily' ? `Daily ${t.scheduled_hour}:00` : 'Every Shift'}
-                      </span>
-                      {/* Category */}
-                      <span style={{ fontSize:11, color:MUTED, borderRadius:6, padding:'2px 7px', background:CARD2, border:`1px solid ${BORDER}` }}>{t.category}</span>
-                    </div>
-                    {/* Assigned person */}
-                    {t.assigned_concierge_name && (
-                      <p style={{ fontFamily:INTER, fontSize:12, color:BLUE, margin:'5px 0 0' }}>
-                        Assigned to {t.assigned_concierge_name} only
-                      </p>
-                    )}
-                    {/* Notes */}
-                    {t.notes && (
-                      <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'5px 0 0', fontStyle:'italic' }}>{t.notes}</p>
-                    )}
-                  </div>
+                  <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED }}>{paused.length}</span>
                 </div>
-                {/* Action row */}
-                <div style={{ display:'flex', gap:8, marginTop:12, justifyContent:'flex-end' }}>
-                  <button onClick={() => toggleSchedActive(t.scheduled_task_id, t.active !== false)}
-                    style={{ padding:'6px 14px', background: isOff ? `${BLUE}12` : 'rgba(255,149,0,0.10)', border:`1px solid ${isOff ? BLUE : ORANGE}`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color: isOff ? BLUE : ORANGE, cursor:'pointer' }}>
-                    {isOff ? 'Resume' : 'Pause'}
-                  </button>
-                  <button onClick={() => deleteScheduled(t.scheduled_task_id)}
-                    style={{ padding:'6px 14px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.20)`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:RED, cursor:'pointer' }}>
-                    Delete
-                  </button>
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {paused.map(t => <SchedCard key={t.scheduled_task_id} t={t} />)}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
 
   /* ── Global Search (replaces Audit Log tab) ────────────────────────────────── */
   const [gsOpen,     setGsOpen]     = useState(false);
@@ -3625,13 +3868,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   </h2>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  {tab === 'sections' && (
-                    <button onClick={() => { setShowAddSection(s => !s); setNewSectionDraft({ label:'', desc:'' }); }}
-                      style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:showAddSection ? CARD2 : BLUE, border:`1px solid ${showAddSection ? BORDER : BLUE}`, borderRadius:10, cursor:'pointer', transition:'all 150ms' }}>
-                      <Plus size={14} color={showAddSection ? MUTED : 'white'} />
-                      <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:showAddSection ? MUTED : 'white' }}>Add</span>
-                    </button>
-                  )}
                   <button onClick={() => setTab('home')}
                     style={{ width:36, height:36, borderRadius:10, border:`1px solid ${BORDER}`, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
                     <X size={16} color={MUTED} />
