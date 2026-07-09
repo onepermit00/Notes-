@@ -2891,7 +2891,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       {/* ── DESKTOP SIDEBAR — persistent, always visible ≥768px ──────────────── */}
       {!isMobile && (
         <div style={{ width: sidebarCollapsed ? 64 : 248, minWidth: sidebarCollapsed ? 64 : 248, flexShrink:0, background:CARD, borderRight:`1px solid ${BORDER}`, display:'flex', flexDirection:'column', overflow:'hidden', zIndex:10, height:'100%', transition:'width 220ms ease, min-width 220ms ease' }}>
-          <nav style={{ padding: sidebarCollapsed ? '16px 8px 4px' : '12px 8px 4px', overflow:'hidden' }}>
+          <nav style={{ padding: sidebarCollapsed ? '16px 8px 4px' : '12px 8px 4px', overflowY:'auto', overflowX:'hidden', flex:1, minHeight:0 }}>
             {NAV.map(({ id, Icon:NavIcon, label, action }) => {
               const active = !action && tab === id;
               const handleClick = () => {
@@ -2931,7 +2931,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               );
             })}
           </nav>
-          <div style={{ marginTop:'auto', padding: sidebarCollapsed ? '12px 0' : '20px 20px 32px', display:'flex', alignItems:'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
+          <div style={{ flexShrink:0, padding: sidebarCollapsed ? '12px 0' : '20px 20px 32px', display:'flex', alignItems:'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start', borderTop:`1px solid ${BORDER}` }}>
             {!sidebarCollapsed && <span style={{ fontFamily:"'Helvetica Neue','Arial',sans-serif", fontSize:11, fontWeight:300, color:TEXT, letterSpacing:'0.22em', textTransform:'uppercase' }}>onepermit</span>}
           </div>
         </div>
