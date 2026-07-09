@@ -1170,12 +1170,12 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <select
               value={schedForm.assignedConciergeId}
               onChange={e => {
-                const c = concierges.find(x => x.id === e.target.value);
+                const c = team.find(x => x.id === e.target.value);
                 setSchedForm(p => ({ ...p, assignedConciergeId: e.target.value, assignedConciergeName: c ? c.name : '' }));
               }}
               style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none' }}>
               <option value=''>All Concierges (fires for everyone)</option>
-              {concierges.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {team.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             {schedForm.assignedConciergeId && (
               <p style={{ fontFamily:INTER, fontSize:12, color:BLUE, margin:'6px 0 0' }}>
