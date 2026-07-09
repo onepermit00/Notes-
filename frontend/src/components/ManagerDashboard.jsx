@@ -873,80 +873,186 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     } catch {}
   };
 
-  const renderResidents = () => (
-    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>{residents.length} resident{residents.length !== 1 ? 's' : ''} on record</p>
-        <button onClick={() => { setResAddOpen(true); setResEditId(null); setResForm({ name:'', unit:'', phone:'', email:'', notes:'' }); }}
-          style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer' }}>
-          <Plus size={14} /> Add Resident
-        </button>
+  const renderResidents = () => {
+    const glassCard = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
+    const baseInput = { width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box' };
+    const valid = resForm.name.trim() && resForm.unit.trim();
+
+    /* ── Add / Edit form view ── */
+    if (resAddOpen) {
+      return (
+        <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
+
+          {/* Wizard header — matches incident report form header */}
+          <div style={{ flexShrink:0, paddingBottom:14, borderBottom:`1px solid ${BORDER}`, marginBottom:24 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+              <div>
+                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>
+                  {resEditId ? 'Edit Resident' : 'New Resident'}
+                </h2>
+                <p style={{ fontSize:13, color:MUTED, margin:'2px 0 0' }}>Residents Directory</p>
+              </div>
+              <button onClick={() => { setResAddOpen(false); setResEditId(null); }}
+                style={{ padding:'10px 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontSize:14, fontWeight:600, color:TEXT, cursor:'pointer', fontFamily:INTER }}>
+                Cancel
+              </button>
+            </div>
+            {/* Step bar — 1 step */}
+            <div style={{ display:'flex', gap:6 }}>
+              <div style={{ height:4, flex:1, borderRadius:999, background:BLUE }} />
+            </div>
+          </div>
+
+          {/* Form fields — styled like incident report step 2 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+            <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>
+              Who are you adding?
+            </h3>
+
+            {/* Name + Unit row */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <div>
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Full Name *</h3>
+                <input value={resForm.name} onChange={e => setResForm(p => ({ ...p, name:e.target.value }))} placeholder="e.g. Maria Lopez"
+                  style={{ ...baseInput, border:resForm.name ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }} />
+              </div>
+              <div>
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Unit Number *</h3>
+                <input value={resForm.unit} onChange={e => setResForm(p => ({ ...p, unit:e.target.value }))} placeholder="e.g. 312"
+                  style={{ ...baseInput, border:resForm.unit ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }} />
+              </div>
+            </div>
+
+            {/* Phone + Email row */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <div>
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Phone</h3>
+                <input value={resForm.phone} onChange={e => setResForm(p => ({ ...p, phone:e.target.value }))} placeholder="(555) 000-0000" type="tel"
+                  style={{ ...baseInput, border:resForm.phone ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }} />
+              </div>
+              <div>
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Email</h3>
+                <input value={resForm.email} onChange={e => setResForm(p => ({ ...p, email:e.target.value }))} placeholder="resident@email.com" type="email"
+                  style={{ ...baseInput, border:resForm.email ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }} />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Notes</h3>
+              <textarea value={resForm.notes} onChange={e => setResForm(p => ({ ...p, notes:e.target.value }))} rows={4}
+                placeholder="Pet policy, parking, vehicle info, special instructions…"
+                style={{ ...baseInput, border:resForm.notes ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}`, resize:'none' }} />
+            </div>
+
+            {/* Footer — full-width button matching incident Continue button */}
+            <div style={{ paddingTop:8, borderTop:`1px solid ${BORDER}` }}>
+              <div style={{ display:'flex', gap:12 }}>
+                <button onClick={() => { setResAddOpen(false); setResEditId(null); }}
+                  style={{ flex:1, padding:'16px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
+                  Back
+                </button>
+                <button onClick={saveResident} disabled={resSaving || !valid}
+                  style={{ flex:2, padding:'16px 0', background:(!valid || resSaving) ? CARD2 : BLUE, border:(!valid || resSaving) ? `1px solid ${BORDER}` : 'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:(!valid || resSaving) ? MUTED : 'white', cursor:(!valid || resSaving) ? 'not-allowed' : 'pointer', boxShadow:(!valid || resSaving) ? 'none' : `0 8px 24px ${BLUE}40` }}>
+                  {resSaving ? 'Saving…' : resEditId ? 'Save Changes' : 'Add Resident'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ── List view ── */
+    return (
+      <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
+
+        {/* CTA — exact incident report button pattern, blue brand color */}
+        <div style={{ padding:'0 0 20px' }}>
+          <button onClick={() => { setResAddOpen(true); setResEditId(null); setResForm({ name:'', unit:'', phone:'', email:'', notes:'' }); }}
+            style={{ width:'100%', padding:20, background:BLUE, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:`0 8px 24px ${BLUE}40` }}>
+            <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+              <div style={{ width:56, height:56, background:'rgba(255,255,255,0.2)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <UserPlus size={28} color="white" />
+              </div>
+              <div>
+                <p style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:0 }}>Add Resident</p>
+                <p style={{ fontSize:14, color:'rgba(255,255,255,0.7)', margin:0 }}>Register a new resident to the directory</p>
+              </div>
+            </div>
+            <ChevronRight size={24} color="rgba(255,255,255,0.7)" />
+          </button>
+        </div>
+
+        {/* Section header — exact "Past Reports" pattern */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <Users size={20} color={MUTED} />
+            <h2 style={{ fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Residents Directory</h2>
+          </div>
+          <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED }}>
+            {residents.length}
+          </span>
+        </div>
+
+        {/* Loading */}
+        {resLoading ? (
+          <div style={{ textAlign:'center', padding:'40px 0', color:MUTED, fontSize:14 }}>Loading…</div>
+        ) : residents.length === 0 ? (
+          /* Empty state — exact incident pattern: 80×80 icon */
+          <div style={{ ...glassCard, padding:40, textAlign:'center' }}>
+            <div style={{ width:80, height:80, background:CARD2, borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
+              <UserCog size={40} color={MUTED} />
+            </div>
+            <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>No residents yet</p>
+            <p style={{ fontSize:14, color:MUTED }}>Add residents so concierges can look them up by name or unit</p>
+          </div>
+        ) : (
+          /* Resident cards — exact incident history card pattern */
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {residents.map(r => {
+              const initials = r.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+              return (
+                <div key={r.resident_id} style={{ ...glassCard, padding:20, display:'flex', alignItems:'center', gap:16 }}>
+
+                  {/* 48×48 avatar, borderRadius:14 — matches incident icon container */}
+                  <div style={{ width:48, height:48, background:`${BLUE}12`, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:BLUE }}>{initials}</span>
+                  </div>
+
+                  {/* Content — flex:1, matches incident card info block */}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.name}</p>
+                    <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:3 }}>
+                      {r.phone && <span style={{ fontSize:12, color:MUTED }}>{r.phone}</span>}
+                      {r.email && <span style={{ fontSize:12, color:MUTED }}>· {r.email}</span>}
+                      {r.notes && <span style={{ fontSize:12, color:MUTED, fontStyle:'italic' }}>· {r.notes}</span>}
+                    </div>
+                    {/* Action buttons — small, inside info block, no divider */}
+                    <div style={{ display:'flex', gap:6, marginTop:10 }}>
+                      <button onClick={() => { setResForm({ name:r.name, unit:r.unit, phone:r.phone||'', email:r.email||'', notes:r.notes||'' }); setResEditId(r.resident_id); setResAddOpen(true); }}
+                        style={{ padding:'6px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, cursor:'pointer', fontFamily:INTER, fontSize:12, fontWeight:600, color:TEXT }}>
+                        Edit
+                      </button>
+                      <button onClick={() => deleteResident(r.resident_id)}
+                        style={{ padding:'6px 12px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.20)`, borderRadius:8, cursor:'pointer', fontFamily:INTER, fontSize:12, fontWeight:600, color:RED }}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Unit badge — exact severity badge pill pattern */}
+                  <span style={{ padding:'6px 14px', borderRadius:10, fontSize:12, fontWeight:700, background:BLUE, color:'white', flexShrink:0 }}>
+                    UNIT {r.unit}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-
-      {/* Add/edit form */}
-      {resAddOpen && (
-        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:20, display:'flex', flexDirection:'column', gap:12 }}>
-          <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:0 }}>{resEditId ? 'Edit Resident' : 'New Resident'}</p>
-          {[
-            { key:'name',  label:'Full Name *',   placeholder:'e.g. Maria Lopez'   },
-            { key:'unit',  label:'Unit Number *',  placeholder:'e.g. 312'           },
-            { key:'phone', label:'Phone',          placeholder:'(555) 000-0000'     },
-            { key:'email', label:'Email',          placeholder:'resident@email.com' },
-          ].map(({ key, label, placeholder }) => (
-            <div key={key}>
-              <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>{label}</p>
-              <input value={resForm[key]} onChange={e => setResForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder}
-                style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
-            </div>
-          ))}
-          <div>
-            <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', margin:'0 0 6px' }}>Notes</p>
-            <textarea value={resForm.notes} onChange={e => setResForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Pet policy, parking, vehicle info…"
-              style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, outline:'none', resize:'none', boxSizing:'border-box' }} />
-          </div>
-          <div style={{ display:'flex', gap:8 }}>
-            <button onClick={() => { setResAddOpen(false); setResEditId(null); }}
-              style={{ flex:1, padding:'12px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, cursor:'pointer' }}>Cancel</button>
-            <button onClick={saveResident} disabled={resSaving || !resForm.name.trim() || !resForm.unit.trim()}
-              style={{ flex:2, padding:'12px 0', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer', opacity:resSaving ? 0.7 : 1 }}>
-              {resSaving ? 'Saving…' : resEditId ? 'Save Changes' : 'Add Resident'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Residents list */}
-      {resLoading ? (
-        <div style={{ textAlign:'center', padding:'40px 0', color:MUTED, fontFamily:INTER, fontSize:14 }}>Loading…</div>
-      ) : residents.length === 0 ? (
-        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'48px 24px', textAlign:'center' }}>
-          <UserCog size={32} color={MUTED} strokeWidth={1.5} style={{ marginBottom:12 }} />
-          <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 6px' }}>No residents yet</p>
-          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Add residents so concierges can look them up by name or unit.</p>
-        </div>
-      ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {residents.map(r => (
-            <div key={r.resident_id} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:14 }}>
-              <div style={{ width:44, height:44, borderRadius:'50%', background:`${BLUE}12`, border:`2px solid ${BLUE}30`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <span style={{ fontFamily:INTER, fontSize:14, fontWeight:800, color:BLUE }}>{r.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span>
-              </div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.name}</p>
-                <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Unit {r.unit}{r.phone ? ` · ${r.phone}` : ''}</p>
-              </div>
-              <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-                <button onClick={() => { setResForm({ name:r.name, unit:r.unit, phone:r.phone||'', email:r.email||'', notes:r.notes||'' }); setResEditId(r.resident_id); setResAddOpen(true); }}
-                  style={{ padding:'7px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:TEXT, cursor:'pointer' }}>Edit</button>
-                <button onClick={() => deleteResident(r.resident_id)}
-                  style={{ padding:'7px 12px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.20)`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:RED, cursor:'pointer' }}>Remove</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   /* ── Analytics ─────────────────────────────────────────────────────────────── */
   const [analyticsData,    setAnalyticsData]    = useState(null);
