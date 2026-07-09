@@ -1169,66 +1169,157 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   );
 
   /* ── Audit Log ─────────────────────────────────────────────────────────────── */
-  const [auditLogs,    setAuditLogs]    = useState([]);
-  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditLogs,      setAuditLogs]      = useState([]);
+  const [auditLoading,   setAuditLoading]   = useState(false);
+  const [auditSearch,    setAuditSearch]    = useState('');
+  const [auditTypeFilter,setAuditTypeFilter]= useState('all');   // resource_type filter
+  const [auditActFilter, setAuditActFilter] = useState('all');   // action filter
 
   const loadAudit = () => {
     setAuditLoading(true);
-    authApi.getAuditLog(300).then(logs => { setAuditLogs(logs); setAuditLoading(false); }).catch(() => setAuditLoading(false));
+    authApi.getAuditLog(500).then(logs => { setAuditLogs(logs); setAuditLoading(false); }).catch(() => setAuditLoading(false));
   };
 
   useEffect(() => { if (tab === 'audit') loadAudit(); }, [tab]); // eslint-disable-line
 
   const ACTION_COLORS = { create:GREEN, update:BLUE, delete:RED, clock_in:GREEN, clock_out:ORANGE };
   const ACTION_LABELS = { create:'Created', update:'Updated', delete:'Deleted', clock_in:'Clocked In', clock_out:'Clocked Out' };
+  const RESOURCE_ICONS = { task:'Task', incident:'Incident', shift:'Shift', resident:'Resident', package:'Package', scheduled_task:'Schedule' };
 
-  const renderAudit = () => (
-    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>{auditLogs.length} entries</p>
-        <button onClick={loadAudit}
-          style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, cursor:'pointer' }}>
-          <RefreshCw size={13} /> Refresh
-        </button>
-      </div>
+  const renderAudit = () => {
+    // Build filtered list
+    const q = auditSearch.trim().toLowerCase();
+    const filtered = auditLogs.filter(log => {
+      if (auditTypeFilter !== 'all' && log.resource_type !== auditTypeFilter) return false;
+      if (auditActFilter  !== 'all' && log.action        !== auditActFilter)  return false;
+      if (!q) return true;
+      // Search across all searchable fields
+      const detail = Object.values(log.detail || {}).join(' ').toLowerCase();
+      return (
+        detail.includes(q) ||
+        (log.resource_type || '').includes(q) ||
+        (log.action        || '').includes(q) ||
+        (log.user_type     || '').includes(q) ||
+        (log.resource_id   || '').toLowerCase().includes(q)
+      );
+    });
 
-      {auditLoading ? (
-        <div style={{ textAlign:'center', padding:'40px 0', fontFamily:INTER, fontSize:14, color:MUTED }}>Loading…</div>
-      ) : auditLogs.length === 0 ? (
-        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'48px 24px', textAlign:'center' }}>
-          <History size={32} color={MUTED} strokeWidth={1.5} style={{ marginBottom:12 }} />
-          <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 6px' }}>No audit entries yet</p>
-          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Every action — tasks, incidents, residents, shifts — is logged here permanently.</p>
+    const FILTER_BTN = (active, onClick, label) => (
+      <button onClick={onClick}
+        style={{ padding:'6px 12px', borderRadius:8, border:`1px solid ${active ? BLUE : BORDER}`, background: active ? `${BLUE}12` : CARD2, fontFamily:INTER, fontSize:12, fontWeight: active ? 700 : 500, color: active ? BLUE : MUTED, cursor:'pointer', whiteSpace:'nowrap' }}>
+        {label}
+      </button>
+    );
+
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+        {/* ── Search bar ── */}
+        <div style={{ position:'relative' }}>
+          <Search size={15} color={MUTED} style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
+          <input
+            value={auditSearch}
+            onChange={e => setAuditSearch(e.target.value)}
+            placeholder="Search by unit, resident name, task title, incident…"
+            style={{ width:'100%', padding:'12px 14px 12px 38px', borderRadius:12, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }}
+          />
+          {auditSearch && (
+            <button onClick={() => setAuditSearch('')}
+              style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:4, display:'flex' }}>
+              <X size={14} color={MUTED} />
+            </button>
+          )}
         </div>
-      ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-          {auditLogs.map((log, i) => {
-            const color = ACTION_COLORS[log.action] || MUTED;
-            const label = ACTION_LABELS[log.action] || log.action;
-            const ts    = log.created_at ? new Date(log.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
-            return (
-              <div key={log.log_id || i} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:'12px 14px', display:'flex', alignItems:'flex-start', gap:12 }}>
-                <div style={{ width:8, height:8, borderRadius:'50%', background:color, marginTop:5, flexShrink:0 }} />
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-                    <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color, background:`${color}15`, borderRadius:5, padding:'2px 7px' }}>{label}</span>
-                    <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT }}>{log.resource_type}</span>
-                    <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{log.user_type} · {log.user_id?.slice(0,12)}</span>
+
+        {/* ── Type filter chips ── */}
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {[['all','All Types'],['task','Tasks'],['incident','Incidents'],['shift','Shifts'],['resident','Residents'],['package','Packages']].map(([val,lbl]) =>
+            FILTER_BTN(auditTypeFilter === val, () => setAuditTypeFilter(val), lbl)
+          )}
+        </div>
+
+        {/* ── Action filter chips ── */}
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {[['all','All Actions'],['create','Created'],['update','Updated'],['delete','Deleted'],['clock_in','Clock In'],['clock_out','Clock Out']].map(([val,lbl]) =>
+            FILTER_BTN(auditActFilter === val, () => setAuditActFilter(val), lbl)
+          )}
+        </div>
+
+        {/* ── Header row ── */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>
+            {filtered.length} of {auditLogs.length} {auditLogs.length === 1 ? 'entry' : 'entries'}
+            {q && <span style={{ color:BLUE }}> · "{auditSearch}"</span>}
+          </p>
+          <button onClick={loadAudit}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:9, fontFamily:INTER, fontSize:12, fontWeight:700, color:TEXT, cursor:'pointer' }}>
+            <RefreshCw size={12} /> Refresh
+          </button>
+        </div>
+
+        {/* ── Results ── */}
+        {auditLoading ? (
+          <div style={{ textAlign:'center', padding:'40px 0', fontFamily:INTER, fontSize:14, color:MUTED }}>Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'40px 24px', textAlign:'center' }}>
+            <History size={28} color={MUTED} strokeWidth={1.5} style={{ marginBottom:10 }} />
+            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 4px' }}>
+              {auditLogs.length === 0 ? 'No audit entries yet' : 'No matches found'}
+            </p>
+            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>
+              {auditLogs.length === 0
+                ? 'Every action — tasks, incidents, residents, shifts — is logged here permanently.'
+                : 'Try a different search term or clear the filters.'}
+            </p>
+            {(q || auditTypeFilter !== 'all' || auditActFilter !== 'all') && (
+              <button onClick={() => { setAuditSearch(''); setAuditTypeFilter('all'); setAuditActFilter('all'); }}
+                style={{ marginTop:14, padding:'9px 18px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, cursor:'pointer' }}>
+                Clear Filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {filtered.map((log, i) => {
+              const color    = ACTION_COLORS[log.action] || MUTED;
+              const label    = ACTION_LABELS[log.action] || log.action;
+              const resLabel = RESOURCE_ICONS[log.resource_type] || log.resource_type;
+              const ts       = log.created_at ? new Date(log.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+              const details  = log.detail ? Object.entries(log.detail) : [];
+              // Highlight matching text in detail values
+              const detailStr = details.map(([k,v]) => `${k.replace(/_/g,' ')}: ${v}`).join(' · ');
+              return (
+                <div key={log.log_id || i} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:'12px 14px' }}>
+                  {/* Top row: action badge + resource + timestamp */}
+                  <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom: details.length ? 6 : 0 }}>
+                    <span style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color, background:`${color}15`, borderRadius:6, padding:'3px 8px', textTransform:'uppercase', letterSpacing:'0.06em' }}>{label}</span>
+                    <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT }}>{resLabel}</span>
+                    <span style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginLeft:'auto' }}>{ts}</span>
                   </div>
-                  {log.detail && Object.keys(log.detail).length > 0 && (
-                    <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'4px 0 0', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                      {Object.entries(log.detail).map(([k,v]) => `${k}: ${v}`).join(' · ')}
+                  {/* Detail row */}
+                  {details.length > 0 && (
+                    <p style={{ fontFamily:INTER, fontSize:13, color:TEXT, margin:'0 0 4px', lineHeight:1.5 }}>
+                      {details.map(([k,v]) => (
+                        <span key={k}>
+                          <span style={{ color:MUTED, fontSize:12 }}>{k.replace(/_/g,' ')}: </span>
+                          <span style={{ fontWeight:600 }}>{String(v)}</span>
+                          {'  '}
+                        </span>
+                      ))}
                     </p>
                   )}
-                  <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:'3px 0 0' }}>{ts}</p>
+                  {/* Footer: who + role */}
+                  <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>
+                    {log.user_type === 'manager' ? '👔 Manager' : '🪪 Concierge'} · ID {log.user_id?.slice(-8)}
+                  </p>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   /* ── Settings ─────────────────────────────────────────────────────────────── */
   const renderSettings = () => {
