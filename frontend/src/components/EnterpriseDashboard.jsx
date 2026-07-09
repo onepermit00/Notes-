@@ -815,7 +815,7 @@ export const EnterpriseDashboard = ({ onRoleSwitch }) => {
                   onClick={() => setSidebarOpen(false)}
                   style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.52)', zIndex: 45, backdropFilter: 'blur(2px)' }} />
                 <motion.div key="sb-panel" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }} transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                  style={{ position: 'fixed', left: 0, top: 0, width: 248, height: '100vh', background: SIDEBAR, borderRight: `1px solid ${BORDER}`, zIndex: 50, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                  style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 248, background: SIDEBAR, borderRight: `1px solid ${BORDER}`, zIndex: 50, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
                   {renderSidebarContent(true)}
                 </motion.div>
               </>
