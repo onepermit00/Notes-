@@ -1233,8 +1233,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
         {/* ── Filter chips ── */}
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          <span style={{ padding:'6px 12px', borderRadius:8, border:`1px solid ${BORDER}`, background:CARD2, fontFamily:INTER, fontSize:12, fontWeight:500, color:MUTED, whiteSpace:'nowrap' }}>All Actions</span>
-          {[['all','All Sections'],['task','Tasks'],['package','Packages'],['guest','Guests'],['lockout','Lockouts'],['vendor','Vendors'],['tour','Tours'],['loaner','Loaners'],['incident','Incidents'],['resident','Residents'],['shift','Shifts']].map(([val,lbl]) =>
+{[['all','All Sections'],['task','Tasks'],['package','Packages'],['guest','Guests'],['lockout','Lockouts'],['vendor','Vendors'],['tour','Tours'],['loaner','Loaners'],['incident','Incidents'],['resident','Residents'],['shift','Shifts']].map(([val,lbl]) =>
             FILTER_BTN(auditTypeFilter === val, () => setAuditTypeFilter(val), lbl)
           )}
         </div>
