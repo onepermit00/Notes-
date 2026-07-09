@@ -1089,42 +1089,83 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   useEffect(() => { if (tab === 'analytics') loadAnalytics(); }, [tab]); // eslint-disable-line
 
   const renderAnalytics = () => {
-    if (analyticsLoading) return <div style={{ textAlign:'center', padding:'60px 0', fontFamily:INTER, fontSize:14, color:MUTED }}>Loading analytics…</div>;
-    if (!analyticsData) return (
-      <div style={{ textAlign:'center', padding:'60px 0' }}>
-        <BarChart2 size={32} color={MUTED} strokeWidth={1.5} style={{ marginBottom:12 }} />
-        <p style={{ fontFamily:INTER, fontSize:14, color:MUTED }}>No data yet — analytics appear once shifts are logged.</p>
-      </div>
-    );
-    const { totals, by_category, incidents_by_severity, by_concierge, hourly_activity } = analyticsData;
-    const barMax = (arr) => Math.max(1, ...arr.map(x => x.count));
-    const BAR_H = 12;
+    const glassCard  = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
+    const BAR_H      = 10;
+    const barMax     = (arr) => Math.max(1, ...arr.map(x => x.count));
+    const SEV_COLOR  = { critical:RED, high:RED, medium:ORANGE, low:GREEN };
+    const RANGES     = [
+      { id:'all',    label:'All Time' },
+      { id:'today',  label:'Today'    },
+      { id:'week',   label:'7 Days'   },
+      { id:'month',  label:'Month'    },
+      { id:'custom', label:'Custom'   },
+    ];
+
+    /* Shared bar row component */
     const BarRow = ({ label, count, max, color }) => (
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:10 }}>
-        <div style={{ width:130, flexShrink:0, fontFamily:INTER, fontSize:13, color:TEXT, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</div>
+        <div style={{ width:120, flexShrink:0, fontFamily:INTER, fontSize:13, color:TEXT, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</div>
         <div style={{ flex:1, background:CARD2, borderRadius:BAR_H/2, height:BAR_H, overflow:'hidden' }}>
           <div style={{ width:`${Math.round(count/max*100)}%`, height:BAR_H, background:color, borderRadius:BAR_H/2, transition:'width 500ms ease' }} />
         </div>
-        <div style={{ width:32, flexShrink:0, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, textAlign:'right' }}>{count}</div>
+        <div style={{ width:28, flexShrink:0, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, textAlign:'right' }}>{count}</div>
       </div>
     );
-    const RANGES = [
-      { id:'all',   label:'All Time' },
-      { id:'today', label:'Today'    },
-      { id:'week',  label:'7 Days'   },
-      { id:'month', label:'Month'    },
-      { id:'custom',label:'Custom'   },
-    ];
-    const SEV_COLOR = { critical:RED, high:RED, medium:ORANGE, low:GREEN };
-    return (
-      <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
 
-        {/* ── Date range picker ── */}
-        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'16px 18px', display:'flex', flexDirection:'column', gap:12 }}>
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+    /* Section header — exact "Past Reports" pattern */
+    const SecHead = ({ Icon, title, count, color:ic = MUTED }) => (
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <Icon size={20} color={ic} />
+          <h2 style={{ fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>{title}</h2>
+        </div>
+        {count !== undefined && (
+          <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED }}>
+            {count}
+          </span>
+        )}
+      </div>
+    );
+
+    /* Loading state — exact incident empty state pattern */
+    if (analyticsLoading) return (
+      <div style={{ ...glassCard, padding:40, textAlign:'center' }}>
+        <div style={{ width:80, height:80, background:CARD2, borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
+          <Activity size={40} color={MUTED} strokeWidth={1.5} />
+        </div>
+        <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>Loading analytics…</p>
+        <p style={{ fontSize:14, color:MUTED }}>Crunching the numbers for you</p>
+      </div>
+    );
+
+    /* No data state */
+    if (!analyticsData) return (
+      <div style={{ ...glassCard, padding:40, textAlign:'center' }}>
+        <div style={{ width:80, height:80, background:CARD2, borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
+          <BarChart2 size={40} color={MUTED} strokeWidth={1.5} />
+        </div>
+        <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>No analytics yet</p>
+        <p style={{ fontSize:14, color:MUTED }}>Analytics appear once shifts are logged</p>
+      </div>
+    );
+
+    const { totals, by_category, incidents_by_severity, by_concierge, hourly_activity } = analyticsData;
+
+    return (
+      <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:24 }}>
+
+        {/* ── Date range card ── */}
+        <div style={{ ...glassCard, padding:20 }}>
+          <SecHead Icon={Calendar} title="Date Range" />
+          {/* Range chips — severity-button style from incident report step 2 */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8, marginBottom: analyticsRange === 'custom' ? 16 : 0 }}>
             {RANGES.map(r => (
               <button key={r.id} onClick={() => applyRange(r.id)}
-                style={{ padding:'7px 14px', borderRadius:8, border:`1px solid ${analyticsRange === r.id ? BLUE : BORDER}`, background: analyticsRange === r.id ? `${BLUE}12` : CARD2, fontFamily:INTER, fontSize:13, fontWeight: analyticsRange === r.id ? 700 : 500, color: analyticsRange === r.id ? BLUE : MUTED, cursor:'pointer' }}>
+                style={{ padding:'12px 0', borderRadius:12, textAlign:'center', fontFamily:INTER, fontSize:13, fontWeight:600, cursor:'pointer',
+                  background: analyticsRange === r.id ? BLUE : CARD2,
+                  border:     analyticsRange === r.id ? 'none' : `1px solid ${BORDER}`,
+                  color:      analyticsRange === r.id ? 'white' : MUTED,
+                }}>
                 {r.label}
               </button>
             ))}
@@ -1132,89 +1173,106 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           {analyticsRange === 'custom' && (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:10, alignItems:'flex-end' }}>
               <div>
-                <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 5px' }}>From</p>
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:8 }}>From</h3>
                 <input type="date" value={analyticsFrom} onChange={e => setAnalyticsFrom(e.target.value)}
-                  style={{ width:'100%', padding:'10px 12px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
+                  style={{ width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, border:analyticsFrom?`1.5px solid ${BLUE}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, outline:'none', boxSizing:'border-box' }} />
               </div>
               <div>
-                <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 5px' }}>To</p>
+                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:8 }}>To</h3>
                 <input type="date" value={analyticsTo} onChange={e => setAnalyticsTo(e.target.value)}
-                  style={{ width:'100%', padding:'10px 12px', borderRadius:10, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:13, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
+                  style={{ width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, border:analyticsTo?`1.5px solid ${BLUE}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, outline:'none', boxSizing:'border-box' }} />
               </div>
               <button onClick={() => applyRange('custom', analyticsFrom, analyticsTo)} disabled={!analyticsFrom}
-                style={{ padding:'10px 16px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer', opacity: analyticsFrom ? 1 : 0.5 }}>
+                style={{ padding:'14px 20px', background:analyticsFrom?BLUE:CARD2, border:analyticsFrom?'none':`1px solid ${BORDER}`, borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:analyticsFrom?'white':MUTED, cursor:analyticsFrom?'pointer':'not-allowed', boxShadow:analyticsFrom?`0 4px 12px ${BLUE}40`:'none' }}>
                 Apply
               </button>
             </div>
           )}
         </div>
 
-        {/* KPI tiles */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
-          {[
-            { label:'Total Activities', value:totals.tasks,           color:BLUE   },
-            { label:'Completed',        value:totals.completed_tasks,  color:GREEN  },
-            { label:'Completion Rate',  value:`${totals.completion_rate}%`, color:GREEN },
-            { label:'Incidents',        value:totals.incidents,        color:ORANGE },
-            { label:'Open Incidents',   value:totals.open_incidents,   color:RED    },
-            { label:'Total Shifts',     value:totals.shifts,           color:BLUE   },
-          ].map(({ label, value, color }) => (
-            <div key={label} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:14, padding:'14px 12px', textAlign:'center' }}>
-              <div style={{ fontFamily:INTER, fontSize:22, fontWeight:800, color, letterSpacing:'-0.02em', lineHeight:1 }}>{value}</div>
-              <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:5, fontWeight:600 }}>{label}</div>
-            </div>
-          ))}
+        {/* ── KPI tiles — 3-col grid with icon + number + label ── */}
+        <div>
+          <SecHead Icon={BarChart2} title="Overview" />
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
+            {[
+              { label:'Total Activities', value:totals.tasks,                    color:BLUE,   Icon:Activity      },
+              { label:'Completed',        value:totals.completed_tasks,           color:GREEN,  Icon:CheckCircle   },
+              { label:'Completion Rate',  value:`${totals.completion_rate}%`,     color:GREEN,  Icon:Check         },
+              { label:'Incidents',        value:totals.incidents,                 color:ORANGE, Icon:AlertTriangle },
+              { label:'Open Incidents',   value:totals.open_incidents,            color:RED,    Icon:Clock         },
+              { label:'Total Shifts',     value:totals.shifts,                    color:BLUE,   Icon:Calendar      },
+            ].map(({ label, value, color, Icon }) => (
+              <div key={label} style={{ ...glassCard, padding:'16px 10px', textAlign:'center' }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:`${color}12`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
+                  <Icon size={18} color={color} />
+                </div>
+                <div style={{ fontFamily:INTER, fontSize:24, fontWeight:800, color, letterSpacing:'-0.02em', lineHeight:1, marginBottom:5 }}>{value}</div>
+                <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, fontWeight:600, lineHeight:1.3 }}>{label}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Activity by category */}
+        {/* ── Activity by category ── */}
         {by_category?.length > 0 && (
-          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'18px 20px' }}>
-            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 16px' }}>Activity by Category</p>
-            {by_category.map(r => <BarRow key={r.category} label={r.category} count={r.count} max={barMax(by_category)} color={BLUE} />)}
-          </div>
-        )}
-
-        {/* Incidents by severity */}
-        {incidents_by_severity?.length > 0 && (
-          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'18px 20px' }}>
-            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 16px' }}>Incidents by Severity</p>
-            {incidents_by_severity.map(r => <BarRow key={r.severity} label={r.severity.charAt(0).toUpperCase()+r.severity.slice(1)} count={r.count} max={barMax(incidents_by_severity)} color={SEV_COLOR[r.severity]||ORANGE} />)}
-          </div>
-        )}
-
-        {/* Activity by concierge */}
-        {by_concierge?.length > 0 && (
-          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'18px 20px' }}>
-            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 16px' }}>Activity by Concierge</p>
-            {by_concierge.map(r => <BarRow key={r.name} label={r.name} count={r.count} max={barMax(by_concierge)} color={GREEN} />)}
-          </div>
-        )}
-
-        {/* Hourly heatmap */}
-        {hourly_activity?.length > 0 && (
-          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:'18px 20px' }}>
-            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 16px' }}>Activity by Hour — {RANGES.find(r => r.id === analyticsRange)?.label || 'All Time'}</p>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(12,1fr)', gap:4 }}>
-              {Array.from({length:24}).map((_,h) => {
-                const entry = hourly_activity.find(x => x.hour === h);
-                const cnt   = entry?.count || 0;
-                const maxH  = Math.max(1, ...hourly_activity.map(x=>x.count));
-                const intensity = Math.round(cnt/maxH*10)/10;
-                const ampm = h < 12 ? 'AM' : 'PM';
-                const h12  = h === 0 ? 12 : h > 12 ? h-12 : h;
-                return (
-                  <div key={h} title={`${h12}${ampm}: ${cnt} activities`} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
-                    <div style={{ width:'100%', height:40, borderRadius:6, background:`rgba(255,56,92,${0.08 + intensity * 0.72})`, transition:'background 300ms' }} />
-                    <span style={{ fontFamily:INTER, fontSize:9, color:MUTED }}>{h12}{ampm}</span>
-                  </div>
-                );
-              })}
+          <div>
+            <SecHead Icon={ClipboardList} title="Activity by Category" count={by_category.length} />
+            <div style={{ ...glassCard, padding:20 }}>
+              {by_category.map(r => <BarRow key={r.category} label={r.category} count={r.count} max={barMax(by_category)} color={BLUE} />)}
             </div>
           </div>
         )}
 
-        <button onClick={() => applyRange(analyticsRange)} style={{ alignSelf:'flex-start', padding:'10px 18px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, cursor:'pointer' }}>
-          Refresh
+        {/* ── Incidents by severity ── */}
+        {incidents_by_severity?.length > 0 && (
+          <div>
+            <SecHead Icon={AlertTriangle} title="Incidents by Severity" count={incidents_by_severity.length} color={ORANGE} />
+            <div style={{ ...glassCard, padding:20 }}>
+              {incidents_by_severity.map(r => <BarRow key={r.severity} label={r.severity.charAt(0).toUpperCase()+r.severity.slice(1)} count={r.count} max={barMax(incidents_by_severity)} color={SEV_COLOR[r.severity]||ORANGE} />)}
+            </div>
+          </div>
+        )}
+
+        {/* ── Activity by concierge ── */}
+        {by_concierge?.length > 0 && (
+          <div>
+            <SecHead Icon={Users} title="Activity by Concierge" count={by_concierge.length} color={GREEN} />
+            <div style={{ ...glassCard, padding:20 }}>
+              {by_concierge.map(r => <BarRow key={r.name} label={r.name} count={r.count} max={barMax(by_concierge)} color={GREEN} />)}
+            </div>
+          </div>
+        )}
+
+        {/* ── Hourly heatmap ── */}
+        {hourly_activity?.length > 0 && (
+          <div>
+            <SecHead Icon={Clock} title={`Activity by Hour — ${RANGES.find(r => r.id === analyticsRange)?.label || 'All Time'}`} />
+            <div style={{ ...glassCard, padding:20 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(12,1fr)', gap:4 }}>
+                {Array.from({length:24}).map((_,h) => {
+                  const entry     = hourly_activity.find(x => x.hour === h);
+                  const cnt       = entry?.count || 0;
+                  const maxH      = Math.max(1, ...hourly_activity.map(x => x.count));
+                  const intensity = Math.round(cnt/maxH*10)/10;
+                  const ampm      = h < 12 ? 'AM' : 'PM';
+                  const h12       = h === 0 ? 12 : h > 12 ? h-12 : h;
+                  return (
+                    <div key={h} title={`${h12}${ampm}: ${cnt} activities`} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+                      <div style={{ width:'100%', height:40, borderRadius:6, background:`rgba(255,56,92,${0.08 + intensity * 0.72})`, transition:'background 300ms' }} />
+                      <span style={{ fontFamily:INTER, fontSize:9, color:MUTED }}>{h12}{ampm}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Refresh — full-width button matching incident Continue style ── */}
+        <button onClick={() => applyRange(analyticsRange)}
+          style={{ width:'100%', padding:'16px 0', background:BLUE, border:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, boxShadow:`0 8px 24px ${BLUE}40` }}>
+          <RefreshCw size={18} color="white" />
+          Refresh Analytics
         </button>
       </div>
     );
