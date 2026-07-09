@@ -1231,9 +1231,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           )}
         </div>
 
-        {/* ── Type filter chips ── */}
+        {/* ── Type filter chips — mirrors concierge nav sections ── */}
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {[['all','All Types'],['task','Tasks'],['incident','Incidents'],['shift','Shifts'],['resident','Residents'],['package','Packages']].map(([val,lbl]) =>
+          {[['all','All Sections'],['task','Tasks'],['package','Packages'],['guest','Guests'],['lockout','Lockouts'],['vendor','Vendors'],['tour','Tours'],['loaner','Loaners'],['incident','Incidents'],['resident','Residents'],['shift','Shifts']].map(([val,lbl]) =>
             FILTER_BTN(auditTypeFilter === val, () => setAuditTypeFilter(val), lbl)
           )}
         </div>
