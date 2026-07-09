@@ -242,6 +242,51 @@ export const authApi = {
     } catch { return null; }
   },
 
+  // Package notifications
+  async notifyPackage({ unit, carrier, count, residentName, photoUrl }) {
+    try {
+      const { data } = await api.post('/notify/package', {
+        unit, carrier: carrier || '', count: count || 1,
+        resident_name: residentName || '', photo_url: photoUrl || null,
+      });
+      return data;
+    } catch { return { sent: false }; }
+  },
+
+  // Audit trail
+  async getAuditLog(limit = 200) {
+    try {
+      const { data } = await api.get('/audit', { params: { limit } });
+      return data.logs || [];
+    } catch { return []; }
+  },
+
+  // Scheduled tasks
+  async getScheduledTasks() {
+    try {
+      const { data } = await api.get('/scheduled-tasks');
+      return data.scheduled_tasks || [];
+    } catch { return []; }
+  },
+
+  async createScheduledTask(form) {
+    const { data } = await api.post('/scheduled-tasks', {
+      title:          form.title,
+      notes:          form.notes || '',
+      category:       form.category || 'Administrative',
+      priority:       form.priority || 'Standard',
+      recurrence:     form.recurrence || 'shift_start',
+      scheduled_hour: form.scheduledHour || 8,
+      assigned_to:    form.assignedTo || '',
+      assigned_to_id: form.assignedToId || '',
+    });
+    return data;
+  },
+
+  async deleteScheduledTask(taskId) {
+    await api.delete(`/scheduled-tasks/${taskId}`);
+  },
+
   // SSE — returns an EventSource; caller must close it on unmount
   openEventStream(onUpdate) {
     const token = localStorage.getItem('op_token');

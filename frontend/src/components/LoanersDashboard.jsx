@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShoppingCart, Archive, Key, Flame, AlertTriangle, Check, FileText, ChevronRight, RotateCcw, Camera } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { SignaturePad } from './SignaturePad';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
@@ -77,11 +78,12 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
   const [view,         setView]         = useState('main');
   const [lStep,        setLStep]        = useState(1);
   const [selectedItem, setSelectedItem] = useState(null);
-  const [lForm,        setLF]           = useState({ resident: '', unit: '', photo: null, photoPreview: null });
+  const [lForm,        setLF]           = useState({ resident: '', unit: '', photo: null, photoPreview: null, signature: null, signedAt: null });
+  const [showSigPad,   setShowSigPad]   = useState(false);
 
   const openCheckout = (item) => { setSelectedItem(item); setView('checkout'); setLStep(1); };
   const openReturn   = (item) => { setSelectedItem(item); setView('return'); };
-  const goBack       = () => { setView('main'); setSelectedItem(null); setLF({ resident: '', unit: '', photo: null, photoPreview: null }); setLStep(1); };
+  const goBack       = () => { setView('main'); setSelectedItem(null); setLF({ resident: '', unit: '', photo: null, photoPreview: null, signature: null, signedAt: null }); setLStep(1); setShowSigPad(false); };
 
   const checkoutLoaner = () => {
     if (!lForm.resident || !lForm.unit) return;
@@ -199,13 +201,39 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
             )}
           </div>
 
+          {/* Resident signature */}
+          <div>
+            <Label>Resident Signature *</Label>
+            {lForm.signature ? (
+              <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
+                <img src={lForm.signature} alt="Signature" style={{ width: '100%', height: 100, objectFit: 'contain', background: CARD2, display: 'block' }} />
+                <div style={{ padding: '6px 12px', background: CARD2, borderTop: `1px solid ${BORDER}` }}>
+                  <span style={{ fontFamily: INTER, fontSize: 11, color: MUTED }}>Signed {lForm.signedAt}</span>
+                </div>
+                <button onClick={() => setLF(p => ({ ...p, signature: null, signedAt: null }))}
+                  style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: 'white', fontSize: 14 }}>✕</span>
+                </button>
+              </div>
+            ) : showSigPad ? (
+              <SignaturePad signerName={lForm.resident} colors={{ TEXT, MUTED, BORDER, CARD2 }}
+                onSave={(dataUrl, ts) => { setLF(p => ({ ...p, signature: dataUrl, signedAt: ts })); setShowSigPad(false); }}
+                onCancel={() => setShowSigPad(false)} />
+            ) : (
+              <button onClick={() => setShowSigPad(true)}
+                style={{ width: '100%', padding: '14px 16px', background: CARD2, border: `1px dashed ${BORDER}`, borderRadius: 12, fontFamily: INTER, fontSize: 14, color: MUTED, cursor: 'pointer', textAlign: 'left' }}>
+                ✍ Tap to capture resident signature
+              </button>
+            )}
+          </div>
+
           <div style={{ background: 'rgba(255,56,92,0.06)', border: '1px solid rgba(255,56,92,0.18)', borderRadius: 12, padding: '12px 16px' }}>
             <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
               The item will be marked <strong style={{ color: TEXT }}>checked out</strong> and the resident will be responsible for its return before shift close.
             </span>
           </div>
         </div>
-        <WizardFooter onBack={() => setLStep(1)} onContinue={checkoutLoaner} continueLabel="Check Out" continueDisabled={!lForm.resident || !lForm.unit} />
+        <WizardFooter onBack={() => setLStep(1)} onContinue={checkoutLoaner} continueLabel="Check Out" continueDisabled={!lForm.resident || !lForm.unit || !lForm.signature} />
       </div>
     );
   }

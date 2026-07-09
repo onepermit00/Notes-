@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Package, Plus, Minus, Check, Truck, RotateCcw, ChevronRight, FileText, ArrowLeft, Camera, MessageCircle, X, Mail, ShoppingBag, Globe, UtensilsCrossed, Box, User, Users } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { SignaturePad } from './SignaturePad';
+import { authApi } from '../services/authApi';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
@@ -163,14 +165,21 @@ export const PackageDashboard = ({ onActivityLogged }) => {
     reader.readAsDataURL(file);
   };
 
-  const notifyDelivery = (id) => {
+  const notifyDelivery = async (id) => {
     const d = deliveries.find(x => x.id === id);
     if (!d) return;
     setDeliveries(p => p.map(x => x.id === id ? { ...x, notified: true, notifiedAt: now() } : x));
-    showToast(`Text sent to Unit ${d.unit} · Package from ${d.carrier} ready`);
+    showToast(`Notifying Unit ${d.unit}…`);
+    try {
+      const res = await authApi.notifyPackage({ unit: d.unit, carrier: d.carrier, count: d.count, photoUrl: d.photoPreview || null });
+      showToast(res.sent ? `Email sent to ${res.resident_name} · Unit ${d.unit}` : `Logged · No email on file for Unit ${d.unit}`);
+    } catch {
+      showToast(`Notification queued for Unit ${d.unit}`);
+    }
   };
 
-  const [pForm, setPF] = useState({ unit: '', residentName: '', count: 1, pickupType: 'resident', thirdPartyName: '', relation: '', idVerified: false, residentAuthorized: false });
+  const [pForm, setPF] = useState({ unit: '', residentName: '', count: 1, pickupType: 'resident', thirdPartyName: '', relation: '', idVerified: false, residentAuthorized: false, signature: null, signedAt: null });
+  const [showPkgSig, setShowPkgSig] = useState(false);
   const [rdForm, setRDF] = useState({ residentName: '', unit: '', carrier: '', count: 1, tracking: '', notes: '' });
   const [rpForm, setRPF] = useState({ carrier: '', count: 1, notes: '' });
 
@@ -194,10 +203,11 @@ export const PackageDashboard = ({ onActivityLogged }) => {
   };
 
   const submitPickup = () => {
-    if (!pForm.unit || !pForm.residentName) return;
+    if (!pForm.unit || !pForm.residentName || !pForm.signature) return;
     setPickups(p => [{ ...pForm, id: Date.now(), time: now() }, ...p]);
-    onActivityLogged?.({ title: `Package pickup · ${pForm.residentName} · Unit ${pForm.unit}`, category: 'Delivery' });
-    setPF({ unit: '', residentName: '', count: 1, pickupType: 'resident', thirdPartyName: '', relation: '', idVerified: false, residentAuthorized: false });
+    onActivityLogged?.({ title: `Package pickup · ${pForm.residentName} · Unit ${pForm.unit}`, category: 'Delivery', notes: pForm.pickupType === 'third_party' ? `Third party: ${pForm.thirdPartyName}` : '' });
+    setPF({ unit: '', residentName: '', count: 1, pickupType: 'resident', thirdPartyName: '', relation: '', idVerified: false, residentAuthorized: false, signature: null, signedAt: null });
+    setShowPkgSig(false);
     setPStep(1);
     setView('main');
   };
@@ -437,8 +447,33 @@ export const PackageDashboard = ({ onActivityLogged }) => {
               ))}
             </div>
           )}
+          {/* Signature */}
+          <div>
+            <Label>Resident / Recipient Signature *</Label>
+            {pForm.signature ? (
+              <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
+                <img src={pForm.signature} alt="Sig" style={{ width: '100%', height: 100, objectFit: 'contain', background: CARD2, display: 'block' }} />
+                <div style={{ padding: '6px 12px', background: CARD2, borderTop: `1px solid ${BORDER}` }}>
+                  <span style={{ fontFamily: INTER, fontSize: 11, color: MUTED }}>Signed {pForm.signedAt}</span>
+                </div>
+                <button onClick={() => setPF(p => ({ ...p, signature: null, signedAt: null }))}
+                  style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: 'white', fontSize: 14 }}>✕</span>
+                </button>
+              </div>
+            ) : showPkgSig ? (
+              <SignaturePad signerName={pForm.pickupType === 'third_party' ? pForm.thirdPartyName : pForm.residentName} colors={{ TEXT, MUTED, BORDER, CARD2 }}
+                onSave={(dataUrl, ts) => { setPF(p => ({ ...p, signature: dataUrl, signedAt: ts })); setShowPkgSig(false); }}
+                onCancel={() => setShowPkgSig(false)} />
+            ) : (
+              <button onClick={() => setShowPkgSig(true)}
+                style={{ width: '100%', padding: '14px 16px', background: CARD2, border: `1px dashed ${BORDER}`, borderRadius: 12, fontFamily: INTER, fontSize: 14, color: MUTED, cursor: 'pointer', textAlign: 'left' }}>
+                ✍ Tap to capture signature
+              </button>
+            )}
+          </div>
         </div>
-        <WizardFooter onBack={() => setPStep(1)} onContinue={submitPickup} continueLabel="Log Pickup" />
+        <WizardFooter onBack={() => setPStep(1)} onContinue={submitPickup} continueLabel="Log Pickup" continueDisabled={!pForm.signature} />
       </div>
     );
   }

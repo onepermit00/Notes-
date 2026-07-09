@@ -52,6 +52,8 @@ async def _ensure_indexes():
     await db.incidents.create_index([('manager_id', 1), ('created_at', -1)], background=True)
     await db.messages.create_index([('manager_id', 1), ('created_at', 1)],  background=True)
     await db.residents.create_index([('manager_id', 1), ('unit', 1)],       background=True)
+    await db.audit_logs.create_index([('manager_id', 1), ('created_at', -1)], background=True)
+    await db.scheduled_tasks.create_index([('manager_id', 1), ('active', 1)], background=True)
     logger.info('MongoDB indexes ensured.')
 
 
@@ -605,6 +607,38 @@ async def start_shift(request: Request, session_token: Optional[str] = Cookie(de
     await db.shifts.insert_one(doc)
     doc.pop('_id', None)
     doc['clock_in'] = now.isoformat()
+
+    # Inject scheduled tasks for this concierge
+    scheduled = await db.scheduled_tasks.find({
+        'manager_id': concierge['manager_id'],
+        'active': True,
+        '$or': [
+            {'recurrence': 'shift_start'},
+            {'recurrence': 'daily', 'scheduled_hour': {'$lte': now.hour}},
+        ]
+    }, {'_id': 0}).to_list(100)
+
+    for st in scheduled:
+        task_id = f'task_{uuid.uuid4().hex[:12]}'
+        await db.tasks.insert_one({
+            'task_id':          task_id,
+            'manager_id':       concierge['manager_id'],
+            'shift_id':         shift_id,
+            'title':            st['title'],
+            'notes':            st.get('notes', ''),
+            'category':         st.get('category', 'Administrative'),
+            'priority':         st.get('priority', 'Standard'),
+            'assigned_to':      concierge['first_name'] + ' ' + concierge['last_name'],
+            'assigned_to_id':   concierge['concierge_id'],
+            'due_time':         'Shift Start' if st['recurrence'] == 'shift_start' else f"{st.get('scheduled_hour', 8):02d}:00",
+            'status':           'pending',
+            'created_by_type':  'scheduled',
+            'requires_photo':   False,
+            'created_at':       now,
+        })
+
+    await _audit(concierge['manager_id'], concierge['concierge_id'], 'concierge',
+                 'clock_in', 'shift', shift_id, {'concierge': doc['concierge_name']})
     return doc
 
 
@@ -754,6 +788,8 @@ async def create_task(task: TaskCreate, request: Request, session_token: Optiona
     await db.tasks.insert_one(doc)
     doc.pop('_id', None)
     doc['created_at'] = doc['created_at'].isoformat()
+    await _audit(mgr_id, user.get('manager_id') or user.get('concierge_id', ''), user_type,
+                 'create', 'task', doc['task_id'], {'title': task.title, 'assigned_to': task.assigned_to})
     # Notify assigned concierge by email when manager creates a task
     if user_type == 'manager' and task.assigned_to_id:
         concierge = await db.concierges.find_one({'concierge_id': task.assigned_to_id})
@@ -821,6 +857,8 @@ async def create_incident(incident: IncidentCreate, request: Request, session_to
     await db.incidents.insert_one(doc)
     doc.pop('_id', None)
     doc['created_at'] = doc['created_at'].isoformat()
+    await _audit(mgr_id, user.get('manager_id') or user.get('concierge_id', ''), user_type,
+                 'create', 'incident', doc['incident_id'], {'type': incident.type, 'severity': incident.severity})
     # Notify manager by email when concierge files an incident
     if user_type == 'concierge':
         manager = await db.managers.find_one({'manager_id': mgr_id})
@@ -964,12 +1002,33 @@ async def shift_handover(data: ShiftHandoverRequest, request: Request, session_t
     )
     if result.matched_count == 0:
         raise HTTPException(404, 'No active shift to hand over.')
+    shift = await db.shifts.find_one({'concierge_id': session['user_id'], 'status': 'completed'}, {'_id': 0}, sort=[('clock_out', -1)])
+    mgr_id = (shift or {}).get('manager_id', '')
+    await _audit(mgr_id, session['user_id'], 'concierge', 'clock_out', 'shift',
+                 (shift or {}).get('shift_id', ''), {'handover_notes': data.handover_notes[:200]})
     return {'message': 'Shift closed with handover notes.', 'clock_out': now.isoformat()}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # RESIDENTS DIRECTORY
 # ══════════════════════════════════════════════════════════════════════════════
+
+class ScheduledTaskCreate(BaseModel):
+    title:          str
+    notes:          Optional[str] = ''
+    category:       Optional[str] = 'Administrative'
+    priority:       Optional[str] = 'Standard'
+    recurrence:     str = 'shift_start'   # 'shift_start' | 'daily'
+    scheduled_hour: Optional[int] = 8     # For 'daily' — hour in 24h (local)
+    assigned_to:    Optional[str] = ''
+    assigned_to_id: Optional[str] = ''
+
+class PackageNotifyRequest(BaseModel):
+    unit:           str
+    carrier:        Optional[str] = ''
+    count:          Optional[int] = 1
+    resident_name:  Optional[str] = ''
+    photo_url:      Optional[str] = None
 
 class ResidentCreate(BaseModel):
     name:  str
@@ -1012,6 +1071,7 @@ async def create_resident(data: ResidentCreate, request: Request, session_token:
     await db.residents.insert_one(doc)
     doc.pop('_id', None)
     doc['created_at'] = doc['created_at'].isoformat()
+    await _audit(mgr_id, user['manager_id'], 'manager', 'create', 'resident', res_id, {'name': data.name, 'unit': data.unit})
     return doc
 
 @api.put('/residents/{resident_id}')
@@ -1027,6 +1087,7 @@ async def update_resident(resident_id: str, data: ResidentUpdate, request: Reque
         raise HTTPException(404, 'Resident not found.')
     updated = await db.residents.find_one({'resident_id': resident_id}, {'_id': 0})
     if isinstance(updated.get('created_at'), datetime): updated['created_at'] = updated['created_at'].isoformat()
+    await _audit(mgr_id, user['manager_id'], 'manager', 'update', 'resident', resident_id, patch)
     return updated
 
 @api.delete('/residents/{resident_id}')
@@ -1037,6 +1098,7 @@ async def delete_resident(resident_id: str, request: Request, session_token: Opt
     result = await db.residents.delete_one({'resident_id': resident_id, 'manager_id': mgr_id})
     if result.deleted_count == 0:
         raise HTTPException(404, 'Resident not found.')
+    await _audit(mgr_id, user['manager_id'], 'manager', 'delete', 'resident', resident_id, {})
     return {'message': 'Resident removed.'}
 
 
@@ -1176,6 +1238,132 @@ async def _notify_incident_filed(incident_doc: dict, manager: dict, concierge_na
       </div>
     </div>"""
     asyncio.create_task(send_email(manager['email'], f"🚨 Incident: {incident_doc['type']} at {manager['property_name']}", html))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AUDIT TRAIL
+# ══════════════════════════════════════════════════════════════════════════════
+
+async def _audit(manager_id: str, user_id: str, user_type: str, action: str,
+                 resource_type: str, resource_id: str = '', detail: dict = None):
+    """Append-only audit log entry — never deleted."""
+    await db.audit_logs.insert_one({
+        'log_id':        f'log_{uuid.uuid4().hex[:12]}',
+        'manager_id':    manager_id,
+        'user_id':       user_id,
+        'user_type':     user_type,
+        'action':        action,          # 'create' | 'update' | 'delete' | 'clock_in' | 'clock_out'
+        'resource_type': resource_type,   # 'task' | 'incident' | 'shift' | 'resident' | 'package'
+        'resource_id':   resource_id,
+        'detail':        detail or {},
+        'created_at':    datetime.now(timezone.utc),
+    })
+
+@api.get('/audit')
+async def get_audit_log(
+    request: Request,
+    limit:   int = 200,
+    session_token: Optional[str] = Cookie(default=None),
+):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if user_type != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    docs = await db.audit_logs.find({'manager_id': mgr_id}, {'_id': 0}).sort('created_at', -1).to_list(limit)
+    for d in docs:
+        if isinstance(d.get('created_at'), datetime):
+            d['created_at'] = d['created_at'].isoformat()
+    return {'logs': docs}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCHEDULED TASKS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@api.get('/scheduled-tasks')
+async def list_scheduled_tasks(request: Request, session_token: Optional[str] = Cookie(default=None)):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if user_type != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    docs = await db.scheduled_tasks.find({'manager_id': mgr_id}, {'_id': 0}).sort('created_at', -1).to_list(500)
+    for d in docs:
+        if isinstance(d.get('created_at'), datetime): d['created_at'] = d['created_at'].isoformat()
+    return {'scheduled_tasks': docs}
+
+@api.post('/scheduled-tasks')
+async def create_scheduled_task(data: ScheduledTaskCreate, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if user_type != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    task_id = f'sched_{uuid.uuid4().hex[:12]}'
+    now = datetime.now(timezone.utc)
+    doc = {
+        'scheduled_task_id': task_id,
+        'manager_id':        mgr_id,
+        'title':             data.title,
+        'notes':             data.notes or '',
+        'category':          data.category or 'Administrative',
+        'priority':          data.priority or 'Standard',
+        'recurrence':        data.recurrence,
+        'scheduled_hour':    data.scheduled_hour,
+        'assigned_to':       data.assigned_to or '',
+        'assigned_to_id':    data.assigned_to_id or '',
+        'active':            True,
+        'created_at':        now,
+    }
+    await db.scheduled_tasks.insert_one(doc)
+    doc.pop('_id', None)
+    doc['created_at'] = now.isoformat()
+    await _audit(mgr_id, user['manager_id'], 'manager', 'create', 'scheduled_task', task_id, {'title': data.title})
+    return doc
+
+@api.delete('/scheduled-tasks/{task_id}')
+async def delete_scheduled_task(task_id: str, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if user_type != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    await db.scheduled_tasks.delete_one({'scheduled_task_id': task_id, 'manager_id': mgr_id})
+    await _audit(mgr_id, user['manager_id'], 'manager', 'delete', 'scheduled_task', task_id, {})
+    return {'message': 'Deleted.'}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PACKAGE NOTIFICATIONS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@api.post('/notify/package')
+async def notify_package(data: PackageNotifyRequest, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    # Look up resident email by unit
+    resident = await db.residents.find_one({'manager_id': mgr_id, 'unit': data.unit.strip()})
+    to_email   = (resident or {}).get('email', '')
+    res_name   = data.resident_name or (resident or {}).get('name', f'Unit {data.unit} Resident')
+    photo_html = f'<img src="{data.photo_url}" style="max-width:100%;border-radius:8px;margin-top:16px" />' if data.photo_url else ''
+    if to_email:
+        html = f"""
+        <div style="font-family:sans-serif;max-width:480px">
+          <h2 style="color:#111">📦 Package Ready for Pickup</h2>
+          <p>Hi {res_name},</p>
+          <p>You have <strong>{data.count} package{'s' if data.count != 1 else ''}</strong>
+             {f'from <strong>{data.carrier}</strong> ' if data.carrier else ''}
+             waiting for you at the front desk.</p>
+          {photo_html}
+          <p style="color:#666;font-size:12px">Please bring your key fob or ID when picking up.</p>
+        </div>"""
+        await send_email(to_email, f'📦 Package Ready – Unit {data.unit}', html)
+    # Also notify manager
+    manager = await db.managers.find_one({'manager_id': mgr_id})
+    if manager and manager.get('email'):
+        mgr_html = f"""
+        <div style="font-family:sans-serif;max-width:480px">
+          <h2 style="color:#111">📦 Package Logged</h2>
+          <p>A package was logged for Unit {data.unit} ({res_name}).
+          Carrier: {data.carrier or 'N/A'} · Count: {data.count}.</p>
+          {photo_html}
+        </div>"""
+        await send_email(manager['email'], f'📦 Package Logged – Unit {data.unit}', mgr_html)
+    await _audit(mgr_id, user.get('concierge_id') or user.get('manager_id', ''), user_type,
+                 'create', 'package', '', {'unit': data.unit, 'carrier': data.carrier})
+    return {'sent': bool(to_email), 'resident_email': to_email, 'resident_name': res_name}
 
 
 # ══════════════════════════════════════════════════════════════════════════════

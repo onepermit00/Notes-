@@ -37,6 +37,8 @@ import {
 import { authApi } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
 import { useSharedData } from '../context/SharedDataContext';
+import { useOfflineQueue } from '../hooks/useOfflineQueue';
+import { SignaturePad } from './SignaturePad';
 
 // ─── Static / brand tokens (theme-independent) ────────────────────────────────
 const INTER   = `'Inter','Plus Jakarta Sans',sans-serif`;
@@ -597,13 +599,22 @@ export const CaregiverDashboard = ({
       setShowClockAlert(true);
     } catch { /* silently ignore */ }
   };
-  const [showHandover,   setShowHandover]   = useState(false);
-  const [handoverNotes,  setHandoverNotes]  = useState('');
-  const [handoverItems,  setHandoverItems]  = useState('');
-  const [handoverSaving, setHandoverSaving] = useState(false);
+  const [showHandover,      setShowHandover]      = useState(false);
+  const [handoverNotes,     setHandoverNotes]     = useState('');
+  const [handoverItems,     setHandoverItems]     = useState('');
+  const [handoverSaving,    setHandoverSaving]    = useState(false);
+  const [showChecklist,     setShowChecklist]     = useState(false);
+  const [checklistAcks,     setChecklistAcks]     = useState({});  // id → 'done' | 'escalate'
+
+  const { isOnline, queueLen, isSyncing } = useOfflineQueue();
 
   const handleClockOut = () => {
-    // Open handover modal instead of ending shift immediately
+    setChecklistAcks({});
+    setShowChecklist(true);
+  };
+
+  const proceedToHandover = () => {
+    setShowChecklist(false);
     setHandoverNotes('');
     setHandoverItems('');
     setShowHandover(true);
@@ -2479,6 +2490,24 @@ export const CaregiverDashboard = ({
         </>
       )}
 
+      {/* ── OFFLINE BANNER ───────────────────────────────────────────────── */}
+      {!isOnline && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 200, background: ORANGE, padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <Wifi size={14} color="white" />
+          <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: 'white' }}>
+            Offline — entries queued and will sync when reconnected
+          </span>
+        </div>
+      )}
+      {isSyncing && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 200, background: GREEN, padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <Activity size={14} color="white" />
+          <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: 'white' }}>
+            Syncing {queueLen} queued {queueLen === 1 ? 'entry' : 'entries'}…
+          </span>
+        </div>
+      )}
+
       {/* ── MAIN CONTENT ─────────────────────────────────────────────────── */}
       <div style={{ flex: 1, background: BG, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
 
@@ -2597,6 +2626,84 @@ export const CaregiverDashboard = ({
 
       {/* AI Copilot */}
       <AICopilot isOpen={showCopilot} onClose={() => setShowCopilot(false)} role="concierge" patientName={propertyName} />
+
+      {/* ── End-of-Shift Checklist ───────────────────────────────────────── */}
+      <AnimatePresence>
+        {showChecklist && (() => {
+          const openTasks = tasks.filter(t => t.status !== 'completed');
+          const openIncs  = incidents.filter(i => i.status !== 'resolved');
+          const items     = [
+            ...openTasks.map(t => ({ id: `task-${t.id}`, label: t.title, sub: `Task · ${t.category}`, type: 'task' })),
+            ...openIncs.map(i  => ({ id: `inc-${i.id}`,  label: i.title, sub: `Incident · ${i.type}`, type: 'incident' })),
+          ];
+          const allAcked   = items.length === 0 || items.every(it => checklistAcks[it.id]);
+          const ACK_COLORS = { done: GREEN, escalate: ORANGE };
+          return (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+              <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 32, stiffness: 280 }}
+                style={{ ...glass(), borderRadius: isPhone ? '20px 20px 0 0' : 20, width: '100%', maxWidth: isPhone ? '100%' : 480, overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ padding: '20px 20px 14px', borderBottom: `1px solid ${BORDER}`, flexShrink: 0 }}>
+                  <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 800, color: MUTED, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Before you go</div>
+                  <div style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT }}>End-of-Shift Checklist</div>
+                  <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 4 }}>Acknowledge every open item before handing over.</div>
+                </div>
+
+                <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
+                  {items.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                      <CheckCircle size={36} color={GREEN} style={{ marginBottom: 10 }} />
+                      <p style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: '0 0 4px' }}>All clear!</p>
+                      <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>No open tasks or unresolved incidents.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {items.map(it => {
+                        const ack = checklistAcks[it.id];
+                        return (
+                          <div key={it.id} style={{ background: CARD, border: `1px solid ${ack ? ACK_COLORS[ack] + '40' : BORDER}`, borderRadius: 12, padding: '12px 14px' }}>
+                            <div style={{ fontFamily: INTER, fontSize: 14, fontWeight: 600, color: TEXT, marginBottom: 2 }}>{it.label}</div>
+                            <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginBottom: ack ? 0 : 10 }}>{it.sub}</div>
+                            {!ack && (
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => setChecklistAcks(p => ({ ...p, [it.id]: 'done' }))}
+                                  style={{ flex: 1, padding: '7px 0', background: `${GREEN}12`, border: `1px solid ${GREEN}30`, borderRadius: 8, fontFamily: INTER, fontSize: 12, fontWeight: 700, color: GREEN, cursor: 'pointer' }}>
+                                  ✓ Mark Done
+                                </button>
+                                <button onClick={() => setChecklistAcks(p => ({ ...p, [it.id]: 'escalate' }))}
+                                  style={{ flex: 1, padding: '7px 0', background: `${ORANGE}12`, border: `1px solid ${ORANGE}30`, borderRadius: 8, fontFamily: INTER, fontSize: 12, fontWeight: 700, color: ORANGE, cursor: 'pointer' }}>
+                                  ⬆ Escalate
+                                </button>
+                              </div>
+                            )}
+                            {ack && (
+                              <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 700, color: ACK_COLORS[ack] }}>
+                                {ack === 'done' ? '✓ Marked done' : '⬆ Escalated to next shift'}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ padding: '12px 20px 20px', display: 'flex', gap: 10, borderTop: `1px solid ${BORDER}`, flexShrink: 0 }}>
+                  <button onClick={() => setShowChecklist(false)}
+                    style={{ flex: 1, padding: '14px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                  <button onClick={proceedToHandover} disabled={!allAcked}
+                    style={{ flex: 2, padding: '14px 0', background: allAcked ? BLUE : BORDER, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: allAcked ? 'pointer' : 'not-allowed', opacity: allAcked ? 1 : 0.5 }}>
+                    Continue to Handover →
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* ── Shift Handover Modal ─────────────────────────────────────────── */}
       <AnimatePresence>
