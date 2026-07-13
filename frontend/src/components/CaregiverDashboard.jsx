@@ -800,74 +800,86 @@ export const CaregiverDashboard = ({
     const lockouts = security.filter(a => a.title?.toLowerCase().includes('lockout'));
     const rounds   = security.filter(a => !a.title?.toLowerCase().includes('lockout'));
 
+    // Same Sect/Field/toStr as Manager Dashboard — unified DAR format
     const Sect = ({ title, accent = '#8FAEDD' }) => (
-      <div style={{ background: accent, padding: isMobile ? '7px 16px' : '7px 28px', marginTop: 6 }}>
-        <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 800, color: TEXT, letterSpacing: '0.10em', textTransform: 'uppercase' }}>{title}</span>
+      <div style={{ background: accent, padding: isPhone ? '5px 12px' : isMobile ? '5px 16px' : '5px 28px', marginTop: 4 }}>
+        <span style={{ fontFamily: INTER, fontSize: 11, fontWeight: 800, color: TEXT, letterSpacing: '0.10em', textTransform: 'uppercase' }}>{title}</span>
       </div>
     );
-    const Field = ({ label, value, last }) => (
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'flex-start', gap: isMobile ? 2 : 20, padding: isMobile ? '12px 16px' : '16px 28px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
-        <div style={{ width: isMobile ? '100%' : 240, flexShrink: 0, fontFamily: INTER, fontSize: isMobile ? 11 : 17, fontWeight: 700, color: MUTED, lineHeight: 1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
-        <div style={{ flex: 1, minWidth: 0, fontFamily: INTER, fontSize: isMobile ? 15 : 17, color: TEXT, lineHeight: 1.55, whiteSpace: 'pre-line' }}>{value}</div>
+    const Field = ({ label, value, sub, last }) => (
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'flex-start', gap: isMobile ? 2 : 14, padding: isPhone ? '9px 12px' : isMobile ? '9px 16px' : '9px 28px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
+        <div style={{ width: isMobile ? '100%' : 200, flexShrink: 0, fontFamily: INTER, fontSize: 12, fontWeight: isMobile ? 700 : 600, color: MUTED, lineHeight: 1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: INTER, fontSize: 14, color: TEXT, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{value}</div>
+          {sub && <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 2 }}>{sub}</div>}
+        </div>
       </div>
     );
-    const ActRows = ({ items, emptyLabel, last }) => items.length > 0
-      ? items.map((a, i) => <Field key={a.id || i} label={a.time || '—'} value={`${a.title}${a.notes ? ' · ' + a.notes : ''}`} last={last && i === items.length - 1} />)
-      : <Field label="—" value={emptyLabel || 'N/A'} last={last} />;
+    const toStr = arr => arr.length > 0
+      ? arr.map(a => `${a.time || '—'}: ${a.title}${a.notes ? ' · ' + a.notes : ''}`).join('\n')
+      : 'N/A';
 
     return (
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 80 }}>
         <div style={{ padding: isMobile ? '64px 16px 0' : '20px 16px 0' }}>
           <div style={{ marginTop: 0, borderRadius: 20, overflow: 'hidden', border: `1.5px solid ${BORDER}` }}>
             {/* Header */}
-            <div style={{ background: '#111827', padding: '28px 28px 22px' }}>
+            <div style={{ background: '#111827', padding: isPhone ? '14px 16px' : isMobile ? '16px 16px 14px' : '16px 28px 14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 8 }}>Previous Shift · Handoff</div>
-                  <div style={{ fontFamily: INTER, fontSize: 22, fontWeight: 800, color: 'white', marginBottom: 5 }}>{prevShift.concierge?.name}</div>
-                  <div style={{ fontFamily: INTER, fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>
+                  <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: isPhone ? 4 : 5 }}>Previous Shift · Handoff</div>
+                  <div style={{ fontFamily: INTER, fontSize: isPhone ? 15 : isMobile ? 16 : 16, fontWeight: 700, color: 'white', marginBottom: isPhone ? 3 : 4 }}>{prevShift.concierge?.name}</div>
+                  <div style={{ fontFamily: INTER, fontSize: isPhone ? 12 : 13, color: 'rgba(255,255,255,0.55)' }}>
                     {prevShift.clockIn} – {prevShift.clockOut || 'End of shift'} · {prevShift.duration}
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(52,199,89,0.15)', borderRadius: 999, padding: '7px 14px' }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: GREEN, boxShadow: '0 0 0 2px rgba(52,199,89,0.3)' }} />
-                    <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: GREEN }}>Completed</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(52,199,89,0.15)', borderRadius: 999, padding: '2px 7px' }}>
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: GREEN, boxShadow: '0 0 0 2px rgba(52,199,89,0.3)' }} />
+                    <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 700, color: GREEN }}>Completed</span>
                   </div>
-                  <div style={{ fontFamily: INTER, fontSize: 14, color: 'rgba(255,255,255,0.45)' }}>{prevShift.duration}</div>
+                  <div style={{ fontFamily: INTER, fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>{prevShift.duration}</div>
                 </div>
               </div>
             </div>
-            {/* Sections */}
+            {/* Sections — identical layout to Manager DAR */}
             <div style={{ background: CARD }}>
               <Sect title="Start of Shift Package Audit" />
-              {audit && <Field label="Package Count" value={audit.notes} last />}
+              <Field label="Package Audit Completed" value="Yes" />
+              <Field label="Keys Found at Start of Shift" value="Yes" last={!audit} />
+              {audit && <Field label="Package Room Count" value={audit.notes} last />}
 
               <Sect title="Packages" />
-              <ActRows items={incoming} emptyLabel="No courier deliveries" />
-              <ActRows items={pickups} emptyLabel="No resident pickups" last />
+              <Field label="Delivered by Couriers" value={toStr(incoming)} />
+              <Field label="Picked Up by Residents" value={toStr(pickups)} last />
 
               <Sect title="Guests" />
-              <ActRows items={guests} emptyLabel="No guest arrivals" last />
+              <Field label="Guest Arrivals / Check-ins" value={toStr(guests)} last />
 
               <Sect title="Tours" />
-              <ActRows items={tours} emptyLabel="No tours" last />
+              <Field label="Scheduled & Walk-in Tours" value={toStr(tours)} last />
 
               <Sect title="Loaners" />
-              <ActRows items={loaners} emptyLabel="No loaner activity" last />
+              <Field label="Checkouts & Returns" value={toStr(loaners)} last />
 
               <Sect title="Lockouts" />
-              <ActRows items={lockouts} emptyLabel="No lockouts" last />
+              <Field label="Keys & Access Requests" value={toStr(lockouts)} last />
 
               <Sect title="Vendors" />
-              <ActRows items={vends} emptyLabel="No vendor activity" last />
+              <Field label="Vendor Activity" value={toStr(vends)} last />
 
               {rounds.length > 0 && (
                 <>
                   <Sect title="Security & Rounds" />
-                  <ActRows items={rounds} last />
+                  <Field label="Rounds Completed" value={toStr(rounds)} last />
                 </>
               )}
+
+              <Sect title="Shift Notes" />
+              <div style={{ padding: isPhone ? '10px 12px 14px' : isMobile ? '10px 16px 14px' : '10px 28px 14px' }}>
+                <p style={{ fontFamily: INTER, fontSize: 14, color: prevShift.note ? TEXT : MUTED, lineHeight: 1.6, margin: 0, fontStyle: prevShift.note ? 'normal' : 'italic' }}>{prevShift.note || 'No shift notes.'}</p>
+              </div>
+
               {prevShift.openItems?.length > 0 && (
                 <>
                   <Sect title="Open Items (Carry Over)" accent={ORANGE} />
@@ -876,14 +888,7 @@ export const CaregiverDashboard = ({
                   ))}
                 </>
               )}
-              {prevShift.note && (
-                <>
-                  <Sect title="Handover Notes" />
-                  <div style={{ padding: '16px 28px 20px' }}>
-                    <p style={{ fontFamily: INTER, fontSize: 16, color: TEXT, lineHeight: 1.7, margin: 0 }}>{prevShift.note}</p>
-                  </div>
-                </>
-              )}
+
               {prevShift.incidents?.length > 0 && (
                 <>
                   <Sect title="Incidents Filed" accent={RED} />
@@ -954,9 +959,9 @@ export const CaregiverDashboard = ({
         )}
       </div>
     );
-    const ActRows = ({ items, emptyLabel, last }) => items.length > 0
-      ? items.map((a,i)=><Field key={a.id||i} label={a.time||'—'} value={`${a.title}${a.notes?' · '+a.notes:''}`} photos={Array.isArray(a.evidenceUrls)?a.evidenceUrls:a.evidenceUrl?[a.evidenceUrl]:[]} last={last&&i===items.length-1} />)
-      : <Field label="—" value={emptyLabel||'N/A'} last={last} />;
+    const toStr = arr => arr.length > 0
+      ? arr.map(a => `${a.time||'—'}: ${a.title}${a.notes?' · '+a.notes:''}`).join('\n')
+      : 'N/A';
 
     return (
     <div style={{ flex:1, minHeight:0, overflowY:'auto', padding: isMobile ? '64px 16px 48px' : '28px 28px 48px' }}>
@@ -1006,26 +1011,41 @@ export const CaregiverDashboard = ({
               </div>
               <div style={{ background:CARD }}>
                 <Sect title="Start of Shift Package Audit" />
-                <Field label="Audit Completed" value="Yes" />
-                <Field label="Keys at Start" value="Yes" />
-                {audit && <Field label="Package Count" value={audit.notes} last />}
-                {completedTaskActs.length > 0 && (<><Sect title="Shift Checklist" accent="#6B7280" /><ActRows items={completedTaskActs} last /></>)}
+                <Field label="Package Audit Completed" value="Yes" />
+                <Field label="Keys Found at Start of Shift" value="Yes" last={!audit} />
+                {audit && <Field label="Package Room Count" value={audit.notes} last />}
+
                 <Sect title="Packages" />
-                <ActRows items={incoming} emptyLabel="No courier deliveries" />
-                <ActRows items={pickups} emptyLabel="No resident pickups" last />
+                <Field label="Delivered by Couriers" value={toStr(incoming)} />
+                <Field label="Picked Up by Residents" value={toStr(pickups)} last />
+
                 <Sect title="Guests" />
-                <ActRows items={guests} emptyLabel="No guest arrivals" last />
+                <Field label="Guest Arrivals / Check-ins" value={toStr(guests)} last />
+
                 <Sect title="Tours" />
-                <ActRows items={tours} emptyLabel="No tours" last />
+                <Field label="Scheduled & Walk-in Tours" value={toStr(tours)} last />
+
                 <Sect title="Loaners" />
-                <ActRows items={loaners} emptyLabel="No loaner activity" last />
+                <Field label="Checkouts & Returns" value={toStr(loaners)} last />
+
                 <Sect title="Lockouts" />
-                <ActRows items={lockouts} emptyLabel="No lockouts" last />
+                <Field label="Keys & Access Requests" value={toStr(lockouts)} last />
+
                 <Sect title="Vendors" />
-                <ActRows items={vends} emptyLabel="No vendor activity" last />
-                {rounds.length > 0 && (<><Sect title="Security & Rounds" /><ActRows items={rounds} last /></>)}
-                {activeShift.note && (<><Sect title="Shift Notes" /><div style={{ padding:'16px 28px 20px' }}><p style={{ fontFamily:INTER, fontSize:16, color:TEXT, lineHeight:1.7, margin:0 }}>{activeShift.note}</p></div></>)}
-                {activeShift.incidents.length > 0 && (<><Sect title="Incidents Filed" accent={RED} />{activeShift.incidents.map((inc,i,arr)=><Field key={i} label={`Incident ${i+1}`} value={inc} last={i===arr.length-1} />)}</>)}
+                <Field label="Vendor Activity" value={toStr(vends)} last />
+
+                {rounds.length > 0 && (
+                  <><Sect title="Security & Rounds" /><Field label="Rounds Completed" value={toStr(rounds)} last /></>
+                )}
+
+                <Sect title="Shift Notes" />
+                <div style={{ padding: isPhone ? '9px 12px 12px' : isMobile ? '9px 16px 12px' : '9px 28px 12px' }}>
+                  <p style={{ fontFamily:INTER, fontSize:14, color:activeShift.note?TEXT:MUTED, lineHeight:1.6, margin:0, fontStyle:activeShift.note?'normal':'italic' }}>{activeShift.note||'No shift notes yet.'}</p>
+                </div>
+
+                {activeShift.incidents.length > 0 && (
+                  <><Sect title="Incidents Filed" accent={RED} />{activeShift.incidents.map((inc,i,arr)=><Field key={i} label={`Incident ${i+1}`} value={inc} last={i===arr.length-1} />)}</>
+                )}
               </div>
             </>
           )}
