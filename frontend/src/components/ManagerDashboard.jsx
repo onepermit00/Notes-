@@ -598,16 +598,16 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   const DARSect = ({ title, accent='#8FAEDD' }) => (
-    <div style={{ background:accent, padding: isMobile ? '3px 12px' : '7px 28px', marginTop: isMobile ? 3 : 6 }}>
-      <span style={{ fontFamily:INTER, fontSize: isMobile ? 9 : 13, fontWeight:800, color:TEXT, letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
+    <div style={{ background:accent, padding: isPhone ? '3px 12px' : isMobile ? '7px 16px' : '7px 28px', marginTop: isPhone ? 3 : 6 }}>
+      <span style={{ fontFamily:INTER, fontSize: isPhone ? 9 : 13, fontWeight:800, color:TEXT, letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
     </div>
   );
   const DARField = ({ label, value, sub, last }) => (
-    <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 1 : 20, padding: isMobile ? '6px 12px' : '16px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
-      <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isMobile ? 9 : 17, fontWeight: isMobile ? 700 : 600, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
+    <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? (isPhone ? 1 : 2) : 20, padding: isPhone ? '6px 12px' : isMobile ? '12px 16px' : '16px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
+      <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isPhone ? 9 : isMobile ? 11 : 17, fontWeight: isMobile ? 700 : 600, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontFamily:INTER, fontSize: isMobile ? 11 : 17, color:TEXT, lineHeight:1.5, whiteSpace:'pre-line' }}>{value}</div>
-        {sub && <div style={{ fontFamily:INTER, fontSize: isMobile ? 10 : 15, color:MUTED, marginTop:2 }}>{sub}</div>}
+        <div style={{ fontFamily:INTER, fontSize: isPhone ? 11 : isMobile ? 15 : 17, color:TEXT, lineHeight:1.5, whiteSpace:'pre-line' }}>{value}</div>
+        {sub && <div style={{ fontFamily:INTER, fontSize: isPhone ? 10 : isMobile ? 13 : 15, color:MUTED, marginTop: isPhone ? 2 : 3 }}>{sub}</div>}
       </div>
     </div>
   );
