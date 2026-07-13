@@ -220,7 +220,7 @@ export const LockoutPage = ({ onActivityLogged }) => {
             <div style={{ position: 'relative' }}>
               <textarea rows={3} placeholder="Any additional context..." value={form.notes} onChange={e => set('notes', e.target.value)}
                 style={{ width: '100%', padding: '14px 44px 14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
-              <MicButton onTranscript={t => set('notes', form.notes ? form.notes + ' ' + t : t)} />
+              <MicButton onTranscript={t => setForm(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} />
             </div>
           </div>
         </div>
