@@ -2005,8 +2005,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                             </div>
                           )}
                           {isPhone ? (
-                            <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', padding:'9px', background:'rgba(255,255,255,0.12)', backdropFilter:'blur(16px)', WebkitBackdropFilter:'blur(16px)', border:'1px solid rgba(255,255,255,0.22)', borderRadius:999, boxShadow:'0 2px 10px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.18)', cursor:'pointer' }}>
-                              <Printer size={12} color='rgba(255,255,255,0.85)' />
+                            <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', padding:0, marginRight:7, background:'none', border:'none', cursor:'pointer' }}>
+                              <Printer size={14} color='rgba(255,255,255,0.6)' />
                             </button>
                           ) : (
                             <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 8px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:6, fontFamily:INTER, fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.6)', cursor:'pointer' }}>
