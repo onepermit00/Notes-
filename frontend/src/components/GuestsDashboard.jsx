@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
-import { UserCheck, MessageCircle, Clock, Check, LogOut, User, UtensilsCrossed, Package, Wrench, Truck, HelpCircle, Camera } from 'lucide-react';
+import { UserCheck, MessageCircle, Clock, Check, LogOut, User, UtensilsCrossed, Package, Wrench, Truck, HelpCircle, Camera, Plus, X, Calendar, Bell } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import ResidentSearchInput from './ResidentSearchInput';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
 const ORANGE = '#FF9500';
+
+const PREREG_KEY = 'adltrack_preregs';
+const loadPreRegs = () => { try { return JSON.parse(localStorage.getItem(PREREG_KEY)) || []; } catch { return []; } };
+const savePreRegs = items => localStorage.setItem(PREREG_KEY, JSON.stringify(items));
 
 const now = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
@@ -84,6 +89,11 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   const [toastId,  setToastId]  = useState(null);
   const [toastMsg, setToastMsg] = useState('');
 
+  // Pre-registration state
+  const [preRegs,  setPreRegs]  = useState(loadPreRegs);
+  const [prStep,   setPrStep]   = useState(1);
+  const [prForm,   setPrForm]   = useState({ guestName: '', residentName: '', unit: '', purpose: '', expectedTime: '' });
+
   const showToast = (msg, guestId) => {
     setToastId(guestId);
     setToastMsg(msg);
@@ -94,6 +104,12 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
     setView('list');
     setGStep(1);
     setForm({ guestName: '', residentName: '', unit: '', purpose: '', photo: null, photoPreview: null });
+  };
+
+  const goBackPr = () => {
+    setView('list');
+    setPrStep(1);
+    setPrForm({ guestName: '', residentName: '', unit: '', purpose: '', expectedTime: '' });
   };
 
   const logGuest = () => {
@@ -115,6 +131,44 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
     showToast(`Guest logged · Notify ${entry.residentName} now`, entry.id);
   };
 
+  const submitPreReg = () => {
+    if (!prForm.guestName.trim() || !prForm.residentName.trim() || !prForm.unit.trim()) return;
+    const entry = { ...prForm, id: Date.now(), createdAt: now(), status: 'pending' };
+    const next = [entry, ...preRegs];
+    setPreRegs(next);
+    savePreRegs(next);
+    goBackPr();
+    showToast(`${prForm.guestName} pre-registered for ${prForm.expectedTime || 'today'}`, entry.id);
+  };
+
+  const checkInPreReg = (pr) => {
+    // Remove from pre-reg list
+    const next = preRegs.filter(p => p.id !== pr.id);
+    setPreRegs(next);
+    savePreRegs(next);
+    // Add to active guests
+    const entry = {
+      id:           Date.now(),
+      guestName:    pr.guestName,
+      residentName: pr.residentName,
+      unit:         pr.unit,
+      purpose:      pr.purpose,
+      arrivedAt:    now(),
+      status:       'waiting',
+      notifiedAt:   null,
+      departedAt:   null,
+    };
+    setGuests(prev => [entry, ...prev]);
+    onActivityLogged?.({ title: `Guest check-in (pre-reg) · ${pr.guestName} → ${pr.residentName} · Unit ${pr.unit}`, category: 'Resident Assist', notes: pr.purpose });
+    showToast(`${pr.guestName} checked in from pre-registration`, entry.id);
+  };
+
+  const cancelPreReg = (id) => {
+    const next = preRegs.filter(p => p.id !== id);
+    setPreRegs(next);
+    savePreRegs(next);
+  };
+
   const notifyResident = (id) => {
     const guest = guests.find(g => g.id === id);
     if (!guest) return;
@@ -126,10 +180,95 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
     setGuests(prev => prev.map(g => g.id === id ? { ...g, status: 'departed', departedAt: now() } : g));
   };
 
+  // ── PRE-REGISTRATION WIZARD ───────────────────────────────────────────────
+  if (view === 'prereg') {
+    if (prStep === 1) return (
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
+        <WizardHeader title="Pre-register Visitor" step={1} totalSteps={2} onCancel={goBackPr} />
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+          <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
+            Who is expected?
+          </h2>
+          <div>
+            <Label>Visitor Name *</Label>
+            <input type="text" placeholder="Full name of expected visitor" value={prForm.guestName} onChange={e => setPrForm(p => ({ ...p, guestName: e.target.value }))}
+              style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div>
+            <Label>Expected Arrival Time <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
+            <input type="time" value={prForm.expectedTime} onChange={e => setPrForm(p => ({ ...p, expectedTime: e.target.value }))}
+              style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div>
+            <Label>Purpose <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {PURPOSE_CONFIG.map(({ id, Icon, desc }) => {
+                const sel = prForm.purpose === id;
+                return (
+                  <button key={id} onClick={() => setPrForm(p => ({ ...p, purpose: p.purpose === id ? '' : id }))}
+                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 14, background: sel ? 'rgba(255,56,92,0.04)' : CARD, border: `1.5px solid ${sel ? BLUE : BORDER}`, borderRadius: 14, cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'all 150ms' }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: sel ? 'rgba(255,56,92,0.12)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon size={20} color={sel ? BLUE : MUTED} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: TEXT }}>{id}</div>
+                      <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 1 }}>{desc}</div>
+                    </div>
+                    {sel && <div style={{ width: 22, height: 22, borderRadius: '50%', background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Check size={12} color="white" strokeWidth={3} /></div>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        <WizardFooter isFirst onContinue={() => setPrStep(2)} continueDisabled={!prForm.guestName.trim()} />
+      </div>
+    );
+
+    return (
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
+        <WizardHeader title="Pre-register Visitor" step={2} totalSteps={2} onCancel={goBackPr} />
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+          <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
+            Which resident are they visiting?
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: CARD2, borderRadius: 12, border: `1px solid ${BORDER}` }}>
+            <Calendar size={16} color={BLUE} />
+            <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 600, color: TEXT }}>{prForm.guestName}</span>
+            {prForm.expectedTime && <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>· Expected {prForm.expectedTime}</span>}
+          </div>
+          <div>
+            <Label>Search Resident (optional)</Label>
+            <ResidentSearchInput
+              colors={{ CARD, CARD2, BORDER, TEXT, MUTED, SHADOW }} INTER={INTER}
+              placeholder="Search by name or unit to auto-fill…"
+              onSelect={r => r ? setPrForm(p => ({ ...p, residentName: r.name || p.residentName, unit: r.unit || p.unit })) : null}
+            />
+          </div>
+          <div>
+            <Label>Resident Name *</Label>
+            <input type="text" placeholder="Name of resident being visited" value={prForm.residentName} onChange={e => setPrForm(p => ({ ...p, residentName: e.target.value }))}
+              style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div>
+            <Label>Unit Number *</Label>
+            <input type="text" placeholder="e.g. 412" value={prForm.unit} onChange={e => setPrForm(p => ({ ...p, unit: e.target.value }))}
+              style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ background: 'rgba(255,56,92,0.06)', border: '1px solid rgba(255,56,92,0.18)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <Bell size={15} color={BLUE} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.55 }}>
+              When this visitor arrives, tap <strong style={{ color: TEXT }}>Check In</strong> on their pre-registration card to log their arrival instantly.
+            </span>
+          </div>
+        </div>
+        <WizardFooter onBack={() => setPrStep(1)} onContinue={submitPreReg} continueLabel="Save Pre-registration" continueDisabled={!prForm.residentName.trim() || !prForm.unit.trim()} />
+      </div>
+    );
+  }
+
   // ── LOG GUEST WIZARD ──────────────────────────────────────────────────────
   if (view === 'form') {
-
-    // Step 1: Guest details + purpose
     if (gStep === 1) return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
         <WizardHeader title="Log Guest Arrival" step={1} totalSteps={2} onCancel={goBack} />
@@ -137,13 +276,11 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Who is visiting?
           </h2>
-
           <div>
             <Label>Guest Name *</Label>
             <input type="text" placeholder="Full name of visitor" value={form.guestName} onChange={e => setForm(p => ({ ...p, guestName: e.target.value }))}
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
           </div>
-
           <div>
             <Label>Purpose of Visit <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -159,11 +296,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
                       <div style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT }}>{id}</div>
                       <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 2, lineHeight: 1.4 }}>{desc}</div>
                     </div>
-                    {sel && (
-                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Check size={13} color="white" strokeWidth={3} />
-                      </div>
-                    )}
+                    {sel && <div style={{ width: 26, height: 26, borderRadius: '50%', background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Check size={13} color="white" strokeWidth={3} /></div>}
                   </button>
                 );
               })}
@@ -174,7 +307,6 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
       </div>
     );
 
-    // Step 2: Resident details
     return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
         <WizardHeader title="Log Guest Arrival" step={2} totalSteps={2} onCancel={goBack} />
@@ -182,32 +314,29 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Who are they here to see?
           </h2>
-
-          {/* Guest summary chip */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: CARD2, borderRadius: 12, border: `1px solid ${BORDER}` }}>
             <UserCheck size={16} color={BLUE} />
             <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 600, color: TEXT }}>{form.guestName}</span>
-            {form.purpose && (
-              <>
-                <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>·</span>
-                <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>{form.purpose}</span>
-              </>
-            )}
+            {form.purpose && <><span style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>·</span><span style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>{form.purpose}</span></>}
           </div>
-
+          <div>
+            <Label>Search Resident (optional)</Label>
+            <ResidentSearchInput
+              colors={{ CARD, CARD2, BORDER, TEXT, MUTED, SHADOW }} INTER={INTER}
+              placeholder="Search by name or unit to auto-fill…"
+              onSelect={r => r ? setForm(p => ({ ...p, residentName: r.name || p.residentName, unit: r.unit || p.unit })) : null}
+            />
+          </div>
           <div>
             <Label>Resident Name *</Label>
             <input type="text" placeholder="Name of resident being visited" value={form.residentName} onChange={e => setForm(p => ({ ...p, residentName: e.target.value }))}
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
           </div>
-
           <div>
             <Label>Unit Number *</Label>
             <input type="text" placeholder="e.g. 412" value={form.unit} onChange={e => setForm(p => ({ ...p, unit: e.target.value }))}
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
           </div>
-
-          {/* Optional photo */}
           <div>
             <Label>Photo <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
             {form.photoPreview ? (
@@ -215,7 +344,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
                 <img src={form.photoPreview} alt="Guest" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
                 <button onClick={() => setForm(p => ({ ...p, photo: null, photoPreview: null }))}
                   style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: 'white', fontSize: 14, lineHeight: 1 }}>✕</span>
+                  <X size={14} color="white" />
                 </button>
               </div>
             ) : (
@@ -232,7 +361,6 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
               </label>
             )}
           </div>
-
           <div style={{ background: 'rgba(255,56,92,0.06)', border: '1px solid rgba(255,56,92,0.18)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
             <MessageCircle size={16} color={BLUE} style={{ flexShrink: 0, marginTop: 1 }} />
             <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.55 }}>
@@ -249,6 +377,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   const activeGuests   = guests.filter(g => g.status !== 'departed');
   const departedGuests = guests.filter(g => g.status === 'departed');
   const waitingCount   = guests.filter(g => g.status === 'waiting').length;
+  const pendingPreRegs = preRegs.filter(p => p.status === 'pending');
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
@@ -264,14 +393,65 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
       {/* Scrollable content */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
+        {/* Pre-registered visitors */}
+        {pendingPreRegs.length > 0 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Calendar size={20} color={ORANGE} />
+                <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Expected Today</h2>
+              </div>
+              <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,149,0,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: ORANGE, fontFamily: INTER }}>{pendingPreRegs.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {pendingPreRegs.map(pr => {
+                const purposeCfg = PURPOSE_CONFIG.find(p => p.id === pr.purpose);
+                const GIcon = purposeCfg?.Icon ?? UserCheck;
+                return (
+                  <div key={pr.id} style={{ background: CARD, border: `1.5px solid rgba(255,149,0,0.28)`, borderRadius: 16, padding: 16, boxShadow: '0 4px 16px rgba(255,149,0,0.08)' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 12 }}>
+                      <div style={{ width: 48, height: 48, background: 'rgba(255,149,0,0.12)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <GIcon size={22} color={ORANGE} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
+                          <span style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT }}>{pr.guestName}</span>
+                          <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: ORANGE, background: 'rgba(255,149,0,0.12)', borderRadius: 6, padding: '2px 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pre-reg</span>
+                        </div>
+                        <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: '0 0 3px' }}>
+                          Visiting <span style={{ fontWeight: 600, color: TEXT }}>{pr.residentName}</span> · Unit {pr.unit}
+                        </p>
+                        {pr.expectedTime && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <Clock size={11} color={MUTED} />
+                            <span style={{ fontFamily: INTER, fontSize: 12, color: MUTED }}>Expected {pr.expectedTime}</span>
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={() => cancelPreReg(pr.id)}
+                        style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                        <X size={13} color={MUTED} />
+                      </button>
+                    </div>
+                    <button onClick={() => checkInPreReg(pr)}
+                      style={{ width: '100%', padding: '12px 0', background: ORANGE, border: 'none', borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                      <Check size={16} /> Check In Now
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Empty state */}
-        {guests.length === 0 && (
+        {guests.length === 0 && pendingPreRegs.length === 0 && (
           <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '48px 24px', textAlign: 'center' }}>
             <div style={{ width: 64, height: 64, borderRadius: 18, background: 'rgba(255,56,92,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
               <UserCheck size={28} color={BLUE} strokeWidth={1.5} />
             </div>
             <p style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, margin: '0 0 5px' }}>No guests logged</p>
-            <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>Tap "Log Guest" below to document a visitor</p>
+            <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>Tap "Log Guest" below or pre-register an expected visitor</p>
           </div>
         )}
 
@@ -296,7 +476,6 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
                 const GIcon      = purposeCfg?.Icon ?? UserCheck;
                 return (
                   <div key={g.id} style={{ background: CARD, border: `1.5px solid ${isWaiting ? 'rgba(255,149,0,0.28)' : BORDER}`, borderRadius: 16, padding: 20, boxShadow: isWaiting ? '0 4px 16px rgba(255,149,0,0.08)' : '0 2px 8px rgba(0,0,0,0.04)' }}>
-                    {/* Top row */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 14 }}>
                       <div style={{ width: 56, height: 56, background: `${st.color}18`, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <GIcon size={26} color={st.color} />
@@ -317,7 +496,6 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
                         </div>
                       </div>
                     </div>
-                    {/* Action buttons */}
                     <div style={{ display: 'flex', gap: 8 }}>
                       {isWaiting && (
                         <button onClick={() => notifyResident(g.id)}
@@ -357,7 +535,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {departedGuests.map(g => {
                 const purposeCfg = PURPOSE_CONFIG.find(p => p.id === g.purpose);
-                const GIcon      = purposeCfg?.Icon ?? UserCheck;
+                const GIcon = purposeCfg?.Icon ?? UserCheck;
                 return (
                   <div key={g.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 16, display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <div style={{ width: 48, height: 48, background: CARD2, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -379,11 +557,16 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
       </div>
 
       {/* Fixed CTA */}
-      <div style={{ flexShrink: 0, padding: '12px 16px 20px', background: CARD, borderTop: `1px solid ${BORDER}` }}>
+      <div style={{ flexShrink: 0, padding: '12px 16px 20px', background: CARD, borderTop: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <button onClick={() => setView('form')}
           style={{ width: '100%', padding: '16px 0', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 16, fontWeight: 700, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 6px 20px rgba(255,56,92,0.32)' }}>
           <UserCheck size={20} />
           Log Guest Arrival
+        </button>
+        <button onClick={() => setView('prereg')}
+          style={{ width: '100%', padding: '13px 0', background: 'rgba(255,149,0,0.08)', border: `1.5px solid rgba(255,149,0,0.3)`, borderRadius: 14, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: ORANGE, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <Calendar size={17} />
+          Pre-register Expected Visitor
         </button>
       </div>
     </div>

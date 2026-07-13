@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Package, Plus, Minus, Check, Truck, RotateCcw, ChevronRight, FileText, ArrowLeft, Camera, MessageCircle, X, Mail, ShoppingBag, Globe, UtensilsCrossed, Box, User, Users } from 'lucide-react';
+import { Package, Plus, Minus, Check, Truck, RotateCcw, ChevronRight, FileText, ArrowLeft, Camera, MessageCircle, X, Mail, ShoppingBag, Globe, UtensilsCrossed, Box, User, Users, Bell, BellOff } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import MicButton from './MicButton';
 import { SignaturePad } from './SignaturePad';
 import { authApi } from '../services/authApi';
+import ResidentSearchInput from './ResidentSearchInput';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
@@ -153,7 +154,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
   const [rStep,  setRStep]  = useState(1);
   const [rpStep, setRPStep] = useState(1);
 
-  const [dForm, setDF] = useState({ carrier: '', unit: '', count: 1, storage: 'Luxer Locker', overflowUnit: '', notes: '', photo: null, photoPreview: null });
+  const [dForm, setDF] = useState({ carrier: '', unit: '', count: 1, storage: 'Luxer Locker', overflowUnit: '', notes: '', photo: null, photoPreview: null, notifyNow: true, residentName: '' });
   const [toast, setToast] = useState(null);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -194,11 +195,15 @@ export const PackageDashboard = ({ onActivityLogged }) => {
     setDStep(1); setPStep(1); setRStep(1); setRPStep(1);
   };
 
-  const submitDelivery = () => {
+  const submitDelivery = async () => {
     if (!dForm.carrier || !dForm.unit) return;
-    setDeliveries(p => [{ ...dForm, id: Date.now(), time: now(), isFood: dForm.carrier === 'Food Delivery', notified: false, notifiedAt: null }, ...p]);
+    const newDel = { ...dForm, id: Date.now(), time: now(), isFood: dForm.carrier === 'Food Delivery', notified: dForm.notifyNow, notifiedAt: dForm.notifyNow ? now() : null };
+    setDeliveries(p => [newDel, ...p]);
     onActivityLogged?.({ title: `Package delivery · ${dForm.carrier} → Unit ${dForm.unit}`, category: 'Delivery', notes: dForm.notes, evidenceUrls: dForm.photoPreview ? [dForm.photoPreview] : [] });
-    setDF({ carrier: '', unit: '', count: 1, storage: 'Luxer Locker', overflowUnit: '', notes: '', photo: null, photoPreview: null });
+    if (dForm.notifyNow) {
+      authApi.notifyPackage({ unit: dForm.unit, carrier: dForm.carrier, count: dForm.count, residentName: dForm.residentName || '', photoUrl: dForm.photoPreview || null });
+    }
+    setDF({ carrier: '', unit: '', count: 1, storage: 'Luxer Locker', overflowUnit: '', notes: '', photo: null, photoPreview: null, notifyNow: true, residentName: '' });
     setDStep(1);
     setView('main');
   };
@@ -261,6 +266,14 @@ export const PackageDashboard = ({ onActivityLogged }) => {
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Package details
           </h2>
+          <div>
+            <Label>Search Resident (optional)</Label>
+            <ResidentSearchInput
+              colors={{ CARD, CARD2, BORDER, TEXT, MUTED, SHADOW }} INTER={INTER}
+              placeholder="Search by name or unit to auto-fill…"
+              onSelect={r => r ? setDF(p => ({ ...p, unit: r.unit || p.unit, residentName: r.name || p.residentName })) : null}
+            />
+          </div>
           <div>
             <Label>Unit Number *</Label>
             <input type="text" placeholder="e.g. 524" value={dForm.unit} onChange={e => setDF(p => ({ ...p, unit: e.target.value }))}
@@ -344,12 +357,24 @@ export const PackageDashboard = ({ onActivityLogged }) => {
             )}
           </div>
 
-          <div style={{ background: 'rgba(255,56,92,0.06)', border: '1px solid rgba(255,56,92,0.18)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-            <MessageCircle size={16} color={BLUE} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
-              After logging, tap <strong style={{ color: TEXT }}>Notify Resident</strong> on the delivery card to send a text{dForm.photoPreview ? ' with the photo' : ''}.
-            </span>
-          </div>
+          {/* Notify Resident toggle */}
+          <button onClick={() => setDF(p => ({ ...p, notifyNow: !p.notifyNow }))}
+            style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px', background: dForm.notifyNow ? 'rgba(52,199,89,0.06)' : CARD2, border: `1.5px solid ${dForm.notifyNow ? 'rgba(52,199,89,0.3)' : BORDER}`, borderRadius: 14, cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'all 150ms' }}>
+            <div style={{ width: 40, height: 40, borderRadius: 11, background: dForm.notifyNow ? 'rgba(52,199,89,0.15)' : CARD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {dForm.notifyNow ? <Bell size={20} color="#34C759" /> : <BellOff size={20} color={MUTED} />}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: dForm.notifyNow ? TEXT : MUTED }}>
+                {dForm.notifyNow ? 'Notify resident on log' : 'No notification'}
+              </div>
+              <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 2 }}>
+                {dForm.notifyNow ? `Text sent to Unit ${dForm.unit || '—'}${dForm.residentName ? ` · ${dForm.residentName}` : ''}` : 'Tap to enable resident text notification'}
+              </div>
+            </div>
+            <div style={{ width: 24, height: 24, borderRadius: 7, background: dForm.notifyNow ? '#34C759' : 'transparent', border: dForm.notifyNow ? 'none' : `2px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {dForm.notifyNow && <Check size={14} color="white" />}
+            </div>
+          </button>
         </div>
         <WizardFooter onBack={() => setDStep(2)} onContinue={submitDelivery} continueLabel="Log Delivery" />
       </div>

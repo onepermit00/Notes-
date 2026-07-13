@@ -26,6 +26,7 @@ import { TeamMessagesPage } from './TeamMessagesPage';
 import { ShiftCalendarPage } from './ShiftCalendarPage';
 import { VendorsDashboard } from './VendorsDashboard';
 import { GuestsDashboard } from './GuestsDashboard';
+import FollowUpTracker, { useFollowUps } from './FollowUpTracker';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { HistoryPage } from './pages/HistoryPage';
@@ -302,7 +303,7 @@ export const CaregiverDashboard = ({
   const [selfTasks,     setSelfTasks]     = useState([]);
   const [showNewTask,   setShowNewTask]   = useState(false);
   const [ntStep,        setNtStep]        = useState(1);
-  const [ntForm,        setNTF]           = useState({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '' });
+  const [ntForm,        setNTF]           = useState({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '', flagFollowUp: false });
   const [showModels,    setShowModels]    = useState(false);
   const [modelUnits,    setModelUnits]    = useState(MODEL_UNITS_INIT);
   const [showElevators, setShowElevators] = useState(false);
@@ -318,6 +319,10 @@ export const CaregiverDashboard = ({
   const [pwStatusCG,       setPwStatusCG]       = useState('');  // '', 'saving', 'success', 'error:...'
   const [shiftStarting,    setShiftStarting]    = useState(false);
   const [showSearch,       setShowSearch]       = useState(false);
+  const [showSummary,      setShowSummary]      = useState(false);
+  const [summaryText,      setSummaryText]      = useState('');
+  const [summaryCopied,    setSummaryCopied]    = useState(false);
+  const followUps = useFollowUps();
   const [searchQuery,      setSearchQuery]      = useState('');
   const [shCalDate,    setShCalDate]    = useState(new Date());
   const [shCalView,    setShCalView]    = useState('month');
@@ -526,7 +531,10 @@ export const CaregiverDashboard = ({
     const t = nowStr();
     const localTask = { ...ntForm, id: Date.now(), startedAt: t, completedAt: t, status: 'completed' };
     setSelfTasks(p => [localTask, ...p]);
-    setNTF({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '' });
+    if (ntForm.flagFollowUp) {
+      followUps.add({ text: ntForm.title + (ntForm.notes ? ` — ${ntForm.notes}` : ''), source: ntForm.category || 'task' });
+    }
+    setNTF({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '', flagFollowUp: false });
     setNtStep(1);
     setShowNewTask(false);
     // Save to backend so manager can see it
@@ -1191,13 +1199,28 @@ export const CaregiverDashboard = ({
 
         {/* Section header */}
         {selfTasks.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ClipboardList size={20} color={BLUE} />
-              <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Logged Tasks</h2>
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ClipboardList size={20} color={BLUE} />
+                <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Logged Tasks</h2>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => {
+                  const lines = selfTasks.map((t, i) => `${i+1}. [${t.category||'General'}] ${t.title}${t.notes ? ` — ${t.notes}` : ''}${t.location ? ` (${t.location})` : ''}`).join('\n');
+                  const date = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+                  const name = authUser?.name || 'Concierge';
+                  const text = `SHIFT SUMMARY\n${date} · ${name}\nTime on Duty: ${shiftStartTime ? `${shiftStartTime} – Present` : 'Active shift'}\n\nACTIVITIES LOGGED (${selfTasks.length}):\n${lines}\n\nKEY STATS:\n• Packages handled: ${selfTasks.filter(t=>(t.category||'').includes('Delivery')).length}\n• Security events: ${selfTasks.filter(t=>(t.category||'').includes('Safety')).length}\n• Resident assists: ${selfTasks.filter(t=>(t.category||'').includes('Resident')).length}\n\nAll events documented in the activity log. Ready for handoff.`;
+                  setSummaryText(text);
+                  setShowSummary(true);
+                }}
+                  style={{ height: 32, padding: '0 12px', background: 'rgba(255,56,92,0.08)', border: '1px solid rgba(255,56,92,0.2)', borderRadius: 10, fontFamily: INTER, fontSize: 12, fontWeight: 700, color: BLUE, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                  <Sparkles size={13} /> AI Summary
+                </button>
+                <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,56,92,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: BLUE, flexShrink: 0 }}>{selfTasks.length}</span>
+              </div>
             </div>
-            <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,56,92,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: BLUE, flexShrink: 0 }}>{selfTasks.length}</span>
-          </div>
+          </>
         )}
 
         {/* Empty state */}
@@ -1704,7 +1727,7 @@ export const CaregiverDashboard = ({
     vendors: 'Vendors', incident: 'Incident Report', calendar: 'Calendar',
     'shift-history': 'Shift History', messages: 'Messages',
     guests: 'Guests', settings: 'Settings', profile: 'Profile',
-    sops: 'Building SOPs', training: 'Training',
+    sops: 'Building SOPs', training: 'Training', followup: 'Follow-up Tracker',
   };
 
   const NAV_ITEMS = [
@@ -1718,6 +1741,7 @@ export const CaregiverDashboard = ({
     { id: 'tours',         Icon: Users,         label: 'Tours'               },
     { id: 'loaners',       Icon: ShoppingCart,  label: 'Loaners'             },
     { id: 'incident',      Icon: AlertTriangle,  label: 'Incident'   },
+    { id: 'followup',      Icon: Flag,           label: 'Follow-ups',  badge: followUps.items.filter(i => i.status !== 'resolved').length || null },
     { id: 'sops',          Icon: BookOpen,       label: 'SOPs'       },
     { id: 'training',      Icon: GraduationCap,  label: 'Training'   },
     { id: 'calendar',      Icon: Calendar,       label: 'Shifts'     },
@@ -2583,6 +2607,15 @@ export const CaregiverDashboard = ({
                   {activeTab === 'settings'      && renderSettingsContent()}
                   {activeTab === 'sops'          && renderSOPs()}
                   {activeTab === 'training'      && renderTrainingContent()}
+                  {activeTab === 'followup'      && (
+                    <div style={{ padding: isPhone ? '16px 16px 48px' : '20px 20px 48px' }}>
+                      <FollowUpTracker
+                        colors={{ BG, CARD, CARD2, BORDER, TEXT, MUTED, SHADOW }}
+                        INTER={INTER}
+                        followUps={followUps}
+                      />
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </>
@@ -2614,6 +2647,42 @@ export const CaregiverDashboard = ({
           </>
         )}
       </AnimatePresence>
+
+      {/* AI Shift Summary modal */}
+      {showSummary && (
+        <>
+          <div onClick={() => setShowSummary(false)} style={{ position:'fixed', inset:0, zIndex:90, background:'rgba(0,0,0,0.4)', backdropFilter:'blur(4px)' }} />
+          <div style={{ position:'fixed', left:'50%', top:'50%', transform:'translate(-50%,-50%)', zIndex:91, width: isPhone ? 'calc(100% - 32px)' : 520, maxHeight: '80vh', background:CARD, borderRadius:24, display:'flex', flexDirection:'column', overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding:'20px 20px 14px', borderBottom:`1px solid ${BORDER}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:'rgba(255,56,92,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Sparkles size={18} color={BLUE} />
+                </div>
+                <div>
+                  <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT }}>AI Shift Summary</div>
+                  <div style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>Ready to copy or share</div>
+                </div>
+              </div>
+              <button onClick={() => setShowSummary(false)} style={{ width:32, height:32, borderRadius:'50%', border:'none', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                <X size={16} color={MUTED} />
+              </button>
+            </div>
+            <div style={{ flex:1, overflowY:'auto', padding:20 }}>
+              <pre style={{ fontFamily:INTER, fontSize:13, color:TEXT, lineHeight:1.7, whiteSpace:'pre-wrap', wordBreak:'break-word', background:CARD2, borderRadius:14, padding:16, margin:0 }}>{summaryText}</pre>
+            </div>
+            <div style={{ padding:'14px 20px', borderTop:`1px solid ${BORDER}`, display:'flex', gap:10 }}>
+              <button onClick={() => { navigator.clipboard.writeText(summaryText).then(() => { setSummaryCopied(true); setTimeout(() => setSummaryCopied(false), 2500); }); }}
+                style={{ flex:1, padding:'13px 0', background: summaryCopied ? GREEN : BLUE, border:'none', borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer' }}>
+                {summaryCopied ? '✓ Copied!' : 'Copy Summary'}
+              </button>
+              <a href={`sms:?body=${encodeURIComponent(summaryText)}`}
+                style={{ flex:1, padding:'13px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, cursor:'pointer', textDecoration:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                Send SMS
+              </a>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* AI Copilot */}
       <AICopilot isOpen={showCopilot} onClose={() => setShowCopilot(false)} role="concierge" patientName={propertyName} />
@@ -3121,6 +3190,20 @@ export const CaregiverDashboard = ({
                         <MicButton onTranscript={t => setNTF(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} />
                       </div>
                     </div>
+                    {/* Flag for Follow-up */}
+                    <button onClick={() => setNTF(p => ({ ...p, flagFollowUp: !p.flagFollowUp }))}
+                      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 14, border: `1.5px solid ${ntForm.flagFollowUp ? ORANGE : BORDER}`, background: ntForm.flagFollowUp ? 'rgba(255,149,0,0.06)' : CARD2, cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 11, background: ntForm.flagFollowUp ? 'rgba(255,149,0,0.15)' : CARD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Flag size={18} color={ntForm.flagFollowUp ? ORANGE : MUTED} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: ntForm.flagFollowUp ? TEXT : MUTED }}>Flag for Follow-up</div>
+                        <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 2 }}>Adds this task to your Follow-up Tracker</div>
+                      </div>
+                      <div style={{ width: 22, height: 22, borderRadius: 7, background: ntForm.flagFollowUp ? ORANGE : 'transparent', border: ntForm.flagFollowUp ? 'none' : `2px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {ntForm.flagFollowUp && <Check size={13} color="white" strokeWidth={3} />}
+                      </div>
+                    </button>
                   </>
                 )}
               </div>

@@ -30,6 +30,63 @@ const SEVERITY_LEVELS = [
   { id: 'critical', label: 'Critical', color: '#dc2626' },
 ];
 
+const PLAYBOOK_CONFIG = {
+  noise: [
+    'Note exact unit number and time of complaint',
+    'Call or visit the unit calmly — first contact resolution',
+    'Document outcome: resolved, unresolved, or police called',
+    'Notify property manager if issue persists after 2nd contact',
+  ],
+  unauthorized: [
+    'Do NOT confront the individual if you feel unsafe',
+    'Note physical description, direction of travel, and time',
+    'Review available camera footage and preserve it',
+    'Contact police if person remains on property',
+    'Notify property manager immediately',
+  ],
+  parking: [
+    'Photograph the vehicle — include license plate',
+    'Verify unauthorized status against parking records',
+    'Attempt to locate the vehicle owner via intercom',
+    'Contact towing company if owner not reached within 30 min',
+    'Document all actions taken in this report',
+  ],
+  maintenance: [
+    'Assess immediate safety risk — secure the area if hazardous',
+    'Contact maintenance or after-hours emergency line',
+    'Document scope of damage with photos',
+    'Notify affected residents if necessary',
+    'Follow up on repair timeline with management',
+  ],
+  disturbance: [
+    'Do NOT physically intervene in any altercation',
+    'Attempt verbal de-escalation from a safe distance',
+    'Call 911 and notify property manager if unresolved',
+    'Document all parties involved and what you witnessed',
+    'File this formal report for management review',
+  ],
+  package: [
+    'Cross-reference package room logs with delivery records',
+    'Check carrier tracking information for confirmation',
+    'Notify the resident in writing of the discrepancy',
+    'Escalate to manager if package is high-value or confirmed missing',
+    'Document all findings and actions taken',
+  ],
+  utility: [
+    'Identify affected area and scope — gas, water, power, elevator',
+    'For gas leaks: evacuate affected area and call 911 immediately',
+    'Contact the relevant utility provider or building maintenance',
+    'Notify affected residents via intercom or phone right away',
+    'Monitor and provide regular updates to management',
+  ],
+  other: [
+    'Document all facts and observations accurately',
+    'Assess whether the situation requires immediate escalation',
+    'Contact property manager if uncertain how to proceed',
+    'Secure any evidence: photos, written descriptions',
+  ],
+};
+
 export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', incidents = [], onAddIncident }) => {
   const { colors } = useTheme();
   const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
@@ -73,6 +130,7 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
   const [followUpRequired, setFollowUpRequired] = useState(false);
   const [isSubmitting,     setIsSubmitting]     = useState(false);
   const [showSuccess,      setShowSuccess]      = useState(false);
+  const [escalationCopied, setEscalationCopied] = useState(false);
 
   const handlePhotoUpload = (e) => {
     Array.from(e.target.files || []).forEach(file => {
@@ -121,15 +179,39 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
 
         {/* Success Screen */}
         {showSuccess ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px', textAlign: 'center' }}>
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', textAlign: 'center' }}>
             <div style={{ width: 80, height: 80, background: GREEN, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24, boxShadow: '0 8px 32px rgba(46,158,91,0.3)' }}>
               <Check size={40} color="white" />
             </div>
             <h2 style={{ fontFamily: INTER, fontSize: '1.6rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 8 }}>Report Submitted</h2>
-            <p style={{ fontSize: 15, color: MUTED, marginBottom: 32, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 15, color: MUTED, marginBottom: 28, lineHeight: 1.6 }}>
               Your incident report has been submitted successfully.
               {notifyFamily && ' Property manager has been notified.'}
             </p>
+            {/* One-tap Escalation */}
+            <div style={{ width: '100%', maxWidth: 360, background: CARD, border: `1.5px solid rgba(255,59,48,0.2)`, borderRadius: 18, padding: '20px 20px', marginBottom: 20, textAlign: 'left' }}>
+              <p style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: 12 }}>Escalate to Manager</p>
+              {(() => {
+                const type = INCIDENT_TYPES.find(t => t.id === incidentType);
+                const sev  = SEVERITY_LEVELS.find(s => s.id === severity);
+                const msg  = `[INCIDENT ESCALATION]\nProperty: ${patientName}\nType: ${type?.label || incidentType}\nSeverity: ${sev?.label || severity}${unitNumber ? `\nUnit: ${unitNumber}` : ''}${personInvolved ? `\nPerson: ${personInvolved}` : ''}\nDescription: ${description}\nActions Taken: ${actionsTaken || 'None documented'}\nTime: ${new Date().toLocaleString()}`;
+                return (
+                  <div>
+                    <pre style={{ fontFamily: INTER, fontSize: 12, color: TEXT, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: CARD2, borderRadius: 10, padding: 12, marginBottom: 14 }}>{msg}</pre>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => { navigator.clipboard.writeText(msg).then(() => { setEscalationCopied(true); setTimeout(() => setEscalationCopied(false), 2500); }); }}
+                        style={{ flex: 1, padding: '11px 0', background: escalationCopied ? GREEN : '#FF3B30', border: 'none', borderRadius: 10, fontFamily: INTER, fontSize: 13, fontWeight: 700, color: 'white', cursor: 'pointer' }}>
+                        {escalationCopied ? '✓ Copied!' : 'Copy Message'}
+                      </button>
+                      <a href={`sms:?body=${encodeURIComponent(msg)}`}
+                        style={{ flex: 1, padding: '11px 0', background: 'rgba(255,56,92,0.08)', border: '1px solid rgba(255,56,92,0.2)', borderRadius: 10, fontFamily: INTER, fontSize: 13, fontWeight: 700, color: '#FF385C', cursor: 'pointer', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        Send SMS
+                      </a>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
             <button onClick={resetForm}
               style={{ padding: '16px 40px', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 16, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 8px 24px ${BLUE}40` }}
               data-testid="incident-done-btn">
@@ -188,6 +270,22 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
                         );
                       })}
                     </div>
+                    {/* Emergency Playbook — shown when type is selected */}
+                    {incidentType && PLAYBOOK_CONFIG[incidentType] && (
+                      <div style={{ marginTop: 20, background: 'rgba(255,59,48,0.05)', border: '1.5px solid rgba(255,59,48,0.25)', borderRadius: 16, padding: '18px 20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(255,59,48,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <Shield size={16} color={RED} />
+                          </div>
+                          <p style={{ fontFamily: INTER, fontSize: 13, fontWeight: 800, color: RED, textTransform: 'uppercase', letterSpacing: '0.10em' }}>Response Protocol</p>
+                        </div>
+                        <ol style={{ margin: 0, padding: '0 0 0 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {PLAYBOOK_CONFIG[incidentType].map((step, i) => (
+                            <li key={i} style={{ fontFamily: INTER, fontSize: 14, color: TEXT, lineHeight: 1.55 }}>{step}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
                   </div>
                 )}
 

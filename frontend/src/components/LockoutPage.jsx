@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Lock, Key, Clock, FileText, AlertTriangle, Check, Home, Wrench, CreditCard, UserCheck, Phone, Building2, HelpCircle, Wifi } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import MicButton from './MicButton';
+import ResidentSearchInput from './ResidentSearchInput';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
@@ -137,6 +138,14 @@ export const LockoutPage = ({ onActivityLogged }) => {
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Who is locked out?
           </h2>
+          <div>
+            <Label>Search Resident (optional)</Label>
+            <ResidentSearchInput
+              colors={{ CARD, CARD2, BORDER, TEXT, MUTED, SHADOW }} INTER={INTER}
+              placeholder="Search by name or unit to auto-fill…"
+              onSelect={r => r ? setForm(p => ({ ...p, resident: r.name || p.resident, unit: r.unit || p.unit })) : null}
+            />
+          </div>
           <div>
             <Label>Resident Name *</Label>
             <input type="text" placeholder="Full name" value={form.resident} onChange={e => set('resident', e.target.value)}
