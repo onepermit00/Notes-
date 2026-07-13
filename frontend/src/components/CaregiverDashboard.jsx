@@ -919,8 +919,10 @@ export const CaregiverDashboard = ({
     const sevColor    = (sev) => sev === 'critical' || sev === 'high' ? RED : sev === 'medium' ? ORANGE : BLUE;
 
     const taskCatMap = { packages:'Delivery', mail:'Delivery', patrol:'Safety / Security', amenity:'Amenity', opening:'Administrative', coverage:'Administrative', documentation:'Administrative' };
-    const completedTaskActs = isShiftActive ? displayTasks.filter(t=>t.status===TaskStatus.COMPLETED&&t.completedAt).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:t.title, notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] })) : [];
-    const selfTaskActs = selfTasks.map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] }));
+    const todayLabel = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    const isToday = ts => ts && ts.startsWith(todayLabel + ',');
+    const completedTaskActs = isShiftActive ? displayTasks.filter(t=>t.status===TaskStatus.COMPLETED&&isToday(t.completedAt)).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:t.title, notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] })) : [];
+    const selfTaskActs = selfTasks.filter(t=>isToday(t.completedAt)).map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] }));
     const acts     = [...selfTaskActs, ...completedTaskActs];
     const delivery = acts.filter(a=>a.category==='Delivery');
     const security = acts.filter(a=>a.category==='Safety / Security');
@@ -1010,41 +1012,56 @@ export const CaregiverDashboard = ({
                 )}
               </div>
               <div style={{ background:CARD }}>
-                <Sect title="Start of Shift Package Audit" />
+                <Sect title="Start of Shift Package Audit" accent='#8FAEDD' />
                 <Field label="Package Audit Completed" value="Yes" />
-                <Field label="Keys Found at Start of Shift" value="Yes" last={!audit} />
+                <Field label="Keys Found at Start of Shift" value="Yes" />
                 {audit && <Field label="Package Room Count" value={audit.notes} last />}
 
-                <Sect title="Packages" />
+                <Sect title="Packages" accent='#8FAEDD' />
                 <Field label="Delivered by Couriers" value={toStr(incoming)} />
                 <Field label="Picked Up by Residents" value={toStr(pickups)} last />
 
-                <Sect title="Guests" />
+                <Sect title="Guests" accent='#8FAEDD' />
                 <Field label="Guest Arrivals / Check-ins" value={toStr(guests)} last />
 
-                <Sect title="Tours" />
+                <Sect title="Tours" accent='#8FAEDD' />
                 <Field label="Scheduled & Walk-in Tours" value={toStr(tours)} last />
 
-                <Sect title="Loaners" />
+                <Sect title="Loaners" accent='#8FAEDD' />
                 <Field label="Checkouts & Returns" value={toStr(loaners)} last />
 
-                <Sect title="Lockouts" />
+                <Sect title="Lockouts" accent='#8FAEDD' />
                 <Field label="Keys & Access Requests" value={toStr(lockouts)} last />
 
-                <Sect title="Vendors" />
-                <Field label="Vendor Activity" value={toStr(vends)} last />
+                <Sect title="Vendors" accent='#8FAEDD' />
+                {vends.length > 0
+                  ? vends.map((a, i, arr) => (
+                      <Field key={a.id} label={a.title} value={a.time} sub={a.notes} last={i === arr.length - 1} />
+                    ))
+                  : <Field label="Vendor Activity" value="N/A" last />
+                }
 
                 {rounds.length > 0 && (
-                  <><Sect title="Security & Rounds" /><Field label="Rounds Completed" value={toStr(rounds)} last /></>
+                  <>
+                    <Sect title="Security & Rounds" accent='#8FAEDD' />
+                    {rounds.map((a, i, arr) => (
+                      <Field key={a.id} label={a.title} value={a.time} sub={a.notes} last={i === arr.length - 1} />
+                    ))}
+                  </>
                 )}
 
-                <Sect title="Shift Notes" />
-                <div style={{ padding: isPhone ? '9px 12px 12px' : isMobile ? '9px 16px 12px' : '9px 28px 12px' }}>
-                  <p style={{ fontFamily:INTER, fontSize:14, color:activeShift.note?TEXT:MUTED, lineHeight:1.6, margin:0, fontStyle:activeShift.note?'normal':'italic' }}>{activeShift.note||'No shift notes yet.'}</p>
+                <Sect title="Shift Notes" accent='#8FAEDD' />
+                <div style={{ padding:'16px 28px 20px' }}>
+                  <p style={{ fontFamily:INTER, fontSize:16, color:TEXT, lineHeight:1.7, margin:0 }}>{activeShift.note || 'No shift notes.'}</p>
                 </div>
 
                 {activeShift.incidents.length > 0 && (
-                  <><Sect title="Incidents Filed" accent={RED} />{activeShift.incidents.map((inc,i,arr)=><Field key={i} label={`Incident ${i+1}`} value={inc} last={i===arr.length-1} />)}</>
+                  <>
+                    <Sect title="Incidents Filed" accent={RED} />
+                    {activeShift.incidents.map((inc, i, arr) => (
+                      <Field key={i} label={`Incident ${i + 1}`} value={inc} last={i === arr.length - 1} />
+                    ))}
+                  </>
                 )}
               </div>
             </>
