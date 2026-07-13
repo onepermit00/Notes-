@@ -6,6 +6,7 @@ import {
   Wrench, Users, Zap
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import MicButton from './MicButton';
 
 const BLUE   = '#FF385C';
 const RED    = '#FF3B30';
@@ -234,17 +235,23 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
 
                     <div>
                       <h3 style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 12 }}>What happened?</h3>
-                      <textarea value={description} onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Describe the incident — what you observed, how it started, and any other relevant details..." rows={5}
-                        style={{ ...baseInput, border: description ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}` }}
-                        data-testid="incident-description" />
+                      <div style={{ position: 'relative' }}>
+                        <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+                          placeholder="Describe the incident — what you observed, how it started, and any other relevant details..." rows={5}
+                          style={{ ...baseInput, border: description ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}`, paddingRight: 44 }}
+                          data-testid="incident-description" />
+                        <MicButton onTranscript={t => setDescription(p => p ? p + ' ' + t : t)} />
+                      </div>
                     </div>
                     <div>
                       <h3 style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 12 }}>Actions Taken</h3>
-                      <textarea value={actionsTaken} onChange={(e) => setActionsTaken(e.target.value)}
-                        placeholder="What did you do to address this?" rows={4}
-                        style={{ ...baseInput, border: actionsTaken ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}` }}
-                        data-testid="incident-actions" />
+                      <div style={{ position: 'relative' }}>
+                        <textarea value={actionsTaken} onChange={(e) => setActionsTaken(e.target.value)}
+                          placeholder="What did you do to address this?" rows={4}
+                          style={{ ...baseInput, border: actionsTaken ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}`, paddingRight: 44 }}
+                          data-testid="incident-actions" />
+                        <MicButton onTranscript={t => setActionsTaken(p => p ? p + ' ' + t : t)} />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -258,11 +265,14 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
                     </div>
                     <div>
                       <label style={{ fontSize: 14, fontWeight: 600, color: TEXT, display: 'block', marginBottom: 10 }}>Witness Name(s)</label>
-                      <textarea value={witnessNames} onChange={(e) => setWitnessNames(e.target.value)}
-                        placeholder="Enter the names of any witnesses present..." rows={5}
-                        disabled={noWitnesses}
-                        style={{ ...baseInput, opacity: noWitnesses ? 0.5 : 1, border: (witnessNames && !noWitnesses) ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}` }}
-                        data-testid="incident-witnesses" />
+                      <div style={{ position: 'relative' }}>
+                        <textarea value={witnessNames} onChange={(e) => setWitnessNames(e.target.value)}
+                          placeholder="Enter the names of any witnesses present..." rows={5}
+                          disabled={noWitnesses}
+                          style={{ ...baseInput, opacity: noWitnesses ? 0.5 : 1, border: (witnessNames && !noWitnesses) ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}`, paddingRight: 44 }}
+                          data-testid="incident-witnesses" />
+                        <MicButton disabled={noWitnesses} onTranscript={t => setWitnessNames(p => p ? p + ' ' + t : t)} />
+                      </div>
                     </div>
                     <div style={{ background: '#EEF2FA', border: '1px solid rgba(58,123,213,0.2)', borderRadius: 12, padding: 16, display: 'flex', gap: 12 }}>
                       <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

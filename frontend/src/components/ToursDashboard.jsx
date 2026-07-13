@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Phone, Mail, Building2, Users, ChevronRight, FileText, MapPin, CalendarCheck, Monitor, Home, Star, HelpCircle, Check, Maximize2, LayoutGrid } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import MicButton from './MicButton';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
@@ -233,8 +234,11 @@ export const ToursDashboard = ({ onActivityLogged }) => {
 
           <div>
             <Label>Notes (optional)</Label>
-            <textarea placeholder="First visit, moving from NYC, interested in July move-in..." value={tForm.notes} onChange={e => setTF(p => ({ ...p, notes: e.target.value }))} rows={3}
-              style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+            <div style={{ position: 'relative' }}>
+              <textarea placeholder="First visit, moving from NYC, interested in July move-in..." value={tForm.notes} onChange={e => setTF(p => ({ ...p, notes: e.target.value }))} rows={3}
+                style={{ width: '100%', padding: '14px 44px 14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+              <MicButton onTranscript={t => setTF(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} />
+            </div>
           </div>
         </div>
         <WizardFooter onBack={() => setTStep(3)} onContinue={submitTour} continueLabel="Log Tour" continueDisabled={!tForm.agentId} />

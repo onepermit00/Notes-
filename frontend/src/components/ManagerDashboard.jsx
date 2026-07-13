@@ -17,6 +17,7 @@ import { UserRole } from '../types';
 import { authApi } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
 import { useSharedData } from '../context/SharedDataContext';
+import MicButton from './MicButton';
 
 /* ─── Static brand tokens ────────────────────────────────────────────────────── */
 const GREEN  = '#34C759';
@@ -3884,16 +3885,22 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
                   <div>
                     <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Task Title *</label>
-                    <input type="text" placeholder="e.g. Close rooftop pool at 10 PM" value={taskForm.title}
-                      onChange={e=>setTaskForm(p=>({...p,title:e.target.value}))}
-                      style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:taskForm.title?`1.5px solid ${BLUE}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
+                    <div style={{ position:'relative' }}>
+                      <input type="text" placeholder="e.g. Close rooftop pool at 10 PM" value={taskForm.title}
+                        onChange={e=>setTaskForm(p=>({...p,title:e.target.value}))}
+                        style={{ width:'100%', padding:'14px 44px 14px 16px', borderRadius:12, border:taskForm.title?`1.5px solid ${BLUE}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
+                      <MicButton onTranscript={t=>setTaskForm(p=>({...p,title:p.title?p.title+' '+t:t}))} />
+                    </div>
                   </div>
 
                   <div>
                     <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Notes (Optional)</label>
-                    <textarea placeholder="Details or context…" value={taskForm.notes} rows={4}
-                      onChange={e=>setTaskForm(p=>({...p,notes:e.target.value}))}
-                      style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:taskForm.notes?`1.5px solid ${BLUE}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', resize:'none', boxSizing:'border-box', lineHeight:1.5 }} />
+                    <div style={{ position:'relative' }}>
+                      <textarea placeholder="Details or context…" value={taskForm.notes} rows={4}
+                        onChange={e=>setTaskForm(p=>({...p,notes:e.target.value}))}
+                        style={{ width:'100%', padding:'14px 44px 14px 16px', borderRadius:12, border:taskForm.notes?`1.5px solid ${BLUE}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', resize:'none', boxSizing:'border-box', lineHeight:1.5 }} />
+                      <MicButton onTranscript={t=>setTaskForm(p=>({...p,notes:p.notes?p.notes+' '+t:t}))} />
+                    </div>
                   </div>
 
                   <div>

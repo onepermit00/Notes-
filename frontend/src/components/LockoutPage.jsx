@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, Key, Clock, FileText, AlertTriangle, Check, Home, Wrench, CreditCard, UserCheck, Phone, Building2, HelpCircle, Wifi } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import MicButton from './MicButton';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
@@ -216,8 +217,11 @@ export const LockoutPage = ({ onActivityLogged }) => {
 
           <div>
             <Label>Notes (optional)</Label>
-            <textarea rows={3} placeholder="Any additional context..." value={form.notes} onChange={e => set('notes', e.target.value)}
-              style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+            <div style={{ position: 'relative' }}>
+              <textarea rows={3} placeholder="Any additional context..." value={form.notes} onChange={e => set('notes', e.target.value)}
+                style={{ width: '100%', padding: '14px 44px 14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+              <MicButton onTranscript={t => set('notes', form.notes ? form.notes + ' ' + t : t)} />
+            </div>
           </div>
         </div>
         <WizardFooter onBack={() => setLStep(3)} onContinue={submit} continueLabel="Submit Log" continueDisabled={!form.entryMethod} />

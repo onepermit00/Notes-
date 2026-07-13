@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { PackageDashboard } from './PackageDashboard';
 import { ToursDashboard } from './ToursDashboard';
+import MicButton from './MicButton';
 import { TaskStatus, UserRole } from '../types';
 import { TaskCard } from './TaskCard';
 import { TaskRequestCard }  from './TaskRequestCard';
@@ -2712,24 +2713,30 @@ export const CaregiverDashboard = ({
               {/* Open items */}
               <div style={{ padding: '16px 20px 0' }}>
                 <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 700, color: MUTED, letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 8 }}>Open Items</div>
-                <textarea
-                  placeholder={'One item per line, e.g.\n- Package for Unit 412 unclaimed\n- Gym HVAC making noise'}
-                  value={handoverItems}
-                  onChange={e => setHandoverItems(e.target.value)}
-                  rows={3}
-                  style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
-                />
+                <div style={{ position: 'relative' }}>
+                  <textarea
+                    placeholder={'One item per line, e.g.\n- Package for Unit 412 unclaimed\n- Gym HVAC making noise'}
+                    value={handoverItems}
+                    onChange={e => setHandoverItems(e.target.value)}
+                    rows={3}
+                    style={{ width: '100%', padding: '12px 44px 12px 14px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+                  />
+                  <MicButton onTranscript={t => setHandoverItems(p => p ? p + '\n' + t : t)} />
+                </div>
               </div>
               {/* Handover notes */}
               <div style={{ padding: '12px 20px 0' }}>
                 <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 700, color: MUTED, letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 8 }}>Handover Notes</div>
-                <textarea
-                  placeholder="Anything the next concierge needs to know about the shift…"
-                  value={handoverNotes}
-                  onChange={e => setHandoverNotes(e.target.value)}
-                  rows={4}
-                  style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
-                />
+                <div style={{ position: 'relative' }}>
+                  <textarea
+                    placeholder="Anything the next concierge needs to know about the shift…"
+                    value={handoverNotes}
+                    onChange={e => setHandoverNotes(e.target.value)}
+                    rows={4}
+                    style={{ width: '100%', padding: '12px 44px 12px 14px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+                  />
+                  <MicButton onTranscript={t => setHandoverNotes(p => p ? p + ' ' + t : t)} />
+                </div>
               </div>
               {/* Footer */}
               <div style={{ padding: '16px 20px 20px', display: 'flex', gap: 10 }}>
@@ -3005,20 +3012,23 @@ export const CaregiverDashboard = ({
                     </div>
                     <div>
                       <h3 style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: '0 0 10px' }}>Description *</h3>
-                      <textarea
-                        placeholder="e.g. Helped resident in 1204 carry groceries, assisted maintenance with P2 shut-off valve..."
-                        value={ntForm.title}
-                        onChange={e => setNTF(p => ({ ...p, title: e.target.value }))}
-                        rows={isPhone ? 4 : 5}
-                        autoFocus={!isPhone}
-                        style={{
-                          width: '100%', padding: '16px', borderRadius: 14,
-                          border: `1.5px solid ${ntForm.title ? BLUE : BORDER}`,
-                          fontFamily: INTER, fontSize: 15, color: TEXT,
-                          background: ntForm.title ? 'rgba(255,56,92,0.03)' : CARD,
-                          outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.6,
-                          transition: 'border-color 0.15s',
-                        }} />
+                      <div style={{ position: 'relative' }}>
+                        <textarea
+                          placeholder="e.g. Helped resident in 1204 carry groceries, assisted maintenance with P2 shut-off valve..."
+                          value={ntForm.title}
+                          onChange={e => setNTF(p => ({ ...p, title: e.target.value }))}
+                          rows={isPhone ? 4 : 5}
+                          autoFocus={!isPhone}
+                          style={{
+                            width: '100%', padding: '16px 44px 16px 16px', borderRadius: 14,
+                            border: `1.5px solid ${ntForm.title ? BLUE : BORDER}`,
+                            fontFamily: INTER, fontSize: 15, color: TEXT,
+                            background: ntForm.title ? 'rgba(255,56,92,0.03)' : CARD,
+                            outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.6,
+                            transition: 'border-color 0.15s',
+                          }} />
+                        <MicButton onTranscript={t => setNTF(p => ({ ...p, title: p.title ? p.title + ' ' + t : t }))} />
+                      </div>
                     </div>
                   </>
                 )}
@@ -3103,10 +3113,13 @@ export const CaregiverDashboard = ({
                       <h3 style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: '0 0 10px' }}>
                         Entry Notes <span style={{ fontWeight: 400, fontSize: 13, color: MUTED }}>(optional)</span>
                       </h3>
-                      <textarea placeholder="Resident name, outcome, follow-up needed…"
-                        value={ntForm.notes} onChange={e => setNTF(p => ({ ...p, notes: e.target.value }))}
-                        rows={3}
-                        style={{ width: '100%', padding: '14px 16px', borderRadius: 14, border: `1.5px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+                      <div style={{ position: 'relative' }}>
+                        <textarea placeholder="Resident name, outcome, follow-up needed…"
+                          value={ntForm.notes} onChange={e => setNTF(p => ({ ...p, notes: e.target.value }))}
+                          rows={3}
+                          style={{ width: '100%', padding: '14px 44px 14px 16px', borderRadius: 14, border: `1.5px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+                        <MicButton onTranscript={t => setNTF(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} />
+                      </div>
                     </div>
                   </>
                 )}
@@ -3248,9 +3261,12 @@ export const CaregiverDashboard = ({
                         {auditForm.luxerCount !== '' && auditForm.physicalCount !== '' && parseInt(auditForm.physicalCount, 10) !== parseInt(auditForm.luxerCount, 10) ? '(required for discrepancy)' : '(optional)'}
                       </span>
                     </div>
-                    <textarea placeholder="Package location details, carrier breakdown, possible explanations..."
-                      value={auditForm.notes} onChange={e => setAuditForm(p => ({ ...p, notes: e.target.value }))} rows={3}
-                      style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+                    <div style={{ position: 'relative' }}>
+                      <textarea placeholder="Package location details, carrier breakdown, possible explanations..."
+                        value={auditForm.notes} onChange={e => setAuditForm(p => ({ ...p, notes: e.target.value }))} rows={3}
+                        style={{ width: '100%', padding: '14px 44px 14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+                      <MicButton onTranscript={t => setAuditForm(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} />
+                    </div>
                   </div>
 
                   <button onClick={submitPkgAudit} disabled={auditForm.luxerCount === '' || auditForm.physicalCount === ''}
