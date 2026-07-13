@@ -923,16 +923,16 @@ export const CaregiverDashboard = ({
     const rounds   = security.filter(a=>!a.title.toLowerCase().includes('lockout'));
 
     const Sect = ({ title, accent='#8FAEDD' }) => (
-      <div style={{ background:accent, padding: isPhone ? '3px 12px' : isMobile ? '7px 16px' : '7px 28px', marginTop: isPhone ? 3 : 6 }}>
-        <span style={{ fontFamily:INTER, fontSize: isPhone ? 9 : 13, fontWeight:800, color:TEXT, letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
+      <div style={{ background:accent, padding: isPhone ? '5px 12px' : isMobile ? '7px 16px' : '7px 28px', marginTop: isPhone ? 4 : 6 }}>
+        <span style={{ fontFamily:INTER, fontSize: isPhone ? 11 : 13, fontWeight:800, color:TEXT, letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
       </div>
     );
     const Field = ({ label, value, sub, photos, last }) => (
-      <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? (isPhone ? 1 : 2) : 20, padding: isPhone ? '6px 12px' : isMobile ? '12px 16px' : '16px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
-        <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isPhone ? 9 : isMobile ? 11 : 17, fontWeight:700, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
+      <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 2 : 20, padding: isPhone ? '9px 12px' : isMobile ? '12px 16px' : '16px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
+        <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isPhone ? 11 : isMobile ? 11 : 17, fontWeight:700, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontFamily:INTER, fontSize: isPhone ? 11 : isMobile ? 15 : 17, color:TEXT, lineHeight:1.5, whiteSpace:'pre-line' }}>{value}</div>
-          {sub && <div style={{ fontFamily:INTER, fontSize: isPhone ? 10 : isMobile ? 13 : 15, color:MUTED, marginTop: isPhone ? 2 : 3 }}>{sub}</div>}
+          <div style={{ fontFamily:INTER, fontSize: isPhone ? 14 : isMobile ? 15 : 17, color:TEXT, lineHeight:1.5, whiteSpace:'pre-line' }}>{value}</div>
+          {sub && <div style={{ fontFamily:INTER, fontSize: isPhone ? 12 : isMobile ? 13 : 15, color:MUTED, marginTop: isPhone ? 2 : 3 }}>{sub}</div>}
         </div>
         {Array.isArray(photos)&&photos.length>0 && (
           <div style={{ display:'flex', gap:6, flexShrink:0 }}>
