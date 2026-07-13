@@ -968,9 +968,9 @@ export const CaregiverDashboard = ({
                     {/* Mobile: stacked */}
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
                       <div style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase' }}>DAR</div>
-                      <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'3px 8px' }}>
-                        <div style={{ width:6, height:6, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                        <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:GREEN }}>On Duty</span>
+                      <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'2px 7px' }}>
+                        <div style={{ width:5, height:5, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
+                        <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:GREEN }}>On Duty</span>
                       </div>
                     </div>
                     <div style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:'white', marginBottom:3 }}>{activeShift.concierge.name}</div>
@@ -988,9 +988,9 @@ export const CaregiverDashboard = ({
                         {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {activeShift.clockIn} – Present
                       </div>
                     </div>
-                    <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'5px 12px' }}>
-                      <div style={{ width:6, height:6, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                      <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
+                    <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'2px 7px' }}>
+                      <div style={{ width:5, height:5, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
+                      <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:GREEN }}>On Duty</span>
                     </div>
                   </div>
                 )}

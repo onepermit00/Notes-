@@ -1999,9 +1999,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                               <div style={{ width:10, height:10, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 3px rgba(52,199,89,0.3)' }} />
                             </div>
                           ) : (
-                            <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'5px 12px' }}>
-                              <div style={{ width:6, height:6, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                              <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
+                            <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'2px 7px' }}>
+                              <div style={{ width:5, height:5, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
+                              <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:GREEN }}>On Duty</span>
                             </div>
                           )}
                           {isPhone ? (
@@ -2009,8 +2009,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                               <Printer size={14} color='rgba(255,255,255,0.6)' />
                             </button>
                           ) : (
-                            <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 10px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
-                              <Printer size={12} /> Export PDF
+                            <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 7px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:6, fontFamily:INTER, fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
+                              <Printer size={10} /> Export PDF
                             </button>
                           )}
                         </div>
@@ -2026,13 +2026,13 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                           {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {todayShift.clockIn}{todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Present'}
                         </div>
                       </div>
-                      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10 }}>
-                        <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'5px 12px' }}>
-                          <div style={{ width:6, height:6, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
+                      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6 }}>
+                        <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'2px 7px' }}>
+                          <div style={{ width:5, height:5, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
+                          <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:GREEN }}>On Duty</span>
                         </div>
-                        <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
-                          <Printer size={12} /> Export PDF
+                        <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:4, padding:'2px 7px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:6, fontFamily:INTER, fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
+                          <Printer size={10} /> Export PDF
                         </button>
                       </div>
                     </div>
