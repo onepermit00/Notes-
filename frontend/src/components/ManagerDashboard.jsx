@@ -598,16 +598,16 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   const DARSect = ({ title, accent='#8FAEDD' }) => (
-    <div style={{ background:accent, padding: isPhone ? '5px 12px' : isMobile ? '7px 16px' : '5px 28px', marginTop: isPhone ? 4 : 6 }}>
+    <div style={{ background:accent, padding: isPhone ? '5px 12px' : isMobile ? '5px 16px' : '5px 28px', marginTop:4 }}>
       <span style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:TEXT, letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
     </div>
   );
   const DARField = ({ label, value, sub, last }) => (
-    <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 2 : 14, padding: isPhone ? '9px 12px' : isMobile ? '12px 16px' : '10px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
-      <div style={{ width: isMobile ? '100%' : 200, flexShrink:0, fontFamily:INTER, fontSize: isPhone ? 11 : isMobile ? 11 : 13, fontWeight: isMobile ? 700 : 600, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
+    <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 2 : 14, padding: isPhone ? '9px 12px' : isMobile ? '9px 16px' : '9px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
+      <div style={{ width: isMobile ? '100%' : 200, flexShrink:0, fontFamily:INTER, fontSize:12, fontWeight: isMobile ? 700 : 600, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontFamily:INTER, fontSize: isPhone ? 14 : isMobile ? 15 : 14, color:TEXT, lineHeight:1.5, whiteSpace:'pre-line' }}>{value}</div>
-        {sub && <div style={{ fontFamily:INTER, fontSize: isPhone ? 12 : isMobile ? 13 : 12, color:MUTED, marginTop: isPhone ? 2 : 3 }}>{sub}</div>}
+        <div style={{ fontFamily:INTER, fontSize:14, color:TEXT, lineHeight:1.5, whiteSpace:'pre-line' }}>{value}</div>
+        {sub && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:2 }}>{sub}</div>}
       </div>
     </div>
   );
@@ -1981,14 +1981,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             return (
               <>
                 {/* DAR Header */}
-                <div style={{ background:'#111827', padding: isMobile ? '14px 16px 14px' : '28px 28px 22px' }}>
+                <div style={{ background:'#111827', padding: isMobile ? '12px 16px' : '16px 28px 14px' }}>
                   {isMobile ? (
                     <>
                       {/* Mobile: two-column matching desktop layout */}
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                         <div>
-                          <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:6 }}>DAR</div>
-                          <div style={{ fontFamily:INTER, fontSize:17, fontWeight:800, color:'white', marginBottom:3 }}>{todayShift.concierge.name}</div>
+                          <div style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:4 }}>DAR</div>
+                          <div style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:'white', marginBottom:3 }}>{todayShift.concierge.name}</div>
                           <div style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.50)' }}>
                             {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {todayShift.clockIn}{todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Now'}
                           </div>
@@ -2020,19 +2020,19 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     /* Desktop: original two-column */
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                       <div>
-                        <div style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:8 }}>Daily Activity Report</div>
-                        <div style={{ fontFamily:INTER, fontSize:22, fontWeight:800, color:'white', marginBottom:5 }}>{todayShift.concierge.name}</div>
-                        <div style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.55)' }}>
+                        <div style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>Daily Activity Report</div>
+                        <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', marginBottom:4 }}>{todayShift.concierge.name}</div>
+                        <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.55)' }}>
                           {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {todayShift.clockIn}{todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Present'}
                         </div>
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10 }}>
-                        <div style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'7px 14px' }}>
-                          <div style={{ width:7, height:7, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                          <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:GREEN }}>On Duty</span>
+                        <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'5px 12px' }}>
+                          <div style={{ width:6, height:6, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
+                          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
                         </div>
-                        <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
-                          <Printer size={13} /> Export PDF
+                        <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
+                          <Printer size={12} /> Export PDF
                         </button>
                       </div>
                     </div>
