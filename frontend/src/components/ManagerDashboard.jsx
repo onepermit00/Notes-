@@ -1984,21 +1984,25 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div style={{ background:'#111827', padding: isMobile ? '14px 16px 14px' : '28px 28px 22px' }}>
                   {isMobile ? (
                     <>
-                      {/* Mobile: stacked */}
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-                        <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase' }}>DAR</div>
-                        <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'4px 10px' }}>
-                          <div style={{ width:6, height:6, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                          <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:GREEN }}>On Duty</span>
+                      {/* Mobile: two-column matching desktop layout */}
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                        <div>
+                          <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:6 }}>DAR</div>
+                          <div style={{ fontFamily:INTER, fontSize:17, fontWeight:800, color:'white', marginBottom:3 }}>{todayShift.concierge.name}</div>
+                          <div style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.50)' }}>
+                            {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {todayShift.clockIn}{todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Now'}
+                          </div>
+                        </div>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
+                          <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'6px 12px' }}>
+                            <div style={{ width:6, height:6, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
+                            <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
+                          </div>
+                          <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'6px 12px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:999, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
+                            <Printer size={12} /> Export PDF
+                          </button>
                         </div>
                       </div>
-                      <div style={{ fontFamily:INTER, fontSize:17, fontWeight:800, color:'white', marginBottom:3 }}>{todayShift.concierge.name}</div>
-                      <div style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.50)', marginBottom:12 }}>
-                        {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {todayShift.clockIn}{todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Now'}
-                      </div>
-                      <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:5, padding:'7px 12px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
-                        <Printer size={12} /> Export PDF
-                      </button>
                     </>
                   ) : (
                     /* Desktop: original two-column */
