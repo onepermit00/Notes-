@@ -1998,7 +1998,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                             <div style={{ width:6, height:6, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
                             <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
                           </div>
-                          <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'6px 12px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:999, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
+                          <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'6px 12px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
                             <Printer size={12} /> Export PDF
                           </button>
                         </div>
