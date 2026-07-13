@@ -8,7 +8,7 @@ import {
   Waves, Activity, Sun, Coffee, Briefcase, Film, Heart, Bike, Leaf, Flame,
   Menu, Lock, ShoppingCart, ClipboardList, PlusCircle, Wrench, Search,
   Tag, Navigation, Flag, ChevronLeft, UserCheck, Truck, HelpCircle, Star, LogOut, Mail, Moon,
-  GraduationCap, FileText, Image, Video, Play, Eye
+  GraduationCap, FileText, Image, Video, Play, Eye, Printer
 } from 'lucide-react';
 import { PackageDashboard } from './PackageDashboard';
 import { ToursDashboard } from './ToursDashboard';
@@ -973,29 +973,46 @@ export const CaregiverDashboard = ({
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr 460px', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
 
         {/* Left: Daily Activity Report */}
-        <div style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
+        <div className="dar-print-target" style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
           {!activeShift ? (
             <div style={{ padding:40, textAlign:'center', fontFamily:INTER, fontSize:14, color:MUTED }}>No active shift today</div>
           ) : (
             <>
               <div style={{ background:'#111827', padding: isMobile ? '12px 16px' : '16px 28px 14px' }}>
                 {isMobile ? (
-                  <>
-                    {/* Mobile: stacked */}
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-                      <div style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase' }}>DAR</div>
-                      <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'2px 7px' }}>
-                        <div style={{ width:5, height:5, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                        <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:GREEN }}>On Duty</span>
+                  /* Mobile: 2-col matching Manager */
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                    <div>
+                      <div style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:4 }}>DAR</div>
+                      <div style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:'white', marginBottom:3 }}>{activeShift.concierge.name}</div>
+                      <div style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.50)' }}>
+                        {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {activeShift.clockIn} – Now
                       </div>
                     </div>
-                    <div style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:'white', marginBottom:3 }}>{activeShift.concierge.name}</div>
-                    <div style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.50)' }}>
-                      {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {activeShift.clockIn} – Now
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6 }}>
+                      {isPhone ? (
+                        <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'9px' }}>
+                          <div style={{ width:10, height:10, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 3px rgba(52,199,89,0.3)' }} />
+                        </div>
+                      ) : (
+                        <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'2px 7px' }}>
+                          <div style={{ width:5, height:5, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
+                          <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:GREEN }}>On Duty</span>
+                        </div>
+                      )}
+                      {isPhone ? (
+                        <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', padding:0, marginRight:7, background:'none', border:'none', cursor:'pointer' }}>
+                          <Printer size={14} color='rgba(255,255,255,0.6)' />
+                        </button>
+                      ) : (
+                        <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 7px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:6, fontFamily:INTER, fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
+                          <Printer size={10} /> Export PDF
+                        </button>
+                      )}
                     </div>
-                  </>
+                  </div>
                 ) : (
-                  /* Desktop: original two-column */
+                  /* Desktop: 2-column matching Manager */
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div>
                       <div style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>Daily Activity Report</div>
@@ -1004,9 +1021,14 @@ export const CaregiverDashboard = ({
                         {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {activeShift.clockIn} – Present
                       </div>
                     </div>
-                    <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'2px 7px' }}>
-                      <div style={{ width:5, height:5, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                      <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:GREEN }}>On Duty</span>
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6 }}>
+                      <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'2px 7px' }}>
+                        <div style={{ width:5, height:5, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
+                        <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:GREEN }}>On Duty</span>
+                      </div>
+                      <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:4, padding:'2px 7px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:6, fontFamily:INTER, fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
+                        <Printer size={10} /> Export PDF
+                      </button>
                     </div>
                   </div>
                 )}
