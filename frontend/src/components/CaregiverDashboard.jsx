@@ -945,7 +945,7 @@ export const CaregiverDashboard = ({
     );
     const Field = ({ label, value, sub, photos, last }) => (
       <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 2 : 14, padding: isPhone ? '9px 12px' : isMobile ? '9px 16px' : '9px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
-        <div style={{ width: isMobile ? '100%' : 200, flexShrink:0, fontFamily:INTER, fontSize:12, fontWeight:700, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
+        <div style={{ width: isMobile ? '100%' : 200, flexShrink:0, fontFamily:INTER, fontSize:12, fontWeight: isMobile ? 700 : 600, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontFamily:INTER, fontSize:14, color:TEXT, lineHeight:1.5, whiteSpace:'pre-line' }}>{value}</div>
           {sub && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:2 }}>{sub}</div>}
@@ -1074,7 +1074,7 @@ export const CaregiverDashboard = ({
 
                 <Sect title="Shift Notes" accent='#8FAEDD' />
                 <div style={{ padding:'16px 28px 20px' }}>
-                  <p style={{ fontFamily:INTER, fontSize:16, color:TEXT, lineHeight:1.7, margin:0 }}>{activeShift.note || 'No shift notes.'}</p>
+                  <p style={{ fontFamily:INTER, fontSize:16, color:TEXT, lineHeight:1.7, margin:0 }}>{activeShift.note}</p>
                 </div>
 
                 {activeShift.incidents.length > 0 && (
