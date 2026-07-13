@@ -1993,13 +1993,13 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                             {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {todayShift.clockIn}{todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Now'}
                           </div>
                         </div>
-                        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
-                          <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'6px 12px' }}>
-                            <div style={{ width:6, height:6, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
-                            <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6 }}>
+                          <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'3px 8px' }}>
+                            <div style={{ width:5, height:5, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 2px rgba(52,199,89,0.3)' }} />
+                            <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:GREEN }}>On Duty</span>
                           </div>
-                          <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'6px 12px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.7)', cursor:'pointer' }}>
-                            <Printer size={12} /> Export PDF
+                          <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 8px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:6, fontFamily:INTER, fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.6)', cursor:'pointer' }}>
+                            <Printer size={10} /> Export PDF
                           </button>
                         </div>
                       </div>
