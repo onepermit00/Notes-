@@ -1359,7 +1359,7 @@ export const CaregiverDashboard = ({
 
   // ── SHIFT LOG tab ──────────────────────────────────────────────────────────
   const renderShiftContent = () => (
-    <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 116 }}>
+    <div>
       <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         {/* Header */}
@@ -2697,7 +2697,7 @@ export const CaregiverDashboard = ({
                   {activeTab === 'tours'         && <ToursDashboard   onActivityLogged={handleActivityLogged} />}
                   {activeTab === 'vendors'       && <VendorsDashboard onActivityLogged={handleActivityLogged} />}
                   {activeTab === 'guests'        && <GuestsDashboard  onActivityLogged={handleActivityLogged} />}
-                  {activeTab === 'calendar'      && renderShifts()}
+                  {activeTab === 'calendar'      && <div style={{ flex:1, overflowY:'auto' }}>{renderShiftContent()}{renderShifts()}</div>}
                   {activeTab === 'shift-history' && <HistoryPage />}
                   {activeTab === 'profile'       && renderProfileContent()}
                   {activeTab === 'messages'      && <TeamMessagesPage />}
