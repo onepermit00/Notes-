@@ -1013,7 +1013,7 @@ export const CaregiverDashboard = ({
                         </button>
                       ) : (
                         <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 10px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
-                          <Printer size={12} /> Export PDF
+                          <Printer size={12} /> Print
                         </button>
                       )}
                     </div>
@@ -1034,7 +1034,7 @@ export const CaregiverDashboard = ({
                         <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
                       </div>
                       <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
-                        <Printer size={12} /> Export PDF
+                        <Printer size={12} /> Print
                       </button>
                     </div>
                   </div>
