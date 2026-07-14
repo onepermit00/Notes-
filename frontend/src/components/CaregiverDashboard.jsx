@@ -480,7 +480,7 @@ export const CaregiverDashboard = ({
     const m = modelUnits.find(x => x.id === id);
     if (m) {
       const action = m.open ? 'closed' : 'opened';
-      setSelfTasks(p => [...p, { id: Date.now(), title: `Model unit ${m.unit} ${action} · ${m.type}`, category: 'Amenity', notes: '', location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed' }]);
+      setSelfTasks(p => [...p, { id: Date.now(), title: `Model unit ${m.unit} ${action} · ${m.type}`, category: 'Amenity', notes: '', location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed', _source: 'dashboard' }]);
     }
     setModelUnits(p => p.map(m => m.id !== id ? m : {
       ...m, open: !m.open,
@@ -510,7 +510,7 @@ export const CaregiverDashboard = ({
       notes: auditForm.notes,
     }, ...p]);
     const statusText = match ? 'Match' : diff > 0 ? `+${diff} unaccounted` : `${Math.abs(diff)} missing`;
-    setSelfTasks(p => [...p, { id: Date.now() + 1, title: `Package room audit · ${statusText}`, category: 'Administrative', notes: auditForm.notes || `Luxer: ${luxer} · Physical: ${physical}`, location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed' }]);
+    setSelfTasks(p => [...p, { id: Date.now() + 1, title: `Package room audit · ${statusText}`, category: 'Administrative', notes: auditForm.notes || `Luxer: ${luxer} · Physical: ${physical}`, location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed', _source: 'dashboard' }]);
     setAuditForm({ luxerCount: '0', physicalCount: '0', notes: '' });
   };
 
@@ -519,7 +519,7 @@ export const CaregiverDashboard = ({
     const a = amenities.find(x => x.id === id);
     if (a) {
       const action = a.open ? 'closed' : 'opened';
-      setSelfTasks(p => [...p, { id: Date.now(), title: `${a.name} ${action}`, category: 'Amenity', notes: '', location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed' }]);
+      setSelfTasks(p => [...p, { id: Date.now(), title: `${a.name} ${action}`, category: 'Amenity', notes: '', location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed', _source: 'dashboard' }]);
     }
     setAmenities(p => p.map(a => a.id !== id ? a : a.open
       ? { ...a, open: false, closedAt: t,  closedBy: who }
@@ -530,7 +530,7 @@ export const CaregiverDashboard = ({
   const submitNewTask = async () => {
     if (!ntForm.title) return;
     const t = nowStr();
-    const localTask = { ...ntForm, id: Date.now(), startedAt: t, completedAt: t, status: 'completed' };
+    const localTask = { ...ntForm, id: Date.now(), startedAt: t, completedAt: t, status: 'completed', _source: 'task' };
     setSelfTasks(p => [localTask, ...p]);
     if (ntForm.flagFollowUp) {
       followUps.add({ text: ntForm.title + (ntForm.notes ? ` — ${ntForm.notes}` : ''), source: ntForm.category || 'task' });
@@ -646,7 +646,7 @@ export const CaregiverDashboard = ({
   };
   const handleActivityLogged = ({ title, category = '', notes = '', evidenceUrls = [] }) => {
     const t = nowStr();
-    const local = { id: Date.now(), title, category, notes, evidenceUrls, location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed' };
+    const local = { id: Date.now(), title, category, notes, evidenceUrls, location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed', _source: 'dashboard' };
     setSelfTasks(p => [...p, local]);
     // Save activity to backend so manager sees it
     authApi.createTask({
@@ -923,14 +923,17 @@ export const CaregiverDashboard = ({
     const todayLabel = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
     const isToday = ts => ts && ts.startsWith(todayLabel + ',');
     const completedTaskActs = isShiftActive ? displayTasks.filter(t=>t.status===TaskStatus.COMPLETED&&isToday(t.completedAt)).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:t.title, notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] })) : [];
-    const selfTaskActs = selfTasks.filter(t=>isToday(t.completedAt)).map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] }));
-    const acts     = [...selfTaskActs, ...completedTaskActs];
-    const delivery = acts.filter(a=>a.category==='Delivery');
-    const security = acts.filter(a=>a.category==='Safety / Security');
-    const resident = acts.filter(a=>a.category==='Resident Assist');
-    const vends    = acts.filter(a=>a.category==='Vendor / Contractor');
-    const amenity  = acts.filter(a=>a.category==='Amenity');
-    const audit    = acts.find(a=>a.category==='Administrative'&&a.title.toLowerCase().includes('audit'));
+    const selfTaskActs = selfTasks.filter(t=>isToday(t.completedAt)).map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t._source||'task' }));
+    // dashboardActs = sub-dashboard inputs (Guests, Vendors, Loaners, Lockout, etc.)
+    // wizardActs = Log New Task wizard entries — always go to Tasks Completed
+    const dashboardActs = selfTaskActs.filter(a => a._source === 'dashboard');
+    const wizardActs    = selfTaskActs.filter(a => a._source !== 'dashboard');
+    const delivery = dashboardActs.filter(a=>a.category==='Delivery');
+    const security = dashboardActs.filter(a=>a.category==='Safety / Security');
+    const resident = dashboardActs.filter(a=>a.category==='Resident Assist');
+    const vends    = dashboardActs.filter(a=>a.category==='Vendor / Contractor');
+    const amenity  = dashboardActs.filter(a=>a.category==='Amenity');
+    const audit    = dashboardActs.find(a=>a.category==='Administrative'&&a.title.toLowerCase().includes('audit'));
     const loaners  = amenity.filter(a=>a.title.toLowerCase().includes('loaner'));
     const guests   = resident.filter(a=>a.title.toLowerCase().includes('guest')||a.title.toLowerCase().includes('arrival'));
     const tours    = resident.filter(a=>a.title.toLowerCase().includes('tour')||a.title.toLowerCase().includes('move'));
@@ -938,19 +941,8 @@ export const CaregiverDashboard = ({
     const incoming = delivery.filter(a=>!a.title.toLowerCase().includes('pickup'));
     const lockouts = security.filter(a=>a.title.toLowerCase().includes('lockout'));
     const rounds   = security.filter(a=>!a.title.toLowerCase().includes('lockout'));
-
-    // Tasks section: manager-assigned completed tasks + concierge Log Task entries
-    // Excludes anything already claimed by a specific sub-dashboard section
-    const claimedIds = new Set([
-      ...guests.map(a=>a.id), ...tours.map(a=>a.id),
-      ...loaners.map(a=>a.id), ...lockouts.map(a=>a.id),
-      ...rounds.map(a=>a.id), ...vends.map(a=>a.id),
-      ...incoming.map(a=>a.id), ...pickups.map(a=>a.id),
-      ...(audit ? [audit.id] : [])
-    ]);
-    const managerTasks  = completedTaskActs.filter(a => !claimedIds.has(a.id));
-    const conciergeTask = selfTaskActs.filter(a => !claimedIds.has(a.id));
-    const taskEntries   = [...managerTasks, ...conciergeTask].sort((a,b) => a.time.localeCompare(b.time));
+    // Tasks Completed: all wizard tasks + all manager-assigned completed tasks
+    const taskEntries = [...wizardActs, ...completedTaskActs].sort((a,b) => a.time.localeCompare(b.time));
 
     const Sect = ({ title, accent='#8FAEDD' }) => (
       <div style={{ background:accent, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px', marginTop:4 }}>
