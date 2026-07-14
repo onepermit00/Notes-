@@ -939,6 +939,19 @@ export const CaregiverDashboard = ({
     const lockouts = security.filter(a=>a.title.toLowerCase().includes('lockout'));
     const rounds   = security.filter(a=>!a.title.toLowerCase().includes('lockout'));
 
+    // Tasks section: manager-assigned completed tasks + concierge Log Task entries
+    // Excludes anything already claimed by a specific sub-dashboard section
+    const claimedIds = new Set([
+      ...guests.map(a=>a.id), ...tours.map(a=>a.id),
+      ...loaners.map(a=>a.id), ...lockouts.map(a=>a.id),
+      ...rounds.map(a=>a.id), ...vends.map(a=>a.id),
+      ...incoming.map(a=>a.id), ...pickups.map(a=>a.id),
+      ...(audit ? [audit.id] : [])
+    ]);
+    const managerTasks  = completedTaskActs.filter(a => !claimedIds.has(a.id));
+    const conciergeTask = selfTaskActs.filter(a => !claimedIds.has(a.id));
+    const taskEntries   = [...managerTasks, ...conciergeTask].sort((a,b) => a.time.localeCompare(b.time));
+
     const Sect = ({ title, accent='#8FAEDD' }) => (
       <div style={{ background:accent, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px', marginTop:4 }}>
         <span style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:TEXT, letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
@@ -1093,6 +1106,12 @@ export const CaregiverDashboard = ({
                 <div style={{ padding: isPhone ? '16px 14px 20px' : isMobile ? '16px 18px 20px' : '20px 32px 24px' }}>
                   <p style={{ fontFamily:INTER, fontSize:17, color:TEXT, lineHeight:1.75, margin:0 }}>{activeShift.note}</p>
                 </div>
+
+                <Sect title="Tasks Completed" accent='#8FAEDD' />
+                {taskEntries.length > 0
+                  ? taskEntries.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
                 {activeShift.incidents.length > 0 && (
                   <>
