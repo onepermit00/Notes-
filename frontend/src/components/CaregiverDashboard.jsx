@@ -815,10 +815,13 @@ export const CaregiverDashboard = ({
       ? arr.map(a => `${a.time || '—'}: ${a.title}${a.notes ? ' · ' + a.notes : ''}`).join('\n')
       : 'N/A';
 
+    const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed');
+    const sevColor = (sev) => sev === 'critical' || sev === 'high' ? RED : sev === 'medium' ? ORANGE : BLUE;
+
     return (
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 80 }}>
-        <div style={{ padding: isMobile ? '64px 16px 0' : '20px 16px 0' }}>
-          <div style={{ marginTop: 0, borderRadius: 20, overflow: 'hidden', border: `1.5px solid ${BORDER}` }}>
+      <div style={{ flex:1, minHeight:0, overflowY:'auto', padding: isMobile ? '64px 16px 80px' : '28px 28px 80px' }}>
+        <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr 460px', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
+          <div style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
             {/* Header */}
             <div style={{ background: '#111827', padding: isPhone ? '16px 18px' : isMobile ? '18px 20px 16px' : '20px 32px 18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -897,6 +900,95 @@ export const CaregiverDashboard = ({
                 </>
               )}
             </div>
+          </div>
+
+          {/* Right column */}
+          <div style={{ display:'flex', flexDirection:'column', gap:20, order: isMobile ? 2 : 0 }}>
+
+            {/* Assigned by Management */}
+            <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:20, boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <ClipboardList size={20} color={ORANGE} />
+                  <h3 style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:TEXT, margin:0 }}>Assigned by Management</h3>
+                </div>
+                <span aria-live="polite" style={{ width:32, height:32, borderRadius:'50%', background:activeTasks.length>0?`${ORANGE}14`:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:activeTasks.length>0?ORANGE:MUTED, flexShrink:0 }}>{activeTasks.length}</span>
+              </div>
+              {tasksLoading ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {[0,1,2].map(i => {
+                    const sk = isDarkMode ? 'skeleton-dark' : 'skeleton-light';
+                    const widths = [[70,42],[58,35],[44,28]];
+                    return (
+                      <div key={i} style={{ borderRadius:16, overflow:'hidden', background:CARD, border:`1px solid ${BORDER}`, display:'flex', opacity: 1 - i * 0.15 }}>
+                        <div style={{ width:4, flexShrink:0, background:CARD2, borderRadius:'16px 0 0 16px' }} />
+                        <div style={{ flex:1, padding:'14px 16px', display:'flex', alignItems:'center', gap:12 }}>
+                          <div className={sk} style={{ width:36, height:36, borderRadius:10, flexShrink:0 }} />
+                          <div style={{ flex:1, display:'flex', flexDirection:'column', gap:7 }}>
+                            <div className={sk} style={{ height:14, borderRadius:6, width: widths[i][0] + '%' }} />
+                            <div className={sk} style={{ height:11, borderRadius:5, width: widths[i][1] + '%' }} />
+                          </div>
+                          <div className={sk} style={{ width:52, height:22, borderRadius:6, flexShrink:0 }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : activeTasks.length > 0 ? (
+                <div data-card-list role="list" style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {activeTasks.slice(0,5).map(task => (
+                    <TaskCard key={task.id} task={task} onStartTask={handleStartTask} successId={successTaskId} />
+                  ))}
+                  {activeTasks.length > 5 && (
+                    <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, textAlign:'center', margin:'4px 0 0' }}>+{activeTasks.length-5} more</p>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'28px 16px', textAlign:'center' }}>
+                  <div style={{ width:56, height:56, borderRadius:18, background:`${GREEN}12`, border:`1.5px solid ${GREEN}25`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:12 }}>
+                    <CheckCircle size={26} color={GREEN} />
+                  </div>
+                  <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 4px', letterSpacing:'-0.01em' }}>You're all caught up</p>
+                  <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0, lineHeight:1.5 }}>No tasks assigned yet</p>
+                </div>
+              )}
+            </div>
+
+            {/* Open Incidents */}
+            <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:20, boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <AlertTriangle size={20} color={RED} />
+                  <h3 style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:TEXT, margin:0 }}>Open Incidents</h3>
+                </div>
+                <span style={{ width:32, height:32, borderRadius:'50%', background:incidents.length>0?`${RED}14`:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:incidents.length>0?RED:MUTED, flexShrink:0 }}>{incidents.length}</span>
+              </div>
+              {incidents.length === 0 ? (
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'20px 0', textAlign:'center' }}>
+                  <div style={{ width:48, height:48, borderRadius:14, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+                    <CheckCircle size={22} color={GREEN} />
+                  </div>
+                  <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>All clear</p>
+                  <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>No open incidents right now</p>
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {incidents.map(inc => (
+                    <div key={inc.id} style={{ background:CARD2, border:`1px solid ${sevColor(inc.severity)}30`, borderRadius:14, padding:16, display:'flex', alignItems:'center', gap:14 }}>
+                      <div style={{ width:48, height:48, borderRadius:14, background:`${sevColor(inc.severity)}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <AlertTriangle size={22} color={sevColor(inc.severity)} />
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <p style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, margin:'0 0 3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{inc.title}</p>
+                        <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>{inc.description || inc.note || inc.createdAt}</p>
+                      </div>
+                      <button onClick={() => handleTabChange('incident')} style={{ flexShrink:0, padding:'8px 14px', background:`${BLUE}14`, border:`1px solid ${BLUE}25`, borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:700, color:BLUE, cursor:'pointer' }}>View</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
         <StartBtn />
