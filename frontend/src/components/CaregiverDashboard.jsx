@@ -1012,7 +1012,7 @@ export const CaregiverDashboard = ({
                           <Printer size={16} color='rgba(255,255,255,0.6)' />
                         </button>
                       ) : (
-                        <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 10px', marginRight:8, marginTop:6, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
+                        <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 10px', marginRight:4, marginTop:6, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
                           <Printer size={12} /> Export
                         </button>
                       )}
@@ -1033,7 +1033,7 @@ export const CaregiverDashboard = ({
                         <div className="dar-onduty-dot" style={{ width:7, height:7, borderRadius:'50%', background:GREEN }} />
                         <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
                       </div>
-                      <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', marginRight:8, marginTop:6, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
+                      <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', marginRight:4, marginTop:6, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
                         <Printer size={12} /> Export
                       </button>
                     </div>
