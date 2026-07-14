@@ -248,7 +248,7 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
               </label>
             )}
           </div>
-        </div>
+
           <div style={{ position: 'relative' }}>
             <Label>Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
             <textarea
