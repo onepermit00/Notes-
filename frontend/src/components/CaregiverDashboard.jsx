@@ -712,30 +712,26 @@ export const CaregiverDashboard = ({
 
     // On mobile: full-width bar. On desktop: centered pill button.
     const StartBtn = () => (
-      <div style={{
-        position: 'fixed', bottom: 0, left: isMobile ? 0 : 248, right: 0,
-        padding: isMobile ? '10px 20px 14px' : '12px 40px 16px',
-        background: BG, borderTop: `1px solid ${BORDER}`, zIndex: 20,
-        display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end',
-      }}>
-        <motion.button
-          onClick={doStart}
-          disabled={shiftStarting}
-          whileTap={shiftStarting ? {} : { scale: 0.94 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-          style={{
-            width: isMobile ? '100%' : 'auto',
-            padding: isMobile ? '16px 0' : '14px 40px',
-            background: shiftStarting ? MUTED : BLUE,
-            border: 'none', borderRadius: 14,
-            fontFamily: INTER, fontSize: 16, fontWeight: 700, color: 'white',
-            cursor: shiftStarting ? 'not-allowed' : 'pointer',
-            boxShadow: shiftStarting ? 'none' : `0 6px 24px ${BLUE}50`,
-            whiteSpace: 'nowrap', letterSpacing: '-0.01em',
-          }}>
-          {shiftStarting ? 'Starting…' : 'Start My Shift'}
-        </motion.button>
-      </div>
+      <motion.button
+        onClick={doStart}
+        disabled={shiftStarting}
+        whileTap={shiftStarting ? {} : { scale: 0.93 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        style={{
+          position: 'fixed',
+          bottom: isPhone ? 20 : 28,
+          right: isPhone ? 20 : 28,
+          zIndex: 20,
+          padding: '14px 28px',
+          background: shiftStarting ? MUTED : BLUE,
+          border: 'none', borderRadius: 999,
+          fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white',
+          cursor: shiftStarting ? 'not-allowed' : 'pointer',
+          boxShadow: shiftStarting ? 'none' : `0 6px 28px ${BLUE}55`,
+          whiteSpace: 'nowrap', letterSpacing: '-0.01em',
+        }}>
+        {shiftStarting ? 'Starting…' : 'Start My Shift'}
+      </motion.button>
     );
 
     if (prevShift === undefined) {
@@ -1066,9 +1062,8 @@ export const CaregiverDashboard = ({
       {/* 2-column Overview layout: DAR left, right col for tasks/incidents/actions */}
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr 460px', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
 
-        {/* Left: Daily Activity Report + End Shift CTA */}
-        <div style={{ display:'flex', flexDirection:'column', gap:16, order: isMobile ? 1 : 0 }}>
-        <div className="dar-print-target" style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+        {/* Left: Daily Activity Report */}
+        <div className="dar-print-target" style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
           {!activeShift ? (
             <div style={{ padding:40, textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
               <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0 }}>No active shift today</p>
@@ -1217,26 +1212,6 @@ export const CaregiverDashboard = ({
           )}
         </div>
 
-          {activeShift && (
-            <div style={{ display:'flex', justifyContent:'flex-end' }}>
-              <motion.button
-                onClick={handleClockOut}
-                whileTap={{ scale: 0.96 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                style={{ padding:'11px 20px', background:RED, borderRadius:14, border:'none', display:'inline-flex', alignItems:'center', gap:10, cursor:'pointer', boxShadow:`0 4px 16px ${RED}40`, fontFamily:INTER }}>
-                <div style={{ width:34, height:34, background:'rgba(255,255,255,0.20)', borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <LogOut size={17} color="white" />
-                </div>
-                <div style={{ textAlign:'left' }}>
-                  <p style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:0 }}>End Shift</p>
-                  <p style={{ fontFamily:INTER, fontSize:11, color:'rgba(255,255,255,0.72)', margin:0 }}>Save & clock out</p>
-                </div>
-              </motion.button>
-            </div>
-          )}
-
-        </div>
-
         {/* Right column */}
         <div style={{ display:'flex', flexDirection:'column', gap:20, order: isMobile ? 2 : 0 }}>
 
@@ -1339,6 +1314,29 @@ export const CaregiverDashboard = ({
 
         </div>
       </div>
+
+      {/* End Shift — floating pill, bottom-right, only when shift is active */}
+      {activeShift && (
+        <motion.button
+          onClick={handleClockOut}
+          whileTap={{ scale: 0.93 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          style={{
+            position: 'fixed',
+            bottom: isPhone ? 20 : 28,
+            right: isPhone ? 20 : 28,
+            zIndex: 20,
+            padding: '14px 28px',
+            background: RED,
+            border: 'none', borderRadius: 999,
+            fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white',
+            cursor: 'pointer',
+            boxShadow: `0 6px 28px ${RED}55`,
+            whiteSpace: 'nowrap', letterSpacing: '-0.01em',
+          }}>
+          End Shift
+        </motion.button>
+      )}
     </div>
     );
   };
