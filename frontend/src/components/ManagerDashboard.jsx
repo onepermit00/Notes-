@@ -18,6 +18,7 @@ import { authApi } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
 import { useSharedData } from '../context/SharedDataContext';
 import MicButton from './MicButton';
+import { toNarrative } from '../lib/toNarrative';
 
 /* ─── Static brand tokens ────────────────────────────────────────────────────── */
 const GREEN  = '#34C759';
@@ -1976,6 +1977,15 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             const incoming   = deliveries.filter(a => !a.title.toLowerCase().includes('pickup'));
             const lockouts   = security.filter(a => a.title.toLowerCase().includes('lockout'));
             const rounds     = security.filter(a => !a.title.toLowerCase().includes('lockout'));
+            // Tasks Completed: activities not claimed by any specific DAR section
+            const claimedDARIds = new Set([
+              ...guests.map(a=>a.id), ...tours.map(a=>a.id),
+              ...loaners.map(a=>a.id), ...lockouts.map(a=>a.id),
+              ...rounds.map(a=>a.id), ...vendors.map(a=>a.id),
+              ...incoming.map(a=>a.id), ...pickups.map(a=>a.id),
+              ...(audit ? [audit.id] : []),
+            ]);
+            const tasksDoneEntries = todayShift.activities.filter(a => !claimedDARIds.has(a.id));
             const toStr = arr => arr.length > 0
               ? arr.map(a => `${a.time}: ${a.title}${a.notes ? ' · ' + a.notes : ''}`).join('\n')
               : 'N/A';
@@ -2089,6 +2099,18 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       <DARSect title="Security & Rounds" accent='#8FAEDD' />
                       {rounds.map((a, i, arr) => (
                         <DARField key={a.id} label={a.title} value={a.time} sub={a.notes} last={i === arr.length - 1} />
+                      ))}
+                    </>
+                  )}
+
+                  {/* Tasks Completed — concierge self-logged tasks */}
+                  {tasksDoneEntries.length > 0 && (
+                    <>
+                      <DARSect title="Tasks Completed" accent='#8FAEDD' />
+                      {tasksDoneEntries.map((a, i, arr) => (
+                        <div key={a.id} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
+                          <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{toNarrative({ ...a, time: a.time })}</p>
+                        </div>
                       ))}
                     </>
                   )}
@@ -2597,7 +2619,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         {/* ── Task groups ── */}
         {groups.map(({ key, sectionIcon:SIcon }) => {
           const cfg   = STATUS_CFG[key];
-          const items = tasks.filter(t => t.status === key);
+          const items = tasks.filter(t => t.status === key && t.createdByType === 'manager');
           const done  = key === 'completed';
           return (
             <div key={key} style={{ marginBottom:28 }}>
