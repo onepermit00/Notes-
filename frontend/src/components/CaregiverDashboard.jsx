@@ -344,24 +344,32 @@ export const CaregiverDashboard = ({
 
     // Check for active shift and load previous shift concurrently
     Promise.all([authApi.getActiveShift(), authApi.getPreviousShift()]).then(([activeRes, prevRes]) => {
-      // Restore active shift if already clocked in
+      // Restore active shift if already clocked in — ignore shifts that ended before today
       if (activeRes?.shift) {
         const s = activeRes.shift;
-        setCurrentShiftId(s.shift_id);
-        setIsShiftActive(true);
-        setShiftStarted(true);
-        setShiftStartTime(new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
-        // Restore activities logged in this shift as selfTasks
-        const prevActivities = (s.activities || []).map(t => ({
-          id: t.task_id,
-          title: t.title,
-          category: t.category || 'Other',
-          notes: t.notes || '',
-          completedAt: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
-          startedAt:   t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
-          status: 'completed',
-        }));
-        setSelfTasks(prevActivities);
+        const todayStr = new Date().toLocaleDateString();
+        if (s.clock_out && new Date(s.clock_out).toLocaleDateString() !== todayStr) {
+          // Shift ended before today — treat as no active shift
+        } else {
+          setCurrentShiftId(s.shift_id);
+          setIsShiftActive(true);
+          setShiftStarted(true);
+          setShiftStartTime(new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+          // Restore only today's activities as selfTasks
+          const prevActivities = (s.activities || []).filter(t => {
+            if (!t.created_at) return false;
+            return new Date(t.created_at).toLocaleDateString() === todayStr;
+          }).map(t => ({
+            id: t.task_id,
+            title: t.title,
+            category: t.category || 'Other',
+            notes: t.notes || '',
+            completedAt: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
+            startedAt:   t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
+            status: 'completed',
+          }));
+          setSelfTasks(prevActivities);
+        }
       }
 
       // Set previous shift for the pre-shift handoff view

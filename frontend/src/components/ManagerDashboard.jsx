@@ -364,18 +364,26 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [allShifts,   setAllShifts]   = useState([]);   // full shift history for calendar
   const [shiftFilter, setShiftFilter] = useState('all'); // filter by concierge id or 'all'
 
-  // Converts backend shift data to the shape the DAR renderer expects
+  // Converts backend shift data to the shape the DAR renderer expects.
+  // Only includes activities logged today so overnight shifts don't bleed yesterday's entries.
   const shiftToDAR = (s) => {
     if (!s) return null;
+    const todayStr = new Date().toLocaleDateString();
     return {
       concierge: { name: s.concierge_name },
       clockIn:   s.clock_in ? new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
       clockOut:  s.clock_out ? new Date(s.clock_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null,
       note:      '',
-      incidents: (s.incidents || []).map(i => `${i.type || ''}: ${i.description || ''}`),
-      activities: (s.activities || []).map(t => ({
+      incidents: (s.incidents || []).filter(i => {
+        if (!i.created_at) return true;
+        return new Date(i.created_at).toLocaleDateString() === todayStr;
+      }).map(i => `${i.type || ''}: ${i.description || ''}`),
+      activities: (s.activities || []).filter(t => {
+        if (!t.created_at) return false;
+        return new Date(t.created_at).toLocaleDateString() === todayStr;
+      }).map(t => ({
         id:       t.task_id,
-        time:     t.created_at ? new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+        time:     new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
         title:    t.title,
         notes:    t.notes || '',
         category: t.category || 'Other',
@@ -404,7 +412,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     const loadShift = async () => {
       const res = await authApi.getActiveShift();
       if (res?.shifts?.length > 0) {
-        setTodayShift(shiftToDAR(res.shifts[0]));
+        const shift = res.shifts[0];
+        const todayStr = new Date().toLocaleDateString();
+        // Discard shifts that ended before today — backend may return stale "active" shifts
+        if (shift.clock_out && new Date(shift.clock_out).toLocaleDateString() !== todayStr) {
+          setTodayShift(null);
+        } else {
+          setTodayShift(shiftToDAR(shift));
+        }
       } else {
         setTodayShift(null);
       }
