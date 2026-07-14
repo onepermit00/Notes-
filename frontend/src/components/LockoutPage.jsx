@@ -123,7 +123,8 @@ export const LockoutPage = ({ onActivityLogged }) => {
   const submit = () => {
     if (!form.resident || !form.unit || !form.reason || !form.idMethod || !form.entryMethod) return;
     setLog(p => [{ id: Date.now(), ...form, time: now() }, ...p]);
-    onActivityLogged?.({ title: `Lockout · ${form.resident} · Unit ${form.unit}`, category: 'Safety / Security', notes: `${form.reason} · ${form.entryMethod}` });
+    const lockoutNotes = [`Reason: ${form.reason}. Entry method: ${form.entryMethod}`, form.notes.trim()].filter(Boolean).join(' ');
+    onActivityLogged?.({ title: `Lockout · ${form.resident} · Unit ${form.unit}`, category: 'Safety / Security', notes: lockoutNotes });
     goBack();
   };
 

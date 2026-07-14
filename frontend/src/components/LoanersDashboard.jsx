@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ShoppingCart, Archive, Key, Flame, AlertTriangle, Check, FileText, ChevronRight, RotateCcw, Camera } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { SignaturePad } from './SignaturePad';
+import MicButton from './MicButton';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
@@ -78,12 +79,13 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
   const [view,         setView]         = useState('main');
   const [lStep,        setLStep]        = useState(1);
   const [selectedItem, setSelectedItem] = useState(null);
-  const [lForm,        setLF]           = useState({ resident: '', unit: '', photo: null, photoPreview: null, signature: null, signedAt: null });
+  const [lForm,        setLF]           = useState({ resident: '', unit: '', notes: '', photo: null, photoPreview: null, signature: null, signedAt: null });
+  const [returnNotes,  setReturnNotes]  = useState('');
   const [showSigPad,   setShowSigPad]   = useState(false);
 
   const openCheckout = (item) => { setSelectedItem(item); setView('checkout'); setLStep(1); };
-  const openReturn   = (item) => { setSelectedItem(item); setView('return'); };
-  const goBack       = () => { setView('main'); setSelectedItem(null); setLF({ resident: '', unit: '', photo: null, photoPreview: null, signature: null, signedAt: null }); setLStep(1); setShowSigPad(false); };
+  const openReturn   = (item) => { setSelectedItem(item); setView('return'); setReturnNotes(''); };
+  const goBack       = () => { setView('main'); setSelectedItem(null); setLF({ resident: '', unit: '', notes: '', photo: null, photoPreview: null, signature: null, signedAt: null }); setLStep(1); setShowSigPad(false); setReturnNotes(''); };
 
   const checkoutLoaner = () => {
     if (!lForm.resident || !lForm.unit) return;
@@ -91,7 +93,7 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
       ? { ...l, checkedOut: true, resident: lForm.resident, unit: lForm.unit, checkoutTime: now() }
       : l
     ));
-    onActivityLogged?.({ title: `Loaner checkout · ${selectedItem.name} · ${lForm.resident} · Unit ${lForm.unit}`, category: 'Amenity', evidenceUrls: lForm.photoPreview ? [lForm.photoPreview] : [] });
+    onActivityLogged?.({ title: `Loaner checkout · ${selectedItem.name} · ${lForm.resident} · Unit ${lForm.unit}`, category: 'Amenity', notes: lForm.notes.trim(), evidenceUrls: lForm.photoPreview ? [lForm.photoPreview] : [] });
     goBack();
   };
 
@@ -100,7 +102,7 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
       ? { ...l, checkedOut: false, resident: null, unit: null, checkoutTime: null }
       : l
     ));
-    onActivityLogged?.({ title: `Loaner return · ${selectedItem.name}`, category: 'Amenity' });
+    onActivityLogged?.({ title: `Loaner return · ${selectedItem.name}`, category: 'Amenity', notes: returnNotes.trim() });
     goBack();
   };
 
@@ -232,6 +234,17 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
               The item will be marked <strong style={{ color: TEXT }}>checked out</strong> and the resident will be responsible for its return before shift close.
             </span>
           </div>
+          <div style={{ position: 'relative' }}>
+            <Label>Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
+            <textarea
+              value={lForm.notes}
+              onChange={e => setLF(p => ({ ...p, notes: e.target.value }))}
+              placeholder="e.g. Item was in good condition, resident needed it for moving boxes…"
+              rows={3}
+              style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+            />
+            <MicButton onTranscript={t => setLF(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} />
+          </div>
         </div>
         <WizardFooter onBack={() => setLStep(1)} onContinue={checkoutLoaner} continueLabel="Check Out" continueDisabled={!lForm.resident || !lForm.unit || !lForm.signature} />
       </div>
@@ -272,6 +285,17 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
             <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
               Confirming return will mark this item as <strong style={{ color: TEXT }}>available</strong> and clear the checkout record.
             </span>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <Label>Return Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
+            <textarea
+              value={returnNotes}
+              onChange={e => setReturnNotes(e.target.value)}
+              placeholder="e.g. Item returned in good condition, no damage observed…"
+              rows={3}
+              style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+            />
+            <MicButton onTranscript={t => setReturnNotes(p => p ? p + ' ' + t : t)} />
           </div>
         </div>
 

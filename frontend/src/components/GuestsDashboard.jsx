@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { UserCheck, MessageCircle, Clock, Check, LogOut, User, UtensilsCrossed, Package, Wrench, Truck, HelpCircle, Camera, Plus, X, Calendar, Bell } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import ResidentSearchInput from './ResidentSearchInput';
+import MicButton from './MicButton';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
@@ -85,14 +86,14 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   const [guests,   setGuests]   = useState([]);
   const [view,     setView]     = useState('list');
   const [gStep,    setGStep]    = useState(1);
-  const [form,     setForm]     = useState({ guestName: '', residentName: '', unit: '', purpose: '', photo: null, photoPreview: null });
+  const [form,     setForm]     = useState({ guestName: '', residentName: '', unit: '', purpose: '', notes: '', photo: null, photoPreview: null });
   const [toastId,  setToastId]  = useState(null);
   const [toastMsg, setToastMsg] = useState('');
 
   // Pre-registration state
   const [preRegs,  setPreRegs]  = useState(loadPreRegs);
   const [prStep,   setPrStep]   = useState(1);
-  const [prForm,   setPrForm]   = useState({ guestName: '', residentName: '', unit: '', purpose: '', expectedTime: '' });
+  const [prForm,   setPrForm]   = useState({ guestName: '', residentName: '', unit: '', purpose: '', notes: '', expectedTime: '' });
 
   const showToast = (msg, guestId) => {
     setToastId(guestId);
@@ -103,13 +104,13 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   const goBack = () => {
     setView('list');
     setGStep(1);
-    setForm({ guestName: '', residentName: '', unit: '', purpose: '', photo: null, photoPreview: null });
+    setForm({ guestName: '', residentName: '', unit: '', purpose: '', notes: '', photo: null, photoPreview: null });
   };
 
   const goBackPr = () => {
     setView('list');
     setPrStep(1);
-    setPrForm({ guestName: '', residentName: '', unit: '', purpose: '', expectedTime: '' });
+    setPrForm({ guestName: '', residentName: '', unit: '', purpose: '', notes: '', expectedTime: '' });
   };
 
   const logGuest = () => {
@@ -126,7 +127,8 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
       departedAt:   null,
     };
     setGuests(prev => [entry, ...prev]);
-    onActivityLogged?.({ title: `Guest arrival · ${entry.guestName} → ${entry.residentName} · Unit ${entry.unit}`, category: 'Resident Assist', notes: entry.purpose, evidenceUrls: form.photoPreview ? [form.photoPreview] : [] });
+    const arrivalNotes = [entry.purpose, form.notes.trim()].filter(Boolean).join('. ');
+    onActivityLogged?.({ title: `Guest arrival · ${entry.guestName} → ${entry.residentName} · Unit ${entry.unit}`, category: 'Resident Assist', notes: arrivalNotes, evidenceUrls: form.photoPreview ? [form.photoPreview] : [] });
     goBack();
     showToast(`Guest logged · Notify ${entry.residentName} now`, entry.id);
   };
@@ -159,7 +161,8 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
       departedAt:   null,
     };
     setGuests(prev => [entry, ...prev]);
-    onActivityLogged?.({ title: `Guest check-in (pre-reg) · ${pr.guestName} → ${pr.residentName} · Unit ${pr.unit}`, category: 'Resident Assist', notes: pr.purpose });
+    const preRegNotes = [pr.purpose, pr.notes?.trim()].filter(Boolean).join('. ');
+    onActivityLogged?.({ title: `Guest check-in (pre-reg) · ${pr.guestName} → ${pr.residentName} · Unit ${pr.unit}`, category: 'Resident Assist', notes: preRegNotes });
     showToast(`${pr.guestName} checked in from pre-registration`, entry.id);
   };
 
@@ -177,7 +180,17 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   };
 
   const markDeparted = (id) => {
-    setGuests(prev => prev.map(g => g.id === id ? { ...g, status: 'departed', departedAt: now() } : g));
+    setGuests(prev => {
+      const entry = prev.find(g => g.id === id);
+      if (entry) {
+        onActivityLogged?.({
+          title: `Guest departure · ${entry.guestName} → ${entry.residentName} · Unit ${entry.unit}`,
+          category: 'Resident Assist',
+          notes: entry.purpose || ''
+        });
+      }
+      return prev.map(g => g.id === id ? { ...g, status: 'departed', departedAt: now() } : g);
+    });
   };
 
   // ── PRE-REGISTRATION WIZARD ───────────────────────────────────────────────
@@ -336,6 +349,17 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
             <Label>Unit Number *</Label>
             <input type="text" placeholder="e.g. 412" value={form.unit} onChange={e => setForm(p => ({ ...p, unit: e.target.value }))}
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ position: 'relative' }}>
+            <Label>Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
+            <textarea
+              value={form.notes}
+              onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+              placeholder="e.g. Guest arrived with luggage, went directly to elevator…"
+              rows={3}
+              style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+            />
+            <MicButton onTranscript={t => setForm(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} />
           </div>
           <div>
             <Label>Photo <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Wrench, CheckCircle, Clock, Plus, Check, LogOut, ChevronRight, FileText, Thermometer, Droplets, Zap, Wifi, Shield, Truck, Hammer, Sparkles, HelpCircle, Building2, Camera } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import MicButton from './MicButton';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
@@ -21,7 +22,7 @@ const PURPOSE_CONFIG = [
 
 const ID_METHODS = ['Photo ID checked', 'Work order on file', 'Management pre-authorized', 'Resident vouched'];
 const now        = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-const EMPTY_FORM = { company: '', contact: '', purpose: '', unit: '', authorizedBy: '', workOrder: '', idMethod: '', photo: null, photoPreview: null };
+const EMPTY_FORM = { company: '', contact: '', purpose: '', unit: '', authorizedBy: '', workOrder: '', idMethod: '', notes: '', photo: null, photoPreview: null };
 
 function Label({ children }) {
   const { colors } = useTheme();
@@ -79,11 +80,12 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
   const { colors } = useTheme();
   const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
   const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
-  const [vendors,    setVendors]    = useState([]);
-  const [view,       setView]       = useState('list');
-  const [vStep,      setVStep]      = useState(1);
-  const [checkoutId, setCheckoutId] = useState(null);
-  const [form,       setForm]       = useState(EMPTY_FORM);
+  const [vendors,       setVendors]       = useState([]);
+  const [view,          setView]          = useState('list');
+  const [vStep,         setVStep]         = useState(1);
+  const [checkoutId,    setCheckoutId]    = useState(null);
+  const [checkoutNotes, setCheckoutNotes] = useState('');
+  const [form,          setForm]          = useState(EMPTY_FORM);
 
   const setF   = (key, val) => setForm(p => ({ ...p, [key]: val }));
   const goBack = () => { setView('list'); setForm(EMPTY_FORM); setVStep(1); };
@@ -91,15 +93,20 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
   const checkIn = () => {
     if (!form.company || !form.purpose || !form.unit || !form.authorizedBy || !form.idMethod) return;
     setVendors(p => [...p, { id: Date.now(), ...form, checkInTime: now(), checkOutTime: null, status: 'active' }]);
-    onActivityLogged?.({ title: `Vendor check-in · ${form.company} · ${form.purpose}`, category: 'Vendor / Contractor', notes: `${form.unit} · Auth: ${form.authorizedBy}`, evidenceUrls: form.photoPreview ? [form.photoPreview] : [] });
+    const checkInNotes = [`${form.unit} · Auth: ${form.authorizedBy}`, form.notes.trim()].filter(Boolean).join('. ');
+    onActivityLogged?.({ title: `Vendor check-in · ${form.company} · ${form.purpose}`, category: 'Vendor / Contractor', notes: checkInNotes, evidenceUrls: form.photoPreview ? [form.photoPreview] : [] });
     goBack();
   };
 
   const checkOut = (id) => {
     const v = vendors.find(x => x.id === id);
     setVendors(p => p.map(x => x.id === id ? { ...x, status: 'out', checkOutTime: now() } : x));
-    if (v) onActivityLogged?.({ title: `Vendor check-out · ${v.company} · ${v.purpose}`, category: 'Vendor / Contractor', notes: `${v.unit} · In: ${v.checkInTime}` });
+    if (v) {
+      const outNotes = [`${v.unit} · In: ${v.checkInTime}`, checkoutNotes.trim()].filter(Boolean).join('. ');
+      onActivityLogged?.({ title: `Vendor check-out · ${v.company} · ${v.purpose}`, category: 'Vendor / Contractor', notes: outNotes });
+    }
     setCheckoutId(null);
+    setCheckoutNotes('');
     setView('list');
   };
 
@@ -242,6 +249,18 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
             )}
           </div>
         </div>
+          <div style={{ position: 'relative' }}>
+            <Label>Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
+            <textarea
+              value={form.notes}
+              onChange={e => setF('notes', e.target.value)}
+              placeholder="e.g. Vendor arrived with two technicians, went to Unit 5B…"
+              rows={3}
+              style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+            />
+            <MicButton onTranscript={t => setF('notes', form.notes ? form.notes + ' ' + t : t)} />
+          </div>
+        </div>
         <WizardFooter onBack={() => setVStep(2)} onContinue={checkIn} continueLabel="Check In Vendor" continueDisabled={!form.unit || !form.authorizedBy || !form.idMethod} />
       </div>
     );
@@ -298,6 +317,17 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
             <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
               Confirming will mark this vendor as <strong style={{ color: TEXT }}>departed</strong> and record the check-out time.
             </span>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <Label>Departure Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
+            <textarea
+              value={checkoutNotes}
+              onChange={e => setCheckoutNotes(e.target.value)}
+              placeholder="e.g. Work completed in Unit 5B, all tools removed, area left clean…"
+              rows={3}
+              style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+            />
+            <MicButton onTranscript={t => setCheckoutNotes(p => p ? p + ' ' + t : t)} />
           </div>
         </div>
 

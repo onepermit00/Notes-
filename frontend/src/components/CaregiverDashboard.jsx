@@ -13,6 +13,7 @@ import {
 import { PackageDashboard } from './PackageDashboard';
 import { ToursDashboard } from './ToursDashboard';
 import MicButton from './MicButton';
+import { toNarrative } from '../lib/toNarrative';
 import { TaskStatus, UserRole } from '../types';
 import { TaskCard } from './TaskCard';
 import { TaskRequestCard }  from './TaskRequestCard';
@@ -943,17 +944,13 @@ export const CaregiverDashboard = ({
         <span style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:TEXT, letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
       </div>
     );
-    const Field = ({ label, value, sub, photos, last }) => (
-      <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 3 : 18, padding: isPhone ? '12px 14px' : isMobile ? '12px 18px' : '14px 32px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
-        <div style={{ width: isMobile ? '100%' : 210, flexShrink:0, fontFamily:INTER, fontSize:13, fontWeight: isMobile ? 700 : 600, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.6, whiteSpace:'pre-line' }}>{value}</div>
-          {sub && <div style={{ fontFamily:INTER, fontSize:13, color:MUTED, marginTop:2 }}>{sub}</div>}
-        </div>
-        {Array.isArray(photos)&&photos.length>0 && (
-          <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-            {photos.map((url,i)=>(
-              <button key={i} onClick={()=>setViewPhoto(url)} style={{ width:42,height:42,borderRadius:8,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD2,flexShrink:0 }}>
+    const NarrativeEntry = ({ activity, last }) => (
+      <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
+        <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{toNarrative(activity)}</p>
+        {Array.isArray(activity.evidenceUrls) && activity.evidenceUrls.length > 0 && (
+          <div style={{ display:'flex', gap:6, marginTop:10 }}>
+            {activity.evidenceUrls.map((url,i) => (
+              <button key={i} onClick={() => setViewPhoto(url)} style={{ width:42,height:42,borderRadius:8,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD2,flexShrink:0 }}>
                 <img src={url} alt={`evidence ${i+1}`} style={{ width:'100%',height:'100%',objectFit:'cover',display:'block' }} />
               </button>
             ))}
@@ -961,9 +958,11 @@ export const CaregiverDashboard = ({
         )}
       </div>
     );
-    const toStr = arr => arr.length > 0
-      ? arr.map(a => `${a.time||'—'}: ${a.title}${a.notes?' · '+a.notes:''}`).join('\n')
-      : 'N/A';
+    const NoActivity = ({ last }) => (
+      <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
+        <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, lineHeight:1.6, margin:0, fontStyle:'italic' }}>No activity logged this shift.</p>
+      </div>
+    );
 
     return (
     <div style={{ flex:1, minHeight:0, overflowY:'auto', padding: isMobile ? '64px 16px 48px' : '28px 28px 48px' }}>
@@ -1042,40 +1041,51 @@ export const CaregiverDashboard = ({
               </div>
               <div style={{ background:CARD }}>
                 <Sect title="Start of Shift Package Audit" accent='#8FAEDD' />
-                <Field label="Package Audit Completed" value="Yes" />
-                <Field label="Keys Found at Start of Shift" value="Yes" />
-                {audit && <Field label="Package Room Count" value={audit.notes} last />}
+                {audit
+                  ? <NarrativeEntry activity={audit} last />
+                  : <NoActivity last />
+                }
 
                 <Sect title="Packages" accent='#8FAEDD' />
-                <Field label="Delivered by Couriers" value={toStr(incoming)} />
-                <Field label="Picked Up by Residents" value={toStr(pickups)} last />
+                {[...incoming, ...pickups].length > 0
+                  ? [...incoming, ...pickups].map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
                 <Sect title="Guests" accent='#8FAEDD' />
-                <Field label="Guest Arrivals / Check-ins" value={toStr(guests)} last />
+                {guests.length > 0
+                  ? guests.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
                 <Sect title="Tours" accent='#8FAEDD' />
-                <Field label="Scheduled & Walk-in Tours" value={toStr(tours)} last />
+                {tours.length > 0
+                  ? tours.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
                 <Sect title="Loaners" accent='#8FAEDD' />
-                <Field label="Checkouts & Returns" value={toStr(loaners)} last />
+                {loaners.length > 0
+                  ? loaners.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
                 <Sect title="Lockouts" accent='#8FAEDD' />
-                <Field label="Keys & Access Requests" value={toStr(lockouts)} last />
+                {lockouts.length > 0
+                  ? lockouts.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
                 <Sect title="Vendors" accent='#8FAEDD' />
                 {vends.length > 0
-                  ? vends.map((a, i, arr) => (
-                      <Field key={a.id} label={a.title} value={a.time} sub={a.notes} last={i === arr.length - 1} />
-                    ))
-                  : <Field label="Vendor Activity" value="N/A" last />
+                  ? vends.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
                 }
 
                 {rounds.length > 0 && (
                   <>
                     <Sect title="Security & Rounds" accent='#8FAEDD' />
-                    {rounds.map((a, i, arr) => (
-                      <Field key={a.id} label={a.title} value={a.time} sub={a.notes} last={i === arr.length - 1} />
-                    ))}
+                    {rounds.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)}
                   </>
                 )}
 
@@ -1088,7 +1098,9 @@ export const CaregiverDashboard = ({
                   <>
                     <Sect title="Incidents Filed" accent={RED} />
                     {activeShift.incidents.map((inc, i, arr) => (
-                      <Field key={i} label={`Incident ${i + 1}`} value={inc} last={i === arr.length - 1} />
+                      <div key={i} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
+                        <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
+                      </div>
                     ))}
                   </>
                 )}
