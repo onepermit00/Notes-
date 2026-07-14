@@ -2709,7 +2709,7 @@ export const CaregiverDashboard = ({
                   {activeTab === 'tours'         && <ToursDashboard   onActivityLogged={handleActivityLogged} />}
                   {activeTab === 'vendors'       && <VendorsDashboard onActivityLogged={handleActivityLogged} />}
                   {activeTab === 'guests'        && <GuestsDashboard  onActivityLogged={handleActivityLogged} />}
-                  {activeTab === 'calendar'      && <div style={{ flex:1, overflowY:'auto' }}>{renderShiftContent()}{renderShifts()}</div>}
+                  {activeTab === 'calendar'      && renderShifts()}
                   {activeTab === 'shift-history' && <HistoryPage />}
                   {activeTab === 'profile'       && renderProfileContent()}
                   {activeTab === 'messages'      && <TeamMessagesPage />}
