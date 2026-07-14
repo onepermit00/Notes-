@@ -987,7 +987,12 @@ export const CaregiverDashboard = ({
         {/* Left: Daily Activity Report */}
         <div className="dar-print-target" style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
           {!activeShift ? (
-            <div style={{ padding:40, textAlign:'center', fontFamily:INTER, fontSize:14, color:MUTED }}>No active shift today</div>
+            <div style={{ padding:40, textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
+              <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0 }}>No active shift today</p>
+              <button onClick={handleClockIn} style={{ padding:'11px 28px', background:GREEN, border:'none', borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer', boxShadow:`0 4px 16px ${GREEN}40` }}>
+                Start Shift
+              </button>
+            </div>
           ) : (
             <>
               <style>{`
@@ -1123,6 +1128,13 @@ export const CaregiverDashboard = ({
                     ))}
                   </>
                 )}
+
+                {/* End Shift — bottom-right of DAR */}
+                <div style={{ padding: isPhone ? '12px 14px' : isMobile ? '12px 18px' : '14px 32px', borderTop:`1px solid ${BORDER}`, display:'flex', justifyContent:'flex-end' }}>
+                  <button onClick={handleClockOut} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'9px 20px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.22)`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:RED, cursor:'pointer' }}>
+                    <LogOut size={14} /> End Shift
+                  </button>
+                </div>
               </div>
             </>
           )}
