@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, User, Phone, Mail, FileText, X } from 'lucide-react';
-import { getResidents } from '../api/authApi';
+import { authApi } from '../services/authApi';
 
 export default function ResidentSearchInput({ colors, INTER, onSelect, placeholder = 'Search resident by name or unit…' }) {
   const { CARD, CARD2, BORDER, TEXT, MUTED, SHADOW } = colors;
@@ -15,7 +15,7 @@ export default function ResidentSearchInput({ colors, INTER, onSelect, placehold
 
   useEffect(() => {
     setLoading(true);
-    getResidents().then(r => { setResidents(r || []); setLoading(false); }).catch(() => setLoading(false));
+    authApi.getResidents().then(r => { setResidents(r || []); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
   useEffect(() => {
