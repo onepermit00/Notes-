@@ -1824,10 +1824,27 @@ export const CaregiverDashboard = ({
       'Noise & Quiet Hours': ORANGE, 'Package Management': GREEN,
     };
 
+    const AICopilotCTA = () => (
+      <button onClick={() => setShowCopilot(true)} data-testid="copilot-btn"
+        style={{ width:'100%', padding:20, background:'#059669', borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:'0 8px 24px rgba(5,150,105,0.35)', fontFamily:INTER }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+          <div style={{ width:56, height:56, background:'rgba(255,255,255,0.20)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
+            <CareAssistantIcon size={56} />
+          </div>
+          <div style={{ textAlign:'left' }}>
+            <p style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:'0 0 3px' }}>AI Copilot</p>
+            <p style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.75)', margin:0 }}>Ask anything about building procedures</p>
+          </div>
+        </div>
+        <ChevronRight size={24} color="rgba(255,255,255,0.72)" />
+      </button>
+    );
+
     if (uploadedSOPs.length === 0) {
       return (
         <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', gap:16, padding:'24px 20px 0', textAlign:'center' }}>
-          <div style={{ width:72, height:72, borderRadius:22, background:'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <AICopilotCTA />
+          <div style={{ width:72, height:72, borderRadius:22, background:'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center', marginTop:8 }}>
             <BookOpen size={36} color={BLUE} />
           </div>
           <div>
@@ -1840,6 +1857,7 @@ export const CaregiverDashboard = ({
 
     return (
       <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
+        <AICopilotCTA />
         {uploadedSOPs.map((sop) => {
           const CatIcon = sop.fileType === 'image' ? Image : sop.fileType === 'pdf' ? FileText : (SOP_ICON_MAP[sop.category] || BookOpen);
           const catColor = SOP_COLOR_MAP[sop.category] || MUTED;
@@ -1945,7 +1963,6 @@ export const CaregiverDashboard = ({
     { id: 'tours',         Icon: Users,         label: 'Tours'               },
     { id: 'loaners',       Icon: ShoppingCart,  label: 'Loaners'             },
     { id: 'incident',      Icon: AlertTriangle,  label: 'Incident'   },
-    { id: 'followup',      Icon: Flag,           label: 'Follow-ups',  badge: followUps.items.filter(i => i.status !== 'resolved').length || null },
     { id: 'sops',          Icon: BookOpen,       label: 'SOPs'       },
     { id: 'training',      Icon: GraduationCap,  label: 'Training'   },
     { id: 'calendar',      Icon: Calendar,       label: 'Shifts'     },
@@ -2730,14 +2747,6 @@ export const CaregiverDashboard = ({
       {/* ── MAIN CONTENT ─────────────────────────────────────────────────── */}
       <div style={{ flex: 1, background: BG, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
 
-        {/* AI Copilot FAB */}
-        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 40 }}>
-          <button onClick={() => setShowCopilot(true)} data-testid="copilot-btn"
-            style={{ width: 54, height: 54, borderRadius: 16, border: 'none', cursor: 'pointer', overflow: 'hidden', boxShadow: '0 8px 24px rgba(5,150,105,0.35)' }}>
-            <CareAssistantIcon size={54} />
-          </button>
-        </div>
-
         {/* Main content — pre-shift briefing until shift starts, then live DAR */}
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           {shiftStarted ? renderHomeContent() : renderPreShiftBriefing()}
@@ -2811,15 +2820,6 @@ export const CaregiverDashboard = ({
                   {activeTab === 'settings'      && renderSettingsContent()}
                   {activeTab === 'sops'          && renderSOPs()}
                   {activeTab === 'training'      && renderTrainingContent()}
-                  {activeTab === 'followup'      && (
-                    <div style={{ padding: isPhone ? '16px 16px 48px' : '20px 20px 48px' }}>
-                      <FollowUpTracker
-                        colors={{ BG, CARD, CARD2, BORDER, TEXT, MUTED, SHADOW }}
-                        INTER={INTER}
-                        followUps={followUps}
-                      />
-                    </div>
-                  )}
                 </div>
               </motion.div>
             </>
