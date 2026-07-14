@@ -793,6 +793,8 @@ export const CaregiverDashboard = ({
     const incoming = delivery.filter(a => !a.title?.toLowerCase().includes('pickup'));
     const lockouts = security.filter(a => a.title?.toLowerCase().includes('lockout'));
     const rounds   = security.filter(a => !a.title?.toLowerCase().includes('lockout'));
+    const claimedActIds = new Set([...guests, ...tours, ...loaners, ...pickups, ...incoming, ...lockouts, ...rounds, ...vends, ...(audit ? [audit] : [])].map(a => a.id).filter(Boolean));
+    const tasksDone = acts.filter(a => a.id && !claimedActIds.has(a.id));
 
     // Same Sect/Field/toStr as Manager Dashboard — unified DAR format
     const Sect = ({ title, accent = '#8FAEDD' }) => (
@@ -868,6 +870,9 @@ export const CaregiverDashboard = ({
                   <Field label="Rounds Completed" value={toStr(rounds)} last />
                 </>
               )}
+
+              <Sect title="Tasks Completed" />
+              <Field label="Logged Tasks" value={toStr(tasksDone)} last />
 
               <Sect title="Shift Notes" />
               <div style={{ padding: isPhone ? '14px 14px 18px' : isMobile ? '14px 18px 18px' : '16px 32px 20px' }}>
