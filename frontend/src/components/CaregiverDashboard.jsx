@@ -2015,7 +2015,7 @@ export const CaregiverDashboard = ({
     const pageShifts  = monthShifts.slice(shiftsPage * 5, shiftsPage * 5 + 5);
 
     return (
-      <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'1fr 400px', gap: isMobile ? 16 : 20, alignItems: isMobile ? 'stretch' : 'start', padding: isMobile ? '16px 16px 48px' : '28px 32px 48px' }}>
+      <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'1fr 400px', gap: isMobile ? 16 : 20, alignItems: isMobile ? 'stretch' : 'start', padding: isMobile ? '8px 16px 48px' : '12px 32px 48px' }}>
 
         {/* DAR — top on mobile, left column on desktop */}
         <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.05)', order: isMobile ? 2 : 0, gridColumn: 1, gridRow: '1 / 3' }}>
