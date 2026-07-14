@@ -626,31 +626,16 @@ export const CaregiverDashboard = ({
 
   const { isOnline, queueLen, isSyncing } = useOfflineQueue();
 
-  const handleClockOut = () => {
-    setChecklistAcks({});
-    setShowChecklist(true);
-  };
-
-  const proceedToHandover = () => {
-    setShowChecklist(false);
-    setHandoverNotes('');
-    setHandoverItems('');
-    setShowHandover(true);
-  };
-
-  const submitHandover = async () => {
-    setHandoverSaving(true);
+  const handleClockOut = async () => {
     try {
-      const openItems = handoverItems.split('\n').map(s => s.trim()).filter(Boolean);
-      const res = await authApi.handoverShift(handoverNotes, openItems);
+      const res = await authApi.handoverShift('', []);
       setIsShiftActive(false);
       setCurrentShiftId(null);
-      setShowHandover(false);
       setClockOutTime(new Date(res.clock_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
-      setClockAlertTitle('Shift Handed Over');
-      setClockAlertMsg('Shift ended. Your handover notes have been saved for the next concierge.');
+      setClockAlertTitle('Shift Ended');
+      setClockAlertMsg('Your shift has been clocked out. All documentation has been saved.');
       setShowClockAlert(true);
-    } catch { /* silently ignore */ } finally { setHandoverSaving(false); }
+    } catch { /* silently ignore */ }
   };
   const handleActivityLogged = ({ title, category = '', notes = '', evidenceUrls = [] }) => {
     const t = nowStr();
@@ -2795,142 +2780,6 @@ export const CaregiverDashboard = ({
 
       {/* AI Copilot */}
       <AICopilot isOpen={showCopilot} onClose={() => setShowCopilot(false)} role="concierge" patientName={propertyName} />
-
-      {/* ── End-of-Shift Checklist ───────────────────────────────────────── */}
-      <AnimatePresence>
-        {showChecklist && (() => {
-          const openTasks = tasks.filter(t => t.status !== 'completed');
-          const openIncs  = incidents.filter(i => i.status !== 'resolved');
-          const items     = [
-            ...openTasks.map(t => ({ id: `task-${t.id}`, label: t.title, sub: `Task · ${t.category}`, type: 'task' })),
-            ...openIncs.map(i  => ({ id: `inc-${i.id}`,  label: i.title, sub: `Incident · ${i.type}`, type: 'incident' })),
-          ];
-          const allAcked   = items.length === 0 || items.every(it => checklistAcks[it.id]);
-          const ACK_COLORS = { done: GREEN, escalate: ORANGE };
-          return (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
-              <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-                transition={{ type: 'spring', damping: 32, stiffness: 280 }}
-                style={{ ...glass(), borderRadius: isPhone ? '20px 20px 0 0' : 20, width: '100%', maxWidth: isPhone ? '100%' : 480, overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '20px 20px 14px', borderBottom: `1px solid ${BORDER}`, flexShrink: 0 }}>
-                  <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 800, color: MUTED, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Before you go</div>
-                  <div style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT }}>End-of-Shift Checklist</div>
-                  <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 4 }}>Acknowledge every open item before handing over.</div>
-                </div>
-
-                <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
-                  {items.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '32px 0' }}>
-                      <CheckCircle size={36} color={GREEN} style={{ marginBottom: 10 }} />
-                      <p style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: '0 0 4px' }}>All clear!</p>
-                      <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>No open tasks or unresolved incidents.</p>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {items.map(it => {
-                        const ack = checklistAcks[it.id];
-                        return (
-                          <div key={it.id} style={{ background: CARD, border: `1px solid ${ack ? ACK_COLORS[ack] + '40' : BORDER}`, borderRadius: 12, padding: '12px 14px' }}>
-                            <div style={{ fontFamily: INTER, fontSize: 14, fontWeight: 600, color: TEXT, marginBottom: 2 }}>{it.label}</div>
-                            <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginBottom: ack ? 0 : 10 }}>{it.sub}</div>
-                            {!ack && (
-                              <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={() => setChecklistAcks(p => ({ ...p, [it.id]: 'done' }))}
-                                  style={{ flex: 1, padding: '7px 0', background: `${GREEN}12`, border: `1px solid ${GREEN}30`, borderRadius: 8, fontFamily: INTER, fontSize: 12, fontWeight: 700, color: GREEN, cursor: 'pointer' }}>
-                                  ✓ Mark Done
-                                </button>
-                                <button onClick={() => setChecklistAcks(p => ({ ...p, [it.id]: 'escalate' }))}
-                                  style={{ flex: 1, padding: '7px 0', background: `${ORANGE}12`, border: `1px solid ${ORANGE}30`, borderRadius: 8, fontFamily: INTER, fontSize: 12, fontWeight: 700, color: ORANGE, cursor: 'pointer' }}>
-                                  ⬆ Escalate
-                                </button>
-                              </div>
-                            )}
-                            {ack && (
-                              <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 700, color: ACK_COLORS[ack] }}>
-                                {ack === 'done' ? '✓ Marked done' : '⬆ Escalated to next shift'}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ padding: '12px 20px 20px', display: 'flex', gap: 10, borderTop: `1px solid ${BORDER}`, flexShrink: 0 }}>
-                  <button onClick={() => setShowChecklist(false)}
-                    style={{ flex: 1, padding: '14px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
-                    Cancel
-                  </button>
-                  <button onClick={proceedToHandover} disabled={!allAcked}
-                    style={{ flex: 2, padding: '14px 0', background: allAcked ? BLUE : BORDER, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: allAcked ? 'pointer' : 'not-allowed', opacity: allAcked ? 1 : 0.5 }}>
-                    Continue to Handover →
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          );
-        })()}
-      </AnimatePresence>
-
-      {/* ── Shift Handover Modal ─────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showHandover && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 32, stiffness: 280 }}
-              style={{ ...glass(), borderRadius: isPhone ? '20px 20px 0 0' : 20, width: '100%', maxWidth: isPhone ? '100%' : 480, overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-              {/* Header */}
-              <div style={{ padding: '20px 20px 14px', borderBottom: `1px solid ${BORDER}` }}>
-                <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 800, color: MUTED, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>End of Shift</div>
-                <div style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>Shift Handover</div>
-                <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 4 }}>Leave notes for the next concierge before clocking out.</div>
-              </div>
-              {/* Open items */}
-              <div style={{ padding: '16px 20px 0' }}>
-                <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 700, color: MUTED, letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 8 }}>Open Items</div>
-                <div style={{ position: 'relative' }}>
-                  <textarea
-                    placeholder={'One item per line, e.g.\n- Package for Unit 412 unclaimed\n- Gym HVAC making noise'}
-                    value={handoverItems}
-                    onChange={e => setHandoverItems(e.target.value)}
-                    rows={3}
-                    style={{ width: '100%', padding: '12px 44px 12px 14px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
-                  />
-                  <MicButton onTranscript={t => setHandoverItems(p => p ? p + '\n' + t : t)} />
-                </div>
-              </div>
-              {/* Handover notes */}
-              <div style={{ padding: '12px 20px 0' }}>
-                <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 700, color: MUTED, letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 8 }}>Handover Notes</div>
-                <div style={{ position: 'relative' }}>
-                  <textarea
-                    placeholder="Anything the next concierge needs to know about the shift…"
-                    value={handoverNotes}
-                    onChange={e => setHandoverNotes(e.target.value)}
-                    rows={4}
-                    style={{ width: '100%', padding: '12px 44px 12px 14px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
-                  />
-                  <MicButton onTranscript={t => setHandoverNotes(p => p ? p + ' ' + t : t)} />
-                </div>
-              </div>
-              {/* Footer */}
-              <div style={{ padding: '16px 20px 20px', display: 'flex', gap: 10 }}>
-                <button onClick={() => setShowHandover(false)}
-                  style={{ flex: 1, padding: '14px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
-                  Cancel
-                </button>
-                <button onClick={submitHandover} disabled={handoverSaving}
-                  style={{ flex: 2, padding: '14px 0', background: RED, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: handoverSaving ? 'not-allowed' : 'pointer', opacity: handoverSaving ? 0.7 : 1, boxShadow: '0 4px 14px rgba(255,59,48,0.30)' }}>
-                  {handoverSaving ? 'Saving…' : 'Clock Out & Hand Over'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Clock alert */}
       <AnimatePresence>
