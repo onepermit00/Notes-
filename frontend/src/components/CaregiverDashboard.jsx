@@ -1066,8 +1066,9 @@ export const CaregiverDashboard = ({
       {/* 2-column Overview layout: DAR left, right col for tasks/incidents/actions */}
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr 460px', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
 
-        {/* Left: Daily Activity Report */}
-        <div className="dar-print-target" style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
+        {/* Left: Daily Activity Report + End Shift CTA */}
+        <div style={{ display:'flex', flexDirection:'column', gap:16, order: isMobile ? 1 : 0 }}>
+        <div className="dar-print-target" style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column' }}>
           {!activeShift ? (
             <div style={{ padding:40, textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
               <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0 }}>No active shift today</p>
@@ -1211,15 +1212,30 @@ export const CaregiverDashboard = ({
                   </>
                 )}
 
-                {/* End Shift — bottom-right of DAR */}
-                <div style={{ padding: isPhone ? '12px 14px' : isMobile ? '12px 18px' : '14px 32px', borderTop:`1px solid ${BORDER}`, display:'flex', justifyContent:'flex-end' }}>
-                  <button onClick={handleClockOut} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'9px 20px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.22)`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:RED, cursor:'pointer' }}>
-                    <LogOut size={14} /> End Shift
-                  </button>
-                </div>
               </div>
             </>
           )}
+        </div>
+
+          {activeShift && (
+            <motion.button
+              onClick={handleClockOut}
+              whileTap={{ scale: 0.97 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              style={{ width:'100%', padding:20, background:RED, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:`0 8px 24px ${RED}40`, fontFamily:INTER }}>
+              <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+                <div style={{ width:56, height:56, background:'rgba(255,255,255,0.20)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <LogOut size={28} color="white" />
+                </div>
+                <div style={{ textAlign:'left' }}>
+                  <p style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:'0 0 3px' }}>End Shift</p>
+                  <p style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.72)', margin:0 }}>Clock out and save all shift documentation</p>
+                </div>
+              </div>
+              <ChevronRight size={24} color="rgba(255,255,255,0.72)" />
+            </motion.button>
+          )}
+
         </div>
 
         {/* Right column */}
@@ -2882,21 +2898,26 @@ export const CaregiverDashboard = ({
       <AnimatePresence>
         {showClockAlert && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)' }}
+            style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(12px)' }}
             data-testid="clock-alert-modal">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              style={{ ...glass(), borderRadius: 20, margin: '0 24px', maxWidth: 320, width: '100%', overflow: 'hidden', textAlign: 'center' }}>
-              <div style={{ padding: '28px 24px 20px' }}>
-                <div style={{ width: 52, height: 52, borderRadius: '50%', background: clockAlertTitle === 'Clocked In' ? 'rgba(5,150,105,0.15)' : 'rgba(239,68,68,0.10)', border: `1px solid ${clockAlertTitle === 'Clocked In' ? 'rgba(5,150,105,0.35)' : 'rgba(239,68,68,0.25)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                  {clockAlertTitle === 'Clocked In' ? <Check size={22} color={GREEN} /> : <X size={22} color={RED} />}
+            <motion.div initial={{ scale: 0.88, opacity: 0, y: 16 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.88, opacity: 0, y: 16 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+              style={{ ...glass(), borderRadius: 24, margin: '0 20px', maxWidth: 360, width: '100%', overflow: 'hidden' }}>
+              {/* Colored top band */}
+              <div style={{ background: clockAlertTitle === 'Clocked In' ? GREEN : RED, padding: '28px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 72, height: 72, borderRadius: 20, background: 'rgba(255,255,255,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {clockAlertTitle === 'Clocked In' ? <Check size={36} color="white" strokeWidth={2.5} /> : <LogOut size={34} color="white" strokeWidth={2} />}
                 </div>
-                <div style={{ fontFamily: INTER, fontSize: '1.3rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 8 }}>{clockAlertTitle}</div>
-                <p style={{ fontFamily: INTER, fontSize: 14, color: MUTED, lineHeight: 1.6 }}>{clockAlertMsg}</p>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: INTER, fontSize: '1.4rem', fontWeight: 700, color: 'white', letterSpacing: '-0.02em', marginBottom: 4 }}>{clockAlertTitle}</div>
+                  <p style={{ fontFamily: INTER, fontSize: 14, color: 'rgba(255,255,255,0.82)', lineHeight: 1.55, margin: 0 }}>{clockAlertMsg}</p>
+                </div>
               </div>
-              <div style={{ borderTop: `1px solid ${BORDER}` }}>
+              {/* Action */}
+              <div style={{ padding: '16px 20px 20px', background: CARD }}>
                 <button onClick={() => setShowClockAlert(false)} data-testid="clock-alert-ok-btn"
-                  style={{ width: '100%', padding: '14px 0', background: 'none', border: 'none', fontFamily: INTER, fontSize: 14, fontWeight: 600, color: GREEN, cursor: 'pointer' }}>
-                  OK
+                  style={{ width: '100%', padding: '14px 0', background: clockAlertTitle === 'Clocked In' ? GREEN : RED, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 6px 20px ${clockAlertTitle === 'Clocked In' ? GREEN : RED}50` }}>
+                  Got it
                 </button>
               </div>
             </motion.div>
