@@ -1036,7 +1036,7 @@ export const CaregiverDashboard = ({
       </div>
     );
     const NarrativeEntry = ({ activity, last }) => (
-      <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
+      <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px' }}>
         <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{toNarrative(activity)}</p>
         {Array.isArray(activity.evidenceUrls) && activity.evidenceUrls.length > 0 && (
           <div style={{ display:'flex', gap:6, marginTop:10 }}>
@@ -1172,10 +1172,10 @@ export const CaregiverDashboard = ({
                   </>
                 )}
 
-                <Sect title="Incident Report" accent={RED} />
+                <Sect title="Incident Report" accent='#8FAEDD' />
                 {activeShift.incidents.length > 0
-                  ? activeShift.incidents.map((inc, i, arr) => (
-                    <div key={i} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
+                  ? activeShift.incidents.map((inc, i) => (
+                    <div key={i} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px' }}>
                       <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
                     </div>
                   ))
