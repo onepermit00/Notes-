@@ -1197,7 +1197,7 @@ export const CaregiverDashboard = ({
               </div>
 
               {/* DAR Footer */}
-              <div style={{ background:'#111827', padding: isMobile ? '36px 20px' : '40px 32px' }}>
+              <div style={{ background:'#111827', padding: isMobile ? '18px 20px' : '20px 32px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase' }}>
                     {isMobile ? 'DAR' : 'Daily Activity Report'}
@@ -1819,7 +1819,7 @@ export const CaregiverDashboard = ({
 
     const AICopilotCTA = () => (
       <button onClick={() => setShowCopilot(true)} data-testid="copilot-btn"
-        style={{ width:'100%', padding:20, background:'#059669', borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:'0 8px 24px rgba(5,150,105,0.35)', fontFamily:INTER }}>
+        style={{ width:'100%', padding:20, background:BLUE, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:`0 8px 24px ${BLUE}35`, fontFamily:INTER }}>
         <div style={{ display:'flex', alignItems:'center', gap:16 }}>
           <div style={{ width:56, height:56, background:'rgba(255,255,255,0.20)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
             <CareAssistantIcon size={56} />
