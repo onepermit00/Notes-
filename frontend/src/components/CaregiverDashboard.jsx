@@ -1174,11 +1174,13 @@ export const CaregiverDashboard = ({
 
                 <Sect title="Incident Report" accent='#8FAEDD' />
                 {activeShift.incidents.length > 0
-                  ? activeShift.incidents.map((inc, i) => (
-                    <div key={i} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px' }}>
-                      <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
+                  ? (
+                    <div style={{ padding: isPhone ? '10px 14px' : isMobile ? '10px 18px' : '10px 32px' }}>
+                      {activeShift.incidents.map((inc, i) => (
+                        <p key={i} style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:'0 0 2px' }}>{inc}</p>
+                      ))}
                     </div>
-                  ))
+                  )
                   : <NoActivity last />
                 }
 
