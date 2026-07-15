@@ -1213,7 +1213,7 @@ export const CaregiverDashboard = ({
                       Export
                     </button>
                     <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
-                      style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', background:RED, border:'none', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:700, color:'white', cursor:'pointer', boxShadow:`0 4px 16px ${RED}40` }}>
+                      style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', background:'#FF6B8A', border:'none', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:700, color:'white', cursor:'pointer', boxShadow:'0 4px 16px rgba(255,107,138,0.40)' }}>
                       <LogOut size={13} color="white" />
                       End Shift
                     </motion.button>
