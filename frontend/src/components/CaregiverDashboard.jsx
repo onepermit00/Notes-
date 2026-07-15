@@ -1142,9 +1142,13 @@ export const CaregiverDashboard = ({
                   : <NoActivity last />
                 }
 
-                <Sect title="Tours" accent='#8FAEDD' />
-                {tours.length > 0
-                  ? tours.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                <Sect title="Incident Report" accent={RED} />
+                {activeShift.incidents.length > 0
+                  ? activeShift.incidents.map((inc, i, arr) => (
+                    <div key={i} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
+                      <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
+                    </div>
+                  ))
                   : <NoActivity last />
                 }
 
@@ -1184,13 +1188,9 @@ export const CaregiverDashboard = ({
                   : <NoActivity last />
                 }
 
-                <Sect title="Incident Report" accent={RED} />
-                {activeShift.incidents.length > 0
-                  ? activeShift.incidents.map((inc, i, arr) => (
-                    <div key={i} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
-                      <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
-                    </div>
-                  ))
+                <Sect title="Tours" accent='#8FAEDD' />
+                {tours.length > 0
+                  ? tours.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
                   : <NoActivity last />
                 }
 
