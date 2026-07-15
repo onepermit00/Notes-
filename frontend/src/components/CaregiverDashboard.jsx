@@ -1198,43 +1198,17 @@ export const CaregiverDashboard = ({
 
               </div>
 
-              {/* DAR Footer — end-of-shift protocol */}
-              <div style={{ background:'#111827', padding: isMobile ? '14px 20px' : '20px 32px 18px' }}>
-                {isMobile ? (
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                    <div style={{ flex:1, minWidth:0, paddingRight:12 }}>
-                      <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>End-of-Shift Protocol</div>
-                      <div style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:'white', marginBottom:4 }}>Brief your incoming concierge</div>
-                      <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.50)' }}>
-                        Log all tasks · Secure packages · Sign off
-                      </div>
-                    </div>
-                    <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(255,149,0,0.15)', borderRadius:999, padding: isPhone ? '9px 11px' : '5px 12px', flexShrink:0 }}>
-                      {isPhone ? (
-                        <div style={{ width:10, height:10, borderRadius:'50%', background:ORANGE }} />
-                      ) : (
-                        <>
-                          <div style={{ width:7, height:7, borderRadius:'50%', background:ORANGE }} />
-                          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:ORANGE }}>3 Steps</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                    <div>
-                      <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:6 }}>End-of-Shift Protocol</div>
-                      <div style={{ fontFamily:INTER, fontSize:18, fontWeight:700, color:'white', marginBottom:5 }}>Brief your incoming concierge</div>
-                      <div style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.55)' }}>
-                        Log all tasks · Secure common areas · Sign off DAR
-                      </div>
-                    </div>
-                    <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(255,149,0,0.15)', borderRadius:999, padding:'5px 12px', flexShrink:0 }}>
-                      <div style={{ width:7, height:7, borderRadius:'50%', background:ORANGE }} />
-                      <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:ORANGE }}>3 Steps</span>
-                    </div>
-                  </div>
-                )}
+              {/* DAR Footer — property contact info */}
+              <div style={{ background:'#111827', padding: isMobile ? '14px 20px' : '16px 32px' }}>
+                <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:'white', lineHeight:1.8, letterSpacing:'0.01em' }}>
+                  The Front desk | Concierge
+                </div>
+                <div style={{ fontFamily:INTER, fontSize:10, color:'rgba(255,255,255,0.50)', lineHeight:1.7 }}>
+                  The Hannah | 1306 Callowhill Street | Philadelphia Pa, 19123
+                </div>
+                <div style={{ fontFamily:INTER, fontSize:10, color:'rgba(255,255,255,0.40)', lineHeight:1.7 }}>
+                  O:215.488.1306 | Thehannahconcierge@greystar.com
+                </div>
               </div>
             </>
           )}
