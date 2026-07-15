@@ -1206,11 +1206,24 @@ export const CaregiverDashboard = ({
                   : <NoActivity last />
                 }
 
-                {/* End Shift — pinned to bottom-right of DAR, after Incident Report */}
-                <div style={{ padding: isPhone ? '12px 14px' : isMobile ? '12px 18px' : '14px 32px', borderTop:`1px solid ${BORDER}`, display:'flex', justifyContent:'flex-end' }}>
-                  <button onClick={handleClockOut} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'9px 20px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.22)`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:RED, cursor:'pointer' }}>
-                    <LogOut size={14} /> End Shift
-                  </button>
+                {/* End Shift — IncidentReportPage CTA style, bottom of DAR after Incident Report */}
+                <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderTop:`1px solid ${BORDER}` }}>
+                  <motion.button
+                    onClick={handleClockOut}
+                    whileTap={{ scale: 0.97 }}
+                    transition={{ type:'spring', stiffness:500, damping:30 }}
+                    style={{ width:'100%', padding:20, background:RED, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:`0 8px 24px ${RED}40`, fontFamily:INTER }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+                      <div style={{ width:56, height:56, background:'rgba(255,255,255,0.20)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <LogOut size={28} color="white" />
+                      </div>
+                      <div style={{ textAlign:'left' }}>
+                        <p style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:'0 0 3px' }}>End Shift</p>
+                        <p style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.72)', margin:0 }}>Clock out and save all shift documentation</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={24} color="rgba(255,255,255,0.72)" />
+                  </motion.button>
                 </div>
 
               </div>
