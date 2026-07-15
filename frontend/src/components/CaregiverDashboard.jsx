@@ -1030,49 +1030,28 @@ export const CaregiverDashboard = ({
     // Tasks Completed: all wizard tasks + all manager-assigned completed tasks
     const taskEntries = [...wizardActs, ...completedTaskActs].sort((a,b) => a.time.localeCompare(b.time));
 
-    // ── IncidentReportPage design system components for DAR ──────────────────
-    const DARSection = ({ icon: Icon, title, count, color = BLUE }) => (
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <Icon size={20} color={color} />
-          <h2 style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:0, letterSpacing:'-0.01em' }}>{title}</h2>
-        </div>
-        {count !== undefined && (
-          <span style={{ width:30, height:30, borderRadius:'50%', background:count>0?`${color}18`:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:count>0?color:MUTED, flexShrink:0 }}>{count}</span>
+    const Sect = ({ title, accent='#8FAEDD' }) => (
+      <div style={{ background:accent, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px', marginTop:4 }}>
+        <span style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:TEXT, letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
+      </div>
+    );
+    const NarrativeEntry = ({ activity, last }) => (
+      <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
+        <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{toNarrative(activity)}</p>
+        {Array.isArray(activity.evidenceUrls) && activity.evidenceUrls.length > 0 && (
+          <div style={{ display:'flex', gap:6, marginTop:10 }}>
+            {activity.evidenceUrls.map((url,i) => (
+              <button key={i} onClick={() => setViewPhoto(url)} style={{ width:42,height:42,borderRadius:8,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD2,flexShrink:0 }}>
+                <img src={url} alt={`evidence ${i+1}`} style={{ width:'100%',height:'100%',objectFit:'cover',display:'block' }} />
+              </button>
+            ))}
+          </div>
         )}
       </div>
     );
-    const DARCard = ({ activity, color = BLUE, Icon }) => {
-      const timeStr = typeof activity.time === 'string' ? activity.time : '';
-      return (
-        <div style={{ background:CARD2, border:`1px solid ${BORDER}`, borderRadius:16, padding:'14px 16px', display:'flex', alignItems:'flex-start', gap:14 }}>
-          <div style={{ width:48, height:48, background:`${color}18`, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <Icon size={24} color={color} />
-          </div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px', lineHeight:1.5 }}>{toNarrative(activity)}</p>
-            {Array.isArray(activity.evidenceUrls) && activity.evidenceUrls.length > 0 && (
-              <div style={{ display:'flex', gap:6, marginTop:8 }}>
-                {activity.evidenceUrls.map((url,i) => (
-                  <button key={i} onClick={() => setViewPhoto(url)} style={{ width:40,height:40,borderRadius:8,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD,flexShrink:0 }}>
-                    <img src={url} alt={`evidence ${i+1}`} style={{ width:'100%',height:'100%',objectFit:'cover',display:'block' }} />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {timeStr && (
-            <span style={{ padding:'5px 12px', borderRadius:10, fontSize:11, fontWeight:700, background:CARD, border:`1px solid ${BORDER}`, color:MUTED, flexShrink:0, alignSelf:'flex-start' }}>{timeStr}</span>
-          )}
-        </div>
-      );
-    };
-    const DAREmpty = () => (
-      <div style={{ background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, padding:'13px 16px', display:'flex', alignItems:'center', gap:12 }}>
-        <div style={{ width:36, height:36, background:CARD, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-          <CheckCircle size={16} color={MUTED} />
-        </div>
-        <span style={{ fontFamily:INTER, fontSize:13, color:MUTED, fontStyle:'italic' }}>Nothing logged yet this shift</span>
+    const NoActivity = ({ last }) => (
+      <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
+        <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, lineHeight:1.6, margin:0, fontStyle:'italic' }}>No activity logged this shift.</p>
       </div>
     );
 
@@ -1156,110 +1135,76 @@ export const CaregiverDashboard = ({
                   </div>
                 )}
               </div>
-              <div style={{ background:CARD, padding: isMobile ? '16px' : '20px 24px 28px', display:'flex', flexDirection:'column', gap:20 }}>
+              <div style={{ background:CARD }}>
+                <Sect title="Start of Shift Package Audit" accent='#8FAEDD' />
+                {audit
+                  ? <NarrativeEntry activity={audit} last />
+                  : <NoActivity last />
+                }
 
-                {/* Package Audit */}
-                <div>
-                  <DARSection icon={ClipboardList} title="Package Audit" count={audit ? 1 : 0} color={GREEN} />
-                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                    {audit ? <DARCard activity={audit} color={GREEN} Icon={ClipboardList} /> : <DAREmpty />}
-                  </div>
-                </div>
+                <Sect title="Packages" accent='#8FAEDD' />
+                {[...incoming, ...pickups].length > 0
+                  ? [...incoming, ...pickups].map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
-                {/* Packages */}
-                <div>
-                  <DARSection icon={Package} title="Packages" count={[...incoming,...pickups].length} color={ORANGE} />
-                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                    {[...incoming,...pickups].length > 0
-                      ? [...incoming,...pickups].map(a => <DARCard key={a.id} activity={a} color={ORANGE} Icon={Package} />)
-                      : <DAREmpty />}
-                  </div>
-                </div>
+                <Sect title="Guests" accent='#8FAEDD' />
+                {guests.length > 0
+                  ? guests.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
-                {/* Guests */}
-                <div>
-                  <DARSection icon={UserCheck} title="Guests" count={guests.length} color={BLUE} />
-                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                    {guests.length > 0 ? guests.map(a => <DARCard key={a.id} activity={a} color={BLUE} Icon={UserCheck} />) : <DAREmpty />}
-                  </div>
-                </div>
+                <Sect title="Tours" accent='#8FAEDD' />
+                {tours.length > 0
+                  ? tours.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
-                {/* Tours */}
-                <div>
-                  <DARSection icon={Users} title="Tours" count={tours.length} color={BLUE} />
-                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                    {tours.length > 0 ? tours.map(a => <DARCard key={a.id} activity={a} color={BLUE} Icon={Users} />) : <DAREmpty />}
-                  </div>
-                </div>
+                <Sect title="Loaners" accent='#8FAEDD' />
+                {loaners.length > 0
+                  ? loaners.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
-                {/* Loaners */}
-                <div>
-                  <DARSection icon={ShoppingCart} title="Loaners" count={loaners.length} color={ORANGE} />
-                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                    {loaners.length > 0 ? loaners.map(a => <DARCard key={a.id} activity={a} color={ORANGE} Icon={ShoppingCart} />) : <DAREmpty />}
-                  </div>
-                </div>
+                <Sect title="Lockouts" accent='#8FAEDD' />
+                {lockouts.length > 0
+                  ? lockouts.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
-                {/* Lockouts */}
-                <div>
-                  <DARSection icon={Lock} title="Lockouts" count={lockouts.length} color={RED} />
-                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                    {lockouts.length > 0 ? lockouts.map(a => <DARCard key={a.id} activity={a} color={RED} Icon={Lock} />) : <DAREmpty />}
-                  </div>
-                </div>
+                <Sect title="Vendors" accent='#8FAEDD' />
+                {vends.length > 0
+                  ? vends.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
-                {/* Vendors */}
-                <div>
-                  <DARSection icon={Wrench} title="Vendors" count={vends.length} color={BLUE} />
-                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                    {vends.length > 0 ? vends.map(a => <DARCard key={a.id} activity={a} color={BLUE} Icon={Wrench} />) : <DAREmpty />}
-                  </div>
-                </div>
-
-                {/* Security & Rounds */}
                 {rounds.length > 0 && (
-                  <div>
-                    <DARSection icon={Shield} title="Security & Rounds" count={rounds.length} color={ORANGE} />
-                    <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                      {rounds.map(a => <DARCard key={a.id} activity={a} color={ORANGE} Icon={Shield} />)}
-                    </div>
-                  </div>
+                  <>
+                    <Sect title="Security & Rounds" accent='#8FAEDD' />
+                    {rounds.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)}
+                  </>
                 )}
 
-                {/* Shift Notes */}
-                <div>
-                  <DARSection icon={FileText} title="Shift Notes" color={BLUE} />
-                  <div style={{ background:CARD2, border:`1px solid ${BORDER}`, borderRadius:16, padding:'16px 18px' }}>
-                    <p style={{ fontFamily:INTER, fontSize:15, color:activeShift.note?TEXT:MUTED, lineHeight:1.75, margin:0, fontStyle:activeShift.note?'normal':'italic' }}>
-                      {activeShift.note || 'No shift notes recorded yet'}
-                    </p>
-                  </div>
+                <Sect title="Shift Notes" accent='#8FAEDD' />
+                <div style={{ padding: isPhone ? '16px 14px 20px' : isMobile ? '16px 18px 20px' : '20px 32px 24px' }}>
+                  <p style={{ fontFamily:INTER, fontSize:17, color:TEXT, lineHeight:1.75, margin:0 }}>{activeShift.note}</p>
                 </div>
 
-                {/* Tasks Completed */}
-                <div>
-                  <DARSection icon={CheckCircle} title="Tasks Completed" count={taskEntries.length} color={GREEN} />
-                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                    {taskEntries.length > 0 ? taskEntries.map(a => <DARCard key={a.id} activity={a} color={GREEN} Icon={CheckCircle} />) : <DAREmpty />}
-                  </div>
-                </div>
+                <Sect title="Tasks Completed" accent='#8FAEDD' />
+                {taskEntries.length > 0
+                  ? taskEntries.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
+                  : <NoActivity last />
+                }
 
-                {/* Incidents */}
                 {activeShift.incidents.length > 0 && (
-                  <div>
-                    <DARSection icon={AlertTriangle} title="Incidents Filed" count={activeShift.incidents.length} color={RED} />
-                    <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                      {activeShift.incidents.map((inc, i) => (
-                        <div key={i} style={{ background:`${RED}08`, border:`1px solid ${RED}25`, borderRadius:16, padding:'14px 16px', display:'flex', alignItems:'flex-start', gap:14 }}>
-                          <div style={{ width:48, height:48, background:`${RED}18`, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                            <AlertTriangle size={24} color={RED} />
-                          </div>
-                          <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:0, flex:1, lineHeight:1.5 }}>{inc}</p>
-                          <span style={{ padding:'6px 14px', borderRadius:10, fontSize:12, fontWeight:700, background:RED, color:'white', flexShrink:0, alignSelf:'flex-start' }}>Incident</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <>
+                    <Sect title="Incidents Filed" accent={RED} />
+                    {activeShift.incidents.map((inc, i, arr) => (
+                      <div key={i} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
+                        <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
+                      </div>
+                    ))}
+                  </>
                 )}
 
               </div>
