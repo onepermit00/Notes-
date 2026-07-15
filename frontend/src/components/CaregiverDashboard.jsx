@@ -1208,7 +1208,7 @@ export const CaregiverDashboard = ({
                       <div style={{ fontFamily:INTER, fontSize:11, color:'rgba(255,255,255,0.85)' }}>{isPhone ? '215.488.1306' : 'O:215.488.1306 | Thehannahconcierge@greystar.com'}</div>
                     </div>
                     <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
-                      style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:RED, borderRadius:999, padding: isPhone ? '9px 11px' : '5px 12px', border:'none', cursor:'pointer', flexShrink:0 }}>
+                      style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:BLUE, borderRadius:999, padding: isPhone ? '9px 11px' : '5px 12px', border:'none', cursor:'pointer', flexShrink:0, marginTop:8 }}>
                       {isPhone ? (
                         <LogOut size={13} color="white" />
                       ) : (
@@ -1226,7 +1226,7 @@ export const CaregiverDashboard = ({
                       <div style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', marginBottom:4 }}>The Hannah | 1306 Callowhill Street | Philadelphia Pa, 19123</div>
                       <div style={{ fontFamily:INTER, fontSize:11, color:'rgba(255,255,255,0.85)' }}>O:215.488.1306 | Thehannahconcierge@greystar.com</div>
                     </div>
-                    <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:RED, borderRadius:999, padding:'5px 12px', flexShrink:0, cursor:'pointer' }} onClick={handleClockOut}>
+                    <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:BLUE, borderRadius:999, padding:'5px 12px', flexShrink:0, cursor:'pointer', marginTop:8 }} onClick={handleClockOut}>
                       <div style={{ width:7, height:7, borderRadius:'50%', background:'white' }} />
                       <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:'white' }}>End Shift</span>
                     </div>
