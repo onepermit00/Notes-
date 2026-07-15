@@ -1197,7 +1197,7 @@ export const CaregiverDashboard = ({
               </div>
 
               {/* DAR Footer */}
-              <div style={{ background:'#FF6B8A', padding: isMobile ? '24px 20px' : '28px 32px' }}>
+              <div style={{ background:RED, padding: isMobile ? '24px 20px' : '28px 32px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
                   <div>
                     <div style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.65)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:3 }}>
@@ -1213,8 +1213,8 @@ export const CaregiverDashboard = ({
                       Export
                     </button>
                     <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
-                      style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', background:'white', border:'none', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:700, color:'#FF6B8A', cursor:'pointer', boxShadow:'0 4px 16px rgba(0,0,0,0.12)' }}>
-                      <LogOut size={13} color="#FF6B8A" />
+                      style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', background:'white', border:'none', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:700, color:RED, cursor:'pointer', boxShadow:'0 4px 16px rgba(0,0,0,0.12)' }}>
+                      <LogOut size={13} color={RED} />
                       End Shift
                     </motion.button>
                   </div>
