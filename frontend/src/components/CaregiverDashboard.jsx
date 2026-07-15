@@ -1206,26 +1206,29 @@ export const CaregiverDashboard = ({
                   : <NoActivity last />
                 }
 
-                {/* End Shift — IncidentReportPage CTA style, bottom of DAR after Incident Report */}
-                <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderTop:`1px solid ${BORDER}` }}>
+              </div>
+
+              {/* DAR Footer — same dark #111827 as header */}
+              <div style={{ background:'#111827', padding: isMobile ? '12px 20px' : '14px 32px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase' }}>
+                    {isMobile ? 'DAR' : 'Daily Activity Report'}
+                  </div>
                   <motion.button
                     onClick={handleClockOut}
-                    whileTap={{ scale: 0.97 }}
+                    whileTap={{ scale: 0.93 }}
                     transition={{ type:'spring', stiffness:500, damping:30 }}
-                    style={{ width:'100%', padding:20, background:RED, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:`0 8px 24px ${RED}40`, fontFamily:INTER }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-                      <div style={{ width:56, height:56, background:'rgba(255,255,255,0.20)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        <LogOut size={28} color="white" />
-                      </div>
-                      <div style={{ textAlign:'left' }}>
-                        <p style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:'0 0 3px' }}>End Shift</p>
-                        <p style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.72)', margin:0 }}>Clock out and save all shift documentation</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={24} color="rgba(255,255,255,0.72)" />
+                    style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:'rgba(255,59,48,0.15)', borderRadius:999, padding: isPhone ? '9px 11px' : '5px 12px', border:'none', cursor:'pointer' }}>
+                    {isPhone ? (
+                      <LogOut size={13} color={RED} />
+                    ) : (
+                      <>
+                        <div style={{ width:7, height:7, borderRadius:'50%', background:RED }} />
+                        <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:RED }}>End Shift</span>
+                      </>
+                    )}
                   </motion.button>
                 </div>
-
               </div>
             </>
           )}
