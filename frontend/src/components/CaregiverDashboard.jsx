@@ -1197,7 +1197,7 @@ export const CaregiverDashboard = ({
               </div>
 
               {/* DAR Footer */}
-              <div style={{ background:RED, padding: isMobile ? '10px 16px' : '10px 24px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+              <div style={{ background:RED, padding: isMobile ? '14px 16px' : '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
                 <span style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.65)', letterSpacing:'0.14em', textTransform:'uppercase' }}>
                   {isMobile ? 'DAR' : 'Daily Activity Report'}
                 </span>
