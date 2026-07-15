@@ -1198,24 +1198,40 @@ export const CaregiverDashboard = ({
 
               </div>
 
-              {/* DAR Footer — property contact info */}
-              <div style={{ background:'#111827', padding: isMobile ? '18px 20px' : '20px 32px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:16 }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', lineHeight:1.8, letterSpacing:'0.01em' }}>
-                    The Front desk | Concierge
+              {/* DAR Footer — mirrors header height exactly */}
+              <div style={{ background:'#111827', padding: isMobile ? '14px 20px' : '20px 32px 18px' }}>
+                {isMobile ? (
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                    <div>
+                      <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>The Front desk | Concierge</div>
+                      <div style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:'white', marginBottom:4 }}>{isPhone ? 'The Hannah | Phila, 19123' : 'The Hannah | 1306 Callowhill St'}</div>
+                      <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.50)' }}>{isPhone ? '215.488.1306' : 'O:215.488.1306 | Thehannahconcierge@greystar.com'}</div>
+                    </div>
+                    <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
+                      style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:RED, borderRadius:999, padding: isPhone ? '9px 11px' : '5px 12px', border:'none', cursor:'pointer', flexShrink:0 }}>
+                      {isPhone ? (
+                        <LogOut size={13} color="white" />
+                      ) : (
+                        <>
+                          <div style={{ width:7, height:7, borderRadius:'50%', background:'white' }} />
+                          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:'white' }}>End Shift</span>
+                        </>
+                      )}
+                    </motion.button>
                   </div>
-                  <div style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.50)', lineHeight:1.7 }}>
-                    The Hannah | 1306 Callowhill Street | Philadelphia Pa, 19123
+                ) : (
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                    <div>
+                      <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:6 }}>The Front desk | Concierge</div>
+                      <div style={{ fontFamily:INTER, fontSize:18, fontWeight:700, color:'white', marginBottom:5 }}>The Hannah | 1306 Callowhill Street | Philadelphia Pa, 19123</div>
+                      <div style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.55)' }}>O:215.488.1306 | Thehannahconcierge@greystar.com</div>
+                    </div>
+                    <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:RED, borderRadius:999, padding:'5px 12px', flexShrink:0, cursor:'pointer' }} onClick={handleClockOut}>
+                      <div style={{ width:7, height:7, borderRadius:'50%', background:'white' }} />
+                      <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:'white' }}>End Shift</span>
+                    </div>
                   </div>
-                  <div style={{ fontFamily:INTER, fontSize:11, color:'rgba(255,255,255,0.40)', lineHeight:1.7 }}>
-                    O:215.488.1306 | Thehannahconcierge@greystar.com
-                  </div>
-                </div>
-                <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
-                  style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', background:RED, border:'none', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:700, color:'white', cursor:'pointer', boxShadow:`0 4px 16px ${RED}40`, flexShrink:0 }}>
-                  <LogOut size={13} color="white" />
-                  End Shift
-                </motion.button>
+                )}
               </div>
             </>
           )}
