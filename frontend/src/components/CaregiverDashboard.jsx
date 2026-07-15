@@ -1142,15 +1142,10 @@ export const CaregiverDashboard = ({
                   : <NoActivity last />
                 }
 
-                <Sect title="Incident Report" accent={RED} />
-                {activeShift.incidents.length > 0
-                  ? activeShift.incidents.map((inc, i, arr) => (
-                    <div key={i} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
-                      <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
-                    </div>
-                  ))
-                  : <NoActivity last />
-                }
+                <Sect title="Shift Notes" accent='#8FAEDD' />
+                <div style={{ padding: isPhone ? '16px 14px 20px' : isMobile ? '16px 18px 20px' : '20px 32px 24px' }}>
+                  <p style={{ fontFamily:INTER, fontSize:17, color:TEXT, lineHeight:1.75, margin:0 }}>{activeShift.note}</p>
+                </div>
 
                 <Sect title="Loaners" accent='#8FAEDD' />
                 {loaners.length > 0
@@ -1177,10 +1172,15 @@ export const CaregiverDashboard = ({
                   </>
                 )}
 
-                <Sect title="Shift Notes" accent='#8FAEDD' />
-                <div style={{ padding: isPhone ? '16px 14px 20px' : isMobile ? '16px 18px 20px' : '20px 32px 24px' }}>
-                  <p style={{ fontFamily:INTER, fontSize:17, color:TEXT, lineHeight:1.75, margin:0 }}>{activeShift.note}</p>
-                </div>
+                <Sect title="Incident Report" accent={RED} />
+                {activeShift.incidents.length > 0
+                  ? activeShift.incidents.map((inc, i, arr) => (
+                    <div key={i} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
+                      <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
+                    </div>
+                  ))
+                  : <NoActivity last />
+                }
 
                 <Sect title="Tasks Completed" accent='#8FAEDD' />
                 {taskEntries.length > 0
