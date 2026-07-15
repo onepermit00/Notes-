@@ -1196,16 +1196,26 @@ export const CaregiverDashboard = ({
                   : <NoActivity last />
                 }
 
-                {activeShift.incidents.length > 0 && (
-                  <>
-                    <Sect title="Incidents Filed" accent={RED} />
-                    {activeShift.incidents.map((inc, i, arr) => (
-                      <div key={i} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
-                        <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
-                      </div>
-                    ))}
-                  </>
-                )}
+                <Sect title="Incident Report" accent={RED} />
+                {activeShift.incidents.length > 0
+                  ? activeShift.incidents.map((inc, i, arr) => (
+                    <div key={i} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
+                      <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
+                    </div>
+                  ))
+                  : <NoActivity last />
+                }
+
+                {/* End Shift — pinned to bottom-right of DAR, after Incident Report */}
+                <div style={{ padding: isPhone ? '12px 14px' : isMobile ? '12px 18px' : '14px 32px', borderTop:`1px solid ${BORDER}`, display:'flex', justifyContent:'flex-end' }}>
+                  <motion.button
+                    onClick={handleClockOut}
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ type:'spring', stiffness:500, damping:30 }}
+                    style={{ display:'inline-flex', alignItems:'center', gap:7, padding:'10px 22px', background:RED, border:'none', borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer', boxShadow:`0 4px 16px ${RED}40` }}>
+                    <LogOut size={15} color="white" /> End Shift
+                  </motion.button>
+                </div>
 
               </div>
             </>
@@ -1315,28 +1325,6 @@ export const CaregiverDashboard = ({
         </div>
       </div>
 
-      {/* End Shift — floating pill, bottom-right, only when shift is active */}
-      {activeShift && (
-        <motion.button
-          onClick={handleClockOut}
-          whileTap={{ scale: 0.93 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-          style={{
-            position: 'fixed',
-            bottom: isPhone ? 20 : 28,
-            right: isPhone ? 20 : 28,
-            zIndex: 20,
-            padding: '14px 28px',
-            background: RED,
-            border: 'none', borderRadius: 999,
-            fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white',
-            cursor: 'pointer',
-            boxShadow: `0 6px 28px ${RED}55`,
-            whiteSpace: 'nowrap', letterSpacing: '-0.01em',
-          }}>
-          End Shift
-        </motion.button>
-      )}
     </div>
     );
   };
