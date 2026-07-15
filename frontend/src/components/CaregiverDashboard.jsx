@@ -1196,22 +1196,47 @@ export const CaregiverDashboard = ({
 
               </div>
 
-              {/* DAR Footer */}
-              <div style={{ background:RED, padding: isMobile ? '14px 16px' : '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
-                <span style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.65)', letterSpacing:'0.14em', textTransform:'uppercase' }}>
-                  {isMobile ? 'DAR' : 'Daily Activity Report'}
-                </span>
-                <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
-                  <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'5px 10px', background:'rgba(255,255,255,0.18)', border:'1px solid rgba(255,255,255,0.25)', borderRadius:7, fontFamily:INTER, fontSize:11, fontWeight:600, color:'white', cursor:'pointer' }}>
-                    <Printer size={11} color="white" />
-                    Export
-                  </button>
-                  <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
-                    style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 12px', background:'white', border:'none', borderRadius:7, fontFamily:INTER, fontSize:11, fontWeight:700, color:RED, cursor:'pointer' }}>
-                    <LogOut size={11} color={RED} />
-                    End Shift
-                  </motion.button>
-                </div>
+              {/* DAR Footer — exact replica of header */}
+              <div style={{ background:'#111827', padding: isMobile ? '14px 20px' : '20px 32px 18px' }}>
+                {isMobile ? (
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                    <div>
+                      <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>DAR</div>
+                      <div style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:'white', marginBottom:4 }}>{activeShift.concierge.name}</div>
+                      <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.50)' }}>
+                        {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {activeShift.clockIn} – Now
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
+                      {isPhone ? (
+                        <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'11px' }}>
+                          <div className="dar-onduty-dot" style={{ width:12, height:12, borderRadius:'50%', background:GREEN }} />
+                        </div>
+                      ) : (
+                        <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'5px 12px' }}>
+                          <div className="dar-onduty-dot" style={{ width:7, height:7, borderRadius:'50%', background:GREEN }} />
+                          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                    <div>
+                      <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:6 }}>Daily Activity Report</div>
+                      <div style={{ fontFamily:INTER, fontSize:18, fontWeight:700, color:'white', marginBottom:5 }}>{activeShift.concierge.name}</div>
+                      <div style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.55)' }}>
+                        {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {activeShift.clockIn} – Present
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
+                      <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'5px 12px' }}>
+                        <div className="dar-onduty-dot" style={{ width:7, height:7, borderRadius:'50%', background:GREEN }} />
+                        <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
