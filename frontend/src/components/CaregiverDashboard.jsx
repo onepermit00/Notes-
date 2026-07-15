@@ -1197,24 +1197,24 @@ export const CaregiverDashboard = ({
               </div>
 
               {/* DAR Footer */}
-              <div style={{ background:'#111827', padding: isMobile ? '18px 20px' : '22px 32px' }}>
+              <div style={{ background:'#FF6B8A', padding: isMobile ? '24px 20px' : '28px 32px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
                   <div>
-                    <div style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.35)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:3 }}>
+                    <div style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.65)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:3 }}>
                       {isMobile ? 'DAR' : 'Daily Activity Report'}
                     </div>
-                    <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.45)' }}>
+                    <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.80)' }}>
                       End of shift summary
                     </div>
                   </div>
                   <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-                    <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'8px 14px', background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.6)', cursor:'pointer' }}>
-                      <Printer size={13} />
+                    <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'8px 14px', background:'rgba(255,255,255,0.20)', border:'1px solid rgba(255,255,255,0.30)', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:600, color:'white', cursor:'pointer' }}>
+                      <Printer size={13} color="white" />
                       Export
                     </button>
                     <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
-                      style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', background:'#FF6B8A', border:'none', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:700, color:'white', cursor:'pointer', boxShadow:'0 4px 16px rgba(255,107,138,0.40)' }}>
-                      <LogOut size={13} color="white" />
+                      style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', background:'white', border:'none', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:700, color:'#FF6B8A', cursor:'pointer', boxShadow:'0 4px 16px rgba(0,0,0,0.12)' }}>
+                      <LogOut size={13} color="#FF6B8A" />
                       End Shift
                     </motion.button>
                   </div>
