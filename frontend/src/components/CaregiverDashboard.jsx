@@ -1102,15 +1102,6 @@ export const CaregiverDashboard = ({
                           <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
                         </div>
                       )}
-                      {isPhone ? (
-                        <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', padding:0, marginRight:7, background:'none', border:'none', cursor:'pointer' }}>
-                          <Printer size={16} color='rgba(255,255,255,0.6)' />
-                        </button>
-                      ) : (
-                        <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 10px', marginRight:4, marginTop:6, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
-                          <Printer size={12} /> Export
-                        </button>
-                      )}
                     </div>
                   </div>
                 ) : (
@@ -1128,9 +1119,6 @@ export const CaregiverDashboard = ({
                         <div className="dar-onduty-dot" style={{ width:7, height:7, borderRadius:'50%', background:GREEN }} />
                         <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
                       </div>
-                      <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', marginRight:4, marginTop:6, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
-                        <Printer size={12} /> Export
-                      </button>
                     </div>
                   </div>
                 )}
@@ -1209,25 +1197,30 @@ export const CaregiverDashboard = ({
               </div>
 
               {/* DAR Footer */}
-              <div style={{ background:'#8FAEDD', padding: isMobile ? '36px 20px' : '40px 32px' }}>
+              <div style={{ background:'#111827', padding: isMobile ? '36px 20px' : '40px 32px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'rgba(255,255,255,0.85)', letterSpacing:'0.14em', textTransform:'uppercase' }}>
+                  <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase' }}>
                     {isMobile ? 'DAR' : 'Daily Activity Report'}
                   </div>
-                  <motion.button
-                    onClick={handleClockOut}
-                    whileTap={{ scale: 0.93 }}
-                    transition={{ type:'spring', stiffness:500, damping:30 }}
-                    style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:'rgba(255,59,48,0.15)', borderRadius:999, padding: isPhone ? '9px 11px' : '5px 12px', border:'none', cursor:'pointer' }}>
-                    {isPhone ? (
-                      <LogOut size={13} color={RED} />
-                    ) : (
-                      <>
-                        <div style={{ width:7, height:7, borderRadius:'50%', background:RED }} />
-                        <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:RED }}>End Shift</span>
-                      </>
-                    )}
-                  </motion.button>
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
+                    <motion.button
+                      onClick={handleClockOut}
+                      whileTap={{ scale: 0.93 }}
+                      transition={{ type:'spring', stiffness:500, damping:30 }}
+                      style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:'rgba(255,59,48,0.15)', borderRadius:999, padding: isPhone ? '9px 11px' : '5px 12px', border:'none', cursor:'pointer' }}>
+                      {isPhone ? (
+                        <LogOut size={13} color={RED} />
+                      ) : (
+                        <>
+                          <div style={{ width:7, height:7, borderRadius:'50%', background:RED }} />
+                          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:RED }}>End Shift</span>
+                        </>
+                      )}
+                    </motion.button>
+                    <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 10px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
+                      <Printer size={12} /> Export
+                    </button>
+                  </div>
                 </div>
               </div>
             </>
