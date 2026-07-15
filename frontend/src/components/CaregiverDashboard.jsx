@@ -1199,14 +1199,14 @@ export const CaregiverDashboard = ({
               </div>
 
               {/* DAR Footer — property contact info */}
-              <div style={{ background:'#111827', padding: isMobile ? '14px 20px' : '16px 32px' }}>
-                <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:'white', lineHeight:1.8, letterSpacing:'0.01em' }}>
+              <div style={{ background:'#111827', padding: isMobile ? '18px 20px' : '20px 32px' }}>
+                <div style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', lineHeight:1.8, letterSpacing:'0.01em' }}>
                   The Front desk | Concierge
                 </div>
-                <div style={{ fontFamily:INTER, fontSize:10, color:'rgba(255,255,255,0.50)', lineHeight:1.7 }}>
+                <div style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.50)', lineHeight:1.7 }}>
                   The Hannah | 1306 Callowhill Street | Philadelphia Pa, 19123
                 </div>
-                <div style={{ fontFamily:INTER, fontSize:10, color:'rgba(255,255,255,0.40)', lineHeight:1.7 }}>
+                <div style={{ fontFamily:INTER, fontSize:11, color:'rgba(255,255,255,0.40)', lineHeight:1.7 }}>
                   O:215.488.1306 | Thehannahconcierge@greystar.com
                 </div>
               </div>
