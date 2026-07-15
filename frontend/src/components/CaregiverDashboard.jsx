@@ -1208,13 +1208,9 @@ export const CaregiverDashboard = ({
 
                 {/* End Shift — pinned to bottom-right of DAR, after Incident Report */}
                 <div style={{ padding: isPhone ? '12px 14px' : isMobile ? '12px 18px' : '14px 32px', borderTop:`1px solid ${BORDER}`, display:'flex', justifyContent:'flex-end' }}>
-                  <motion.button
-                    onClick={handleClockOut}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ type:'spring', stiffness:500, damping:30 }}
-                    style={{ display:'inline-flex', alignItems:'center', gap:7, padding:'10px 22px', background:RED, border:'none', borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer', boxShadow:`0 4px 16px ${RED}40` }}>
-                    <LogOut size={15} color="white" /> End Shift
-                  </motion.button>
+                  <button onClick={handleClockOut} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'9px 20px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.22)`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:RED, cursor:'pointer' }}>
+                    <LogOut size={14} /> End Shift
+                  </button>
                 </div>
 
               </div>
