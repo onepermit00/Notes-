@@ -1203,9 +1203,9 @@ export const CaregiverDashboard = ({
                 {isMobile ? (
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div>
-                      <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.75)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:4 }}>The Front desk | Concierge</div>
-                      <div style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', marginBottom:3 }}>{isPhone ? 'The Hannah | Phila, 19123' : 'The Hannah | 1306 Callowhill St'}</div>
-                      <div style={{ fontFamily:INTER, fontSize:11, color:'rgba(255,255,255,0.85)' }}>{isPhone ? '215.488.1306' : 'O:215.488.1306 | Thehannahconcierge@greystar.com'}</div>
+                      <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(0,0,0,0.5)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:4 }}>The Front desk | Concierge</div>
+                      <div style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'#111827', marginBottom:3 }}>{isPhone ? 'The Hannah | Phila, 19123' : 'The Hannah | 1306 Callowhill St'}</div>
+                      <div style={{ fontFamily:INTER, fontSize:11, color:'rgba(0,0,0,0.55)' }}>{isPhone ? '215.488.1306' : 'O:215.488.1306 | Thehannahconcierge@greystar.com'}</div>
                     </div>
                     <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
                       style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:BLUE, borderRadius:999, padding: isPhone ? '9px 11px' : '5px 12px', border:'none', cursor:'pointer', flexShrink:0, marginTop:8 }}>
@@ -1223,8 +1223,8 @@ export const CaregiverDashboard = ({
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div>
                       <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.75)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>The Front desk | Concierge</div>
-                      <div style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', marginBottom:4 }}>The Hannah | 1306 Callowhill Street | Philadelphia Pa, 19123</div>
-                      <div style={{ fontFamily:INTER, fontSize:11, color:'rgba(255,255,255,0.85)' }}>O:215.488.1306 | Thehannahconcierge@greystar.com</div>
+                      <div style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'#111827', marginBottom:4 }}>The Hannah | 1306 Callowhill Street | Philadelphia Pa, 19123</div>
+                      <div style={{ fontFamily:INTER, fontSize:11, color:'rgba(0,0,0,0.55)' }}>O:215.488.1306 | Thehannahconcierge@greystar.com</div>
                     </div>
                     <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:BLUE, borderRadius:999, padding:'5px 12px', flexShrink:0, cursor:'pointer', marginTop:8 }} onClick={handleClockOut}>
                       <div style={{ width:7, height:7, borderRadius:'50%', background:'white' }} />
