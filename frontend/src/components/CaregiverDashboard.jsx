@@ -1213,40 +1213,25 @@ export const CaregiverDashboard = ({
               {/* Footer accent bar — matches Tours/Guests section bars */}
               <Sect title="Concierge" accent='#8FAEDD' />
 
-              {/* DAR Footer — mirrors header height exactly */}
-              <div style={{ background:CARD, padding: isMobile ? '14px 20px' : '20px 32px 18px' }}>
-                {isMobile ? (
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                    <div>
-                      <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(0,0,0,0.5)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:4 }}>The Front desk | Concierge</div>
-                      <div style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, marginBottom:3 }}>{isPhone ? 'The Hannah | Phila, 19123' : 'The Hannah | 1306 Callowhill St'}</div>
-                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED }}>{isPhone ? '215.488.1306' : 'O:215.488.1306 | Thehannahconcierge@greystar.com'}</div>
-                    </div>
-                    <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
-                      style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:BLUE, borderRadius:999, padding: isPhone ? '9px 11px' : '5px 12px', border:'none', cursor:'pointer', flexShrink:0, marginTop:8 }}>
-                      {isPhone ? (
-                        <LogOut size={13} color="white" />
-                      ) : (
-                        <>
-                          <div style={{ width:7, height:7, borderRadius:'50%', background:'white' }} />
-                          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:'white' }}>End Shift</span>
-                        </>
-                      )}
-                    </motion.button>
-                  </div>
-                ) : (
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                    <div>
-                      <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(0,0,0,0.5)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>The Front desk | Concierge</div>
-                      <div style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, marginBottom:4 }}>The Hannah | 1306 Callowhill Street | Philadelphia Pa, 19123</div>
-                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED }}>O:215.488.1306 | Thehannahconcierge@greystar.com</div>
-                    </div>
-                    <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:BLUE, borderRadius:999, padding:'5px 12px', flexShrink:0, cursor:'pointer', marginTop:8 }} onClick={handleClockOut}>
+              {/* DAR Footer — closing sign-off */}
+              <div style={{ background:CARD, padding: isMobile ? '14px 20px' : '16px 32px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:16 }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontFamily:SF_TEXT, fontSize:10, fontWeight:600, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:5 }}>Shift Sign-Off</div>
+                  <p style={{ fontFamily:SF_TEXT, fontSize: isMobile ? 12 : 13, fontWeight:400, color:TEXT, lineHeight:1.65, margin:0 }}>
+                    I confirm all activities, incidents, and notes in this DAR are accurate and complete. All open items and pending tasks have been communicated to the incoming concierge.
+                  </p>
+                </div>
+                <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
+                  style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:BLUE, borderRadius:999, padding: isPhone ? '9px 11px' : '5px 14px', border:'none', cursor:'pointer', flexShrink:0 }}>
+                  {isPhone ? (
+                    <LogOut size={13} color="white" />
+                  ) : (
+                    <>
                       <div style={{ width:7, height:7, borderRadius:'50%', background:'white' }} />
-                      <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:'white' }}>End Shift</span>
-                    </div>
-                  </div>
-                )}
+                      <span style={{ fontFamily:SF_TEXT, fontSize:12, fontWeight:700, color:'white' }}>End Shift</span>
+                    </>
+                  )}
+                </motion.button>
               </div>
             </>
           )}
