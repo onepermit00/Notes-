@@ -1032,25 +1032,9 @@ export const CaregiverDashboard = ({
     // Tasks Completed: all wizard tasks + all manager-assigned completed tasks
     const taskEntries = [...wizardActs, ...completedTaskActs].sort((a,b) => a.time.localeCompare(b.time));
 
-    const SECT_META = {
-      'Start of Shift Package Audit': 'OPENING INVENTORY',
-      'Packages':                     'DELIVERIES & PICKUPS',
-      'Guests':                       'ARRIVALS & DEPARTURES',
-      'Shift Notes':                  'NOTES & COMMUNICATIONS',
-      'Loaners':                      'ITEMS CHECKED OUT',
-      'Lockouts':                     'ACCESS ASSISTANCE',
-      'Vendors':                      'CONTRACTORS & SERVICE',
-      'Security & Rounds':            'PATROLS & SAFETY',
-      'Incident Report':              'REPORTED INCIDENTS',
-      'Tasks Completed':              'COMPLETED ITEMS',
-      'Tours':                        'PROPERTY SHOWINGS',
-    };
     const Sect = ({ title, accent='#8FAEDD' }) => (
-      <div className="dar-print-sect-bar" style={{ background:accent, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px', marginTop:4, display:'flex', alignItems:'baseline', gap:7 }}>
+      <div className="dar-print-sect-bar" style={{ background:accent, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px', marginTop:4 }}>
         <span className="dar-print-sect" style={{ fontFamily:INTER, fontSize:11, fontWeight:600, color:TEXT, letterSpacing:'0.06em', textTransform:'uppercase' }}>{title}</span>
-        {SECT_META[title] && (
-          <span className="dar-print-sub-sect" style={{ fontFamily:INTER, fontSize:9, fontWeight:500, color:'rgba(0,0,0,0.32)', letterSpacing:'0.07em', textTransform:'uppercase' }}>· {SECT_META[title]}</span>
-        )}
       </div>
     );
     const NarrativeEntry = ({ activity, last }) => (
