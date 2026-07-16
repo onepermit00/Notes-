@@ -1001,7 +1001,11 @@ export const CaregiverDashboard = ({
       concierge: { name: authUser?.name || 'Concierge' },
       clockIn:   shiftStartTime,
       note:      '',
-      incidents: incidents.filter(i => i.status === 'new').map(i => `${i.type || ''}: ${i.title || ''}`),
+      incidents: incidents.filter(i => i.status === 'new').map(i => {
+        const tod = i.filedAt?.includes(', ') ? i.filedAt.split(', ')[1] : (i.filedAt || '');
+        const pre = tod ? `${tod} — ` : '';
+        return `${pre}${i.type || ''}: ${i.title || ''}`;
+      }),
       activities: selfTasks,
     } : null;
     const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed');
