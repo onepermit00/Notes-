@@ -47,7 +47,6 @@ import { SignaturePad } from './SignaturePad';
 const INTER      = `'Inter','Plus Jakarta Sans',sans-serif`;
 const SF_DISPLAY = INTER;
 const SF_TEXT    = INTER;
-const HANDWRITE  = `'Architects Daughter',cursive`;
 const GREEN   = '#34C759';
 const BLUE    = '#FF385C';
 const RED     = '#FF3B30';
@@ -1046,7 +1045,7 @@ export const CaregiverDashboard = ({
       <div style={{ display:'flex', alignItems:'flex-start', gap:10, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px' }}>
         <span className="dar-entry-bullet" style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'#8FAEDD', lineHeight:1.65, flexShrink:0, userSelect:'none' }}>•</span>
         <div style={{ flex:1 }}>
-          <p className="dar-print-entry" style={{ fontFamily:HANDWRITE, fontSize:16, fontWeight:400, color:TEXT, lineHeight:1.6, margin:0 }}>{toNarrative(activity)}</p>
+          <p className="dar-print-entry" style={{ fontFamily:INTER, fontSize:15, fontWeight:400, color:TEXT, lineHeight:1.65, margin:0 }}>{toNarrative(activity)}</p>
           {Array.isArray(activity.evidenceUrls) && activity.evidenceUrls.length > 0 && (
             <div style={{ display:'flex', gap:6, marginTop:8 }}>
               {activity.evidenceUrls.map((url,i) => (
@@ -1061,7 +1060,7 @@ export const CaregiverDashboard = ({
     );
     const NoActivity = ({ last }) => (
       <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
-        <p style={{ fontFamily:HANDWRITE, fontSize:15, color:MUTED, lineHeight:1.6, margin:0, fontStyle:'italic' }}>No activity logged this shift.</p>
+        <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, lineHeight:1.6, margin:0, fontStyle:'italic' }}>No activity logged this shift.</p>
       </div>
     );
 
@@ -1127,8 +1126,8 @@ export const CaregiverDashboard = ({
                     letter-spacing: 0.10em !important; color: #7a9ec0 !important;
                   }
                   .dar-print-entry {
-                    font-family: 'Architects Daughter', cursive !important;
-                    font-size: 12pt !important; font-weight: 400 !important;
+                    font-family: 'Inter', sans-serif !important;
+                    font-size: 11pt !important; font-weight: 400 !important;
                     line-height: 1.7 !important; color: #1a1a1a !important;
                   }
                   .dar-entry-bullet { color: #8FAEDD !important; font-size: 12pt !important; }
@@ -1262,7 +1261,7 @@ export const CaregiverDashboard = ({
 
                 <Sect title="Shift Notes" accent='#8FAEDD' />
                 <div style={{ padding: isPhone ? '16px 14px 20px' : isMobile ? '16px 18px 20px' : '20px 32px 24px' }}>
-                  <p style={{ fontFamily:HANDWRITE, fontSize:17, color:TEXT, lineHeight:1.7, margin:0 }}>{activeShift.note}</p>
+                  <p style={{ fontFamily:INTER, fontSize:17, color:TEXT, lineHeight:1.75, margin:0 }}>{activeShift.note}</p>
                 </div>
 
                 <Sect title="Loaners" accent='#8FAEDD' />
@@ -1297,7 +1296,7 @@ export const CaregiverDashboard = ({
                       {activeShift.incidents.map((inc, i) => (
                         <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:10, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px' }}>
                           <span className="dar-entry-bullet" style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'#8FAEDD', lineHeight:1.75, flexShrink:0, userSelect:'none' }}>•</span>
-                          <p className="dar-print-entry" style={{ fontFamily:HANDWRITE, fontSize:16, color:TEXT, lineHeight:1.6, margin:0 }}>{inc}</p>
+                          <p className="dar-print-entry" style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
                         </div>
                       ))}
                     </div>
