@@ -45,8 +45,8 @@ import { SignaturePad } from './SignaturePad';
 
 // ─── Static / brand tokens (theme-independent) ────────────────────────────────
 const INTER      = `'Inter','Plus Jakarta Sans',sans-serif`;
-const SF_DISPLAY = `-apple-system,BlinkMacSystemFont,'SF Pro Display',${INTER}`;
-const SF_TEXT    = `-apple-system,BlinkMacSystemFont,'SF Pro Text',${INTER}`;
+const SF_DISPLAY = INTER;
+const SF_TEXT    = INTER;
 const GREEN   = '#34C759';
 const BLUE    = '#FF385C';
 const RED     = '#FF3B30';
@@ -1034,12 +1034,12 @@ export const CaregiverDashboard = ({
 
     const Sect = ({ title, accent='#8FAEDD' }) => (
       <div style={{ background:accent, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px', marginTop:4 }}>
-        <span className="dar-print-sect" style={{ fontFamily:SF_TEXT, fontSize:13, fontWeight:600, color:TEXT, letterSpacing:'0.08em', textTransform:'uppercase' }}>{title}</span>
+        <span className="dar-print-sect" style={{ fontFamily:INTER, fontSize:11, fontWeight:600, color:TEXT, letterSpacing:'0.06em', textTransform:'uppercase' }}>{title}</span>
       </div>
     );
     const NarrativeEntry = ({ activity, last }) => (
       <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px' }}>
-        <p className="dar-print-entry" style={{ fontFamily:SF_TEXT, fontSize:16, fontWeight:400, color:TEXT, lineHeight:1.7, margin:0 }}>{toNarrative(activity)}</p>
+        <p className="dar-print-entry" style={{ fontFamily:INTER, fontSize:15, fontWeight:400, color:TEXT, lineHeight:1.65, margin:0 }}>{toNarrative(activity)}</p>
         {Array.isArray(activity.evidenceUrls) && activity.evidenceUrls.length > 0 && (
           <div style={{ display:'flex', gap:6, marginTop:10 }}>
             {activity.evidenceUrls.map((url,i) => (
@@ -1097,9 +1097,9 @@ export const CaregiverDashboard = ({
                   /* Mobile: 2-col matching Manager */
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div>
-                      <div style={{ fontFamily:SF_TEXT, fontSize:11, fontWeight:500, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>DAR</div>
-                      <div className="dar-print-name" style={{ fontFamily:SF_DISPLAY, fontSize:22, fontWeight:700, color:'white', marginBottom:4, letterSpacing:'-0.02em' }}>{activeShift.concierge.name}</div>
-                      <div style={{ fontFamily:SF_TEXT, fontSize:12, fontWeight:400, color:'rgba(255,255,255,0.50)' }}>
+                      <div style={{ fontFamily:INTER, fontSize:11, fontWeight:500, color:'rgba(255,255,255,0.4)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:5 }}>DAR</div>
+                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:21, fontWeight:700, color:'white', marginBottom:4, letterSpacing:'-0.025em' }}>{activeShift.concierge.name}</div>
+                      <div style={{ fontFamily:INTER, fontSize:12, fontWeight:400, color:'rgba(255,255,255,0.50)' }}>
                         {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {activeShift.clockIn} – Now
                       </div>
                     </div>
@@ -1120,9 +1120,9 @@ export const CaregiverDashboard = ({
                   /* Desktop: 2-column matching Manager */
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div>
-                      <div style={{ fontFamily:SF_TEXT, fontSize:11, fontWeight:500, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:6 }}>Daily Activity Report</div>
-                      <div className="dar-print-name" style={{ fontFamily:SF_DISPLAY, fontSize:26, fontWeight:700, color:'white', marginBottom:5, letterSpacing:'-0.02em' }}>{activeShift.concierge.name}</div>
-                      <div style={{ fontFamily:SF_TEXT, fontSize:12, fontWeight:400, color:'rgba(255,255,255,0.55)' }}>
+                      <div style={{ fontFamily:INTER, fontSize:11, fontWeight:500, color:'rgba(255,255,255,0.4)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:6 }}>Daily Activity Report</div>
+                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:24, fontWeight:700, color:'white', marginBottom:5, letterSpacing:'-0.025em' }}>{activeShift.concierge.name}</div>
+                      <div style={{ fontFamily:INTER, fontSize:13, fontWeight:400, color:'rgba(255,255,255,0.55)' }}>
                         {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {activeShift.clockIn} – Present
                       </div>
                     </div>
