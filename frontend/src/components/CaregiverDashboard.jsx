@@ -44,7 +44,7 @@ import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { SignaturePad } from './SignaturePad';
 
 // ─── Static / brand tokens (theme-independent) ────────────────────────────────
-const INTER      = `'Inter','Plus Jakarta Sans',sans-serif`;
+const INTER      = `-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
 const SF_DISPLAY = INTER;
 const SF_TEXT    = INTER;
 const GREEN   = '#34C759';
