@@ -1032,23 +1032,42 @@ export const CaregiverDashboard = ({
     // Tasks Completed: all wizard tasks + all manager-assigned completed tasks
     const taskEntries = [...wizardActs, ...completedTaskActs].sort((a,b) => a.time.localeCompare(b.time));
 
+    const SECT_META = {
+      'Start of Shift Package Audit': 'OPENING INVENTORY',
+      'Packages':                     'DELIVERIES & PICKUPS',
+      'Guests':                       'ARRIVALS & DEPARTURES',
+      'Shift Notes':                  'NOTES & COMMUNICATIONS',
+      'Loaners':                      'ITEMS CHECKED OUT',
+      'Lockouts':                     'ACCESS ASSISTANCE',
+      'Vendors':                      'CONTRACTORS & SERVICE',
+      'Security & Rounds':            'PATROLS & SAFETY',
+      'Incident Report':              'REPORTED INCIDENTS',
+      'Tasks Completed':              'COMPLETED ITEMS',
+      'Tours':                        'PROPERTY SHOWINGS',
+    };
     const Sect = ({ title, accent='#8FAEDD' }) => (
-      <div style={{ background:accent, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px', marginTop:4 }}>
+      <div className="dar-print-sect-bar" style={{ background:accent, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px', marginTop:4, display:'flex', alignItems:'baseline', gap:7 }}>
         <span className="dar-print-sect" style={{ fontFamily:INTER, fontSize:11, fontWeight:600, color:TEXT, letterSpacing:'0.06em', textTransform:'uppercase' }}>{title}</span>
+        {SECT_META[title] && (
+          <span className="dar-print-sub-sect" style={{ fontFamily:INTER, fontSize:9, fontWeight:500, color:'rgba(0,0,0,0.32)', letterSpacing:'0.07em', textTransform:'uppercase' }}>· {SECT_META[title]}</span>
+        )}
       </div>
     );
     const NarrativeEntry = ({ activity, last }) => (
-      <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px' }}>
-        <p className="dar-print-entry" style={{ fontFamily:INTER, fontSize:15, fontWeight:400, color:TEXT, lineHeight:1.65, margin:0 }}>{toNarrative(activity)}</p>
-        {Array.isArray(activity.evidenceUrls) && activity.evidenceUrls.length > 0 && (
-          <div style={{ display:'flex', gap:6, marginTop:10 }}>
-            {activity.evidenceUrls.map((url,i) => (
-              <button key={i} onClick={() => setViewPhoto(url)} style={{ width:42,height:42,borderRadius:8,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD2,flexShrink:0 }}>
-                <img src={url} alt={`evidence ${i+1}`} style={{ width:'100%',height:'100%',objectFit:'cover',display:'block' }} />
-              </button>
-            ))}
-          </div>
-        )}
+      <div style={{ display:'flex', alignItems:'flex-start', gap:10, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px' }}>
+        <span className="dar-entry-bullet" style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'#8FAEDD', lineHeight:1.65, flexShrink:0, userSelect:'none' }}>•</span>
+        <div style={{ flex:1 }}>
+          <p className="dar-print-entry" style={{ fontFamily:INTER, fontSize:15, fontWeight:400, color:TEXT, lineHeight:1.65, margin:0 }}>{toNarrative(activity)}</p>
+          {Array.isArray(activity.evidenceUrls) && activity.evidenceUrls.length > 0 && (
+            <div style={{ display:'flex', gap:6, marginTop:8 }}>
+              {activity.evidenceUrls.map((url,i) => (
+                <button key={i} onClick={() => setViewPhoto(url)} style={{ width:42,height:42,borderRadius:8,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD2,flexShrink:0 }}>
+                  <img src={url} alt={`evidence ${i+1}`} style={{ width:'100%',height:'100%',objectFit:'cover',display:'block' }} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
     const NoActivity = ({ last }) => (
@@ -1081,18 +1100,70 @@ export const CaregiverDashboard = ({
                   50%      { box-shadow: 0 0 0 7px rgba(52,199,89,0.06); }
                 }
                 .dar-onduty-dot { animation: dar-onduty-pulse 2.6s ease-in-out infinite; }
+                .dar-print-only { display: none; }
                 @media print {
                   body > *:not(.dar-print-target) { display: none !important; }
-                  .dar-print-target { box-shadow: none !important; border: none !important; }
-                  .dar-print-name   { font-size: 38pt !important; }
-                  .dar-print-label  { font-size: 11pt !important; }
-                  .dar-print-date   { font-size: 12pt !important; }
-                  .dar-print-sect   { font-size: 14pt !important; }
-                  .dar-print-entry  { font-size: 16pt !important; }
-                  .dar-print-footer { font-size: 10pt !important; }
+                  .dar-print-target {
+                    position: static !important; box-shadow: none !important;
+                    border: none !important; border-radius: 0 !important;
+                    max-width: none !important; width: 100% !important;
+                    margin: 0 !important; padding: 0 !important;
+                    background: white !important; overflow: visible !important;
+                  }
+                  .dar-screen-only { display: none !important; }
+                  .dar-print-only  { display: block !important; }
+                  .dar-print-name {
+                    font-family: 'Playfair Display', Georgia, 'Times New Roman', serif !important;
+                    font-size: 36pt !important; font-style: italic !important;
+                    font-weight: 400 !important; color: #0d1117 !important;
+                  }
+                  .dar-print-label {
+                    font-family: 'Inter', sans-serif !important;
+                    font-size: 8pt !important; font-weight: 600 !important;
+                    letter-spacing: 0.14em !important; text-transform: uppercase !important;
+                    color: rgba(0,0,0,0.4) !important;
+                  }
+                  .dar-print-date {
+                    font-family: 'Playfair Display', Georgia, serif !important;
+                    font-size: 11pt !important; font-style: italic !important; color: #0d1117 !important;
+                  }
+                  .dar-print-sect {
+                    font-family: 'Inter', sans-serif !important;
+                    font-size: 9pt !important; font-weight: 700 !important;
+                    letter-spacing: 0.12em !important; color: #0d1117 !important;
+                  }
+                  .dar-print-sub-sect {
+                    font-family: 'Inter', sans-serif !important;
+                    font-size: 7.5pt !important; font-weight: 500 !important;
+                    letter-spacing: 0.10em !important; color: #7a9ec0 !important;
+                  }
+                  .dar-print-entry {
+                    font-family: 'Inter', sans-serif !important;
+                    font-size: 11pt !important; font-weight: 400 !important;
+                    line-height: 1.7 !important; color: #1a1a1a !important;
+                  }
+                  .dar-entry-bullet { color: #8FAEDD !important; font-size: 12pt !important; }
+                  .dar-print-sect-bar {
+                    background: transparent !important;
+                    border-top: 1.5pt solid #0d1117 !important;
+                    padding: 4pt 0 3pt !important;
+                    margin-top: 10pt !important;
+                    display: flex !important;
+                    align-items: baseline !important;
+                  }
+                  .dar-print-footer-cols {
+                    display: grid !important;
+                    grid-template-columns: 1fr 1fr 1fr !important;
+                    gap: 20pt !important;
+                    padding-top: 14pt !important;
+                    border-top: 1.5pt solid #0d1117 !important;
+                    margin-top: 18pt !important;
+                    page-break-inside: avoid !important;
+                  }
+                  @page { margin: 0.75in; }
                 }
               `}</style>
-              <div style={{ background:'#111827', padding: isMobile ? '14px 20px' : '20px 32px 18px' }}>
+              <div className="dar-screen-only" style={{ background:'#111827', padding: isMobile ? '14px 20px' : '20px 32px 18px' }}>
                 {isMobile ? (
                   /* Mobile: 2-col matching Manager */
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
@@ -1135,6 +1206,52 @@ export const CaregiverDashboard = ({
                   </div>
                 )}
               </div>
+
+              {/* ── Print-only: premium document header ─────────────────────────── */}
+              <div className="dar-print-only" style={{ padding:'28px 32px 0' }}>
+                {/* Masthead: property name + document title */}
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', paddingBottom:10, borderBottom:'2px solid #0d1117', marginBottom:14 }}>
+                  <div>
+                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:700, letterSpacing:'0.18em', textTransform:'uppercase', color:'rgba(0,0,0,0.35)', marginBottom:4 }}>
+                      The Hannah · Philadelphia
+                    </div>
+                    <div style={{ fontFamily:"'Playfair Display',Georgia,'Times New Roman',serif", fontSize:30, fontWeight:700, letterSpacing:'0.04em', textTransform:'uppercase', color:'#0d1117', lineHeight:1.1 }}>
+                      Daily Shift Notes
+                    </div>
+                  </div>
+                  <div style={{ textAlign:'right' }}>
+                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:600, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(0,0,0,0.35)', marginBottom:3 }}>
+                      Daily Activity Report
+                    </div>
+                    <div style={{ fontFamily:INTER, fontSize:9, color:'rgba(0,0,0,0.4)', lineHeight:1.5 }}>
+                      1306 Callowhill Street<br />Philadelphia PA 19123
+                    </div>
+                  </div>
+                </div>
+                {/* 3-column meta row: Date | Shift | Concierge */}
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16, paddingBottom:14, borderBottom:'1px solid rgba(0,0,0,0.12)', marginBottom:2 }}>
+                  <div>
+                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:600, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.4)', marginBottom:4 }}>Date</div>
+                    <div className="dar-print-date" style={{ fontFamily:"'Playfair Display',Georgia,serif", fontSize:12, fontStyle:'italic', color:'#0d1117' }}>
+                      {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:600, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.4)', marginBottom:4 }}>Shift</div>
+                    <div className="dar-print-date" style={{ fontFamily:"'Playfair Display',Georgia,serif", fontSize:12, fontStyle:'italic', color:'#0d1117' }}>
+                      {activeShift.clockIn} – Present
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:600, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.4)', marginBottom:4 }}>Concierge</div>
+                    <div style={{ fontFamily:"'Playfair Display',Georgia,serif", fontSize:13, fontStyle:'italic', color:'#0d1117', fontWeight:400 }}>
+                      {activeShift.concierge.name}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* ── End print header ─────────────────────────────────────────────── */}
+
               <div style={{ background:CARD }}>
                 <Sect title="Start of Shift Package Audit" accent='#8FAEDD' />
                 {audit
@@ -1187,9 +1304,12 @@ export const CaregiverDashboard = ({
                 <Sect title="Incident Report" accent='#8FAEDD' />
                 {activeShift.incidents.length > 0
                   ? (
-                    <div style={{ padding: isPhone ? '10px 14px' : isMobile ? '10px 18px' : '10px 32px' }}>
+                    <div>
                       {activeShift.incidents.map((inc, i) => (
-                        <p key={i} style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:'0 0 2px' }}>{inc}</p>
+                        <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:10, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px' }}>
+                          <span className="dar-entry-bullet" style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'#8FAEDD', lineHeight:1.75, flexShrink:0, userSelect:'none' }}>•</span>
+                          <p className="dar-print-entry" style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
+                        </div>
                       ))}
                     </div>
                   )
@@ -1210,28 +1330,63 @@ export const CaregiverDashboard = ({
 
               </div>
 
-              {/* Footer accent bar — matches Tours/Guests section bars */}
-              <Sect title="Concierge" accent='#8FAEDD' />
-
-              {/* DAR Footer — closing sign-off */}
-              <div style={{ background:CARD, padding: isMobile ? '14px 20px' : '16px 32px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:16 }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontFamily:SF_TEXT, fontSize:10, fontWeight:600, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:5 }}>Shift Sign-Off</div>
-                  <p style={{ fontFamily:SF_TEXT, fontSize: isMobile ? 12 : 13, fontWeight:400, color:TEXT, lineHeight:1.65, margin:0 }}>
-                    I confirm all activities, incidents, and notes in this DAR are accurate and complete. All open items and pending tasks have been communicated to the incoming concierge.
-                  </p>
+              {/* ── Screen-only footer ───────────────────────────────────────────── */}
+              <div className="dar-screen-only">
+                <Sect title="Concierge" accent='#8FAEDD' />
+                <div style={{ background:CARD, padding: isMobile ? '14px 20px' : '16px 32px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:16 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontFamily:SF_TEXT, fontSize:10, fontWeight:600, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:5 }}>Shift Sign-Off</div>
+                    <p style={{ fontFamily:SF_TEXT, fontSize: isMobile ? 12 : 13, fontWeight:400, color:TEXT, lineHeight:1.65, margin:0 }}>
+                      I confirm all activities, incidents, and notes in this DAR are accurate and complete. All open items and pending tasks have been communicated to the incoming concierge.
+                    </p>
+                  </div>
+                  <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
+                    style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:BLUE, borderRadius:999, padding: isPhone ? '9px 11px' : '5px 14px', border:'none', cursor:'pointer', flexShrink:0 }}>
+                    {isPhone ? (
+                      <LogOut size={13} color="white" />
+                    ) : (
+                      <>
+                        <div style={{ width:7, height:7, borderRadius:'50%', background:'white' }} />
+                        <span style={{ fontFamily:SF_TEXT, fontSize:12, fontWeight:700, color:'white' }}>End Shift</span>
+                      </>
+                    )}
+                  </motion.button>
                 </div>
-                <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
-                  style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:BLUE, borderRadius:999, padding: isPhone ? '9px 11px' : '5px 14px', border:'none', cursor:'pointer', flexShrink:0 }}>
-                  {isPhone ? (
-                    <LogOut size={13} color="white" />
-                  ) : (
-                    <>
-                      <div style={{ width:7, height:7, borderRadius:'50%', background:'white' }} />
-                      <span style={{ fontFamily:SF_TEXT, fontSize:12, fontWeight:700, color:'white' }}>End Shift</span>
-                    </>
-                  )}
-                </motion.button>
+              </div>
+
+              {/* ── Print-only 3-column handover footer ─────────────────────────── */}
+              <div className="dar-print-only" style={{ padding:'0 32px 36px' }}>
+                <div className="dar-print-footer-cols">
+                  {/* Col 1: Handover Notes */}
+                  <div>
+                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.45)', marginBottom:10 }}>Handover Notes</div>
+                    {[0,1,2,3,4].map(i => (
+                      <div key={i} style={{ borderBottom:'1px solid rgba(0,0,0,0.18)', height:24, marginBottom:8 }} />
+                    ))}
+                  </div>
+                  {/* Col 2: End of Shift Checklist */}
+                  <div>
+                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.45)', marginBottom:10 }}>End of Shift</div>
+                    {['Package log complete','Keys secured & logged','All incidents filed','Incoming concierge briefed','Rounds completed'].map((item,i) => (
+                      <div key={i} style={{ display:'flex', alignItems:'center', gap:7, marginBottom:9 }}>
+                        <div style={{ width:10, height:10, border:'1px solid rgba(0,0,0,0.35)', borderRadius:2, flexShrink:0 }} />
+                        <span style={{ fontFamily:INTER, fontSize:9, color:'#1a1a1a' }}>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Col 3: Sign-Off */}
+                  <div>
+                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.45)', marginBottom:10 }}>Sign-Off</div>
+                    <div style={{ fontFamily:INTER, fontSize:8, color:'rgba(0,0,0,0.45)', marginBottom:4 }}>Concierge Signature</div>
+                    <div style={{ borderBottom:'1px solid #0d1117', height:32, marginBottom:12 }} />
+                    <div style={{ fontFamily:INTER, fontSize:8, color:'rgba(0,0,0,0.45)', marginBottom:4 }}>Shift End Time</div>
+                    <div style={{ borderBottom:'1px solid #0d1117', height:22, marginBottom:12 }} />
+                    <div style={{ fontFamily:INTER, fontSize:8, color:'rgba(0,0,0,0.45)', marginBottom:4 }}>Printed</div>
+                    <div style={{ fontFamily:INTER, fontSize:9, color:'#0d1117' }}>
+                      {new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}
+                    </div>
+                  </div>
+                </div>
               </div>
             </>
           )}
