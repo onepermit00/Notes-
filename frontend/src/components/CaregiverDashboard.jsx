@@ -1320,22 +1320,24 @@ export const CaregiverDashboard = ({
 
               {/* ── Screen-only footer ───────────────────────────────────────────── */}
               <div className="dar-screen-only">
-                <Sect title="Concierge" accent='#8FAEDD' />
-                <div style={{ background:CARD, padding: isMobile ? '14px 20px' : '16px 32px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:16 }}>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontFamily:SF_TEXT, fontSize:10, fontWeight:600, color:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:5 }}>Shift Sign-Off</div>
-                    <p style={{ fontFamily:SF_TEXT, fontSize: isMobile ? 12 : 13, fontWeight:400, color:TEXT, lineHeight:1.65, margin:0 }}>
-                      I confirm all activities, incidents, and notes in this DAR are accurate and complete. All open items and pending tasks have been communicated to the incoming concierge.
-                    </p>
+                <div style={{ background:CARD, borderTop:`1.5px solid ${BORDER}`, padding: isMobile ? '12px 20px' : '13px 32px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  {/* Left: live shift status */}
+                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:GREEN, boxShadow:`0 0 0 3px rgba(52,199,89,0.22)`, flexShrink:0 }} />
+                    <div>
+                      <div style={{ fontFamily:SF_TEXT, fontSize: isPhone ? 12 : 13, fontWeight:600, color:TEXT, letterSpacing:'-0.01em', lineHeight:1.3 }}>On Duty</div>
+                      <div style={{ fontFamily:SF_TEXT, fontSize:11, fontWeight:400, color:MUTED, lineHeight:1.3 }}>Shift started {activeShift.clockIn}</div>
+                    </div>
                   </div>
+                  {/* Right: End Shift */}
                   <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
-                    style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 5, background:BLUE, borderRadius:999, padding: isPhone ? '9px 11px' : '5px 14px', border:'none', cursor:'pointer', flexShrink:0 }}>
+                    style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 6, background:BLUE, borderRadius:999, padding: isPhone ? '9px 11px' : '8px 18px', border:'none', cursor:'pointer', flexShrink:0, boxShadow:`0 2px 10px rgba(255,56,92,0.28)` }}>
                     {isPhone ? (
-                      <LogOut size={13} color="white" />
+                      <LogOut size={14} color="white" />
                     ) : (
                       <>
-                        <div style={{ width:7, height:7, borderRadius:'50%', background:'white' }} />
-                        <span style={{ fontFamily:SF_TEXT, fontSize:12, fontWeight:700, color:'white' }}>End Shift</span>
+                        <LogOut size={13} color="white" />
+                        <span style={{ fontFamily:SF_TEXT, fontSize:13, fontWeight:700, color:'white' }}>End Shift</span>
                       </>
                     )}
                   </motion.button>
