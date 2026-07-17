@@ -1263,7 +1263,7 @@ export const CaregiverDashboard = ({
                 <Sect title="Guests" accent='#8FAEDD' />
                 <SectionRow label="Guest Arrivals / Check-ins" activities={guests} last />
 
-                <Sect title="Shift Notes" accent='#8FAEDD' />
+                <Sect title="Today's Tasks" accent='#8FAEDD' />
                 <div style={{ padding: isPhone ? '8px 4px' : '9px 6px', display:'flex', flexDirection:'column', gap:8 }}>
                   {activeShift.note && (
                     <p style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.65, margin:0 }}>
