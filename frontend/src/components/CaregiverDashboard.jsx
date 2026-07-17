@@ -1002,7 +1002,7 @@ export const CaregiverDashboard = ({
       clockIn:   shiftStartTime,
       note:      '',
       incidents: incidents.filter(i => i.status === 'new').map(i => {
-        const tod = i.filedAt ? ((i.filedAt.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i) || [])[0] || '') : '';
+        const tod = i.filedAt ? ((i.filedAt.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i) || [])[0] || '').replace(/\s+(AM|PM)$/i, '$1') : '';
         const pre = tod ? `${tod} — ` : '';
         return `${pre}${i.type || ''}: ${i.title || ''}`;
       }),
@@ -1050,15 +1050,15 @@ export const CaregiverDashboard = ({
         return <><span style={{ color:'#8FAEDD', fontWeight:600 }}>{text.slice(0, d)} — </span><span style={{ color:TEXT }}>{text.slice(d + 3)}</span></>;
       };
       return (
-        <div style={{ borderBottom: last ? 'none' : `1px solid ${BORDER}`, padding: isPhone ? '9px 12px' : '10px 18px', display:'flex', flexDirection:'column', gap:6 }}>
+        <div style={{ borderBottom: last ? 'none' : `1px solid ${BORDER}`, padding: isPhone ? '8px 8px' : '9px 12px', display:'flex', flexDirection:'column', gap:6 }}>
           {hasActs ? activities.map((a,i) => (
             <div key={a.id||i}>
-              <div style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
+              <div style={{ display:'flex', alignItems:'flex-start', gap:4 }}>
                 <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
                 <span className="dar-print-entry" style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(toNarrative(a))}</span>
               </div>
               {Array.isArray(a.evidenceUrls) && a.evidenceUrls.length > 0 && (
-                <div style={{ display:'flex', gap:5, marginTop:5, marginLeft:18 }}>
+                <div style={{ display:'flex', gap:5, marginTop:5, marginLeft:12 }}>
                   {a.evidenceUrls.map((url,j) => (
                     <button key={j} onClick={() => setViewPhoto(url)} style={{ width:34,height:34,borderRadius:6,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD2,flexShrink:0 }}>
                       <img src={url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover',display:'block' }} />
@@ -1068,7 +1068,7 @@ export const CaregiverDashboard = ({
               )}
             </div>
           )) : hasStrs ? strings.map((str,i) => (
-            <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
+            <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:4 }}>
               <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
               <span className="dar-print-entry" style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(str)}</span>
             </div>

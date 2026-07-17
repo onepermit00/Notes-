@@ -5,7 +5,7 @@ export function toNarrative(activity) {
 
   // Extract time-of-day via regex so iOS locale variants never leak the date
   const timeMatch = time.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i);
-  const tod = timeMatch ? timeMatch[0] : (time.includes(', ') ? time.split(', ')[1] : time);
+  const tod = timeMatch ? timeMatch[0].replace(/\s+(AM|PM)$/i, '$1') : (time.includes(', ') ? time.split(', ')[1] : time);
   const pre = tod ? `${tod} — ` : '';
 
   // Clean context note (skip if empty or "N/A")
