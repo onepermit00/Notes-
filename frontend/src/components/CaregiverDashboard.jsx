@@ -1258,9 +1258,6 @@ export const CaregiverDashboard = ({
 
               <div style={{ background:CARD }}>
 
-                <Sect title="Start of Shift Package Audit" accent='#8FAEDD' />
-                <SectionRow label="Package Audit" activities={audit ? [audit] : []} last />
-
                 <Sect title="Packages" accent='#8FAEDD' />
                 <SectionRow label="Delivered by Couriers" activities={incoming} />
                 <SectionRow label="Picked Up by Residents" activities={pickups} last />
