@@ -1167,26 +1167,26 @@ export const CaregiverDashboard = ({
                   @page { margin: 0.75in; }
                 }
               `}</style>
-              <div className="dar-screen-only" style={{ background:'#111827', padding: isMobile ? '14px 20px' : '20px 32px 18px' }}>
+              <div className="dar-screen-only" style={{ background:'#111827', padding: isMobile ? '10px 16px' : '14px 32px 12px' }}>
                 {isMobile ? (
                   /* Mobile: 2-col matching Manager */
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div>
-                      <div style={{ fontFamily:INTER, fontSize:12, fontWeight:500, color:'rgba(255,255,255,0.4)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:5 }}>DAR</div>
-                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:23, fontWeight:700, color:'white', marginBottom:4, letterSpacing:'-0.025em' }}>{activeShift.concierge.name}</div>
-                      <div style={{ fontFamily:INTER, fontSize:13, fontWeight:400, color:'rgba(255,255,255,0.50)' }}>
+                      <div style={{ fontFamily:INTER, fontSize:10, fontWeight:500, color:'rgba(255,255,255,0.4)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:3 }}>DAR</div>
+                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:'white', marginBottom:2, letterSpacing:'-0.025em' }}>{activeShift.concierge.name}</div>
+                      <div style={{ fontFamily:INTER, fontSize:11, fontWeight:400, color:'rgba(255,255,255,0.50)' }}>
                         {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {activeShift.clockIn} – Now
                       </div>
                     </div>
                     <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
                       {isPhone ? (
-                        <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'11px' }}>
-                          <div className="dar-onduty-dot" style={{ width:12, height:12, borderRadius:'50%', background:GREEN }} />
+                        <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'9px' }}>
+                          <div className="dar-onduty-dot" style={{ width:10, height:10, borderRadius:'50%', background:GREEN }} />
                         </div>
                       ) : (
-                        <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'5px 12px' }}>
-                          <div className="dar-onduty-dot" style={{ width:7, height:7, borderRadius:'50%', background:GREEN }} />
-                          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
+                        <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'4px 10px' }}>
+                          <div className="dar-onduty-dot" style={{ width:6, height:6, borderRadius:'50%', background:GREEN }} />
+                          <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:GREEN }}>On Duty</span>
                         </div>
                       )}
                     </div>
@@ -1195,16 +1195,16 @@ export const CaregiverDashboard = ({
                   /* Desktop: 2-column matching Manager */
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div>
-                      <div style={{ fontFamily:INTER, fontSize:12, fontWeight:500, color:'rgba(255,255,255,0.4)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:6 }}>Daily Activity Report</div>
-                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:27, fontWeight:700, color:'white', marginBottom:5, letterSpacing:'-0.025em' }}>{activeShift.concierge.name}</div>
-                      <div style={{ fontFamily:INTER, fontSize:14, fontWeight:400, color:'rgba(255,255,255,0.55)' }}>
+                      <div style={{ fontFamily:INTER, fontSize:10, fontWeight:500, color:'rgba(255,255,255,0.4)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:4 }}>Daily Activity Report</div>
+                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:20, fontWeight:700, color:'white', marginBottom:3, letterSpacing:'-0.025em' }}>{activeShift.concierge.name}</div>
+                      <div style={{ fontFamily:INTER, fontSize:12, fontWeight:400, color:'rgba(255,255,255,0.55)' }}>
                         {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {activeShift.clockIn} – Present
                       </div>
                     </div>
                     <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
-                      <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'5px 12px' }}>
-                        <div className="dar-onduty-dot" style={{ width:7, height:7, borderRadius:'50%', background:GREEN }} />
-                        <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
+                      <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'4px 10px' }}>
+                        <div className="dar-onduty-dot" style={{ width:6, height:6, borderRadius:'50%', background:GREEN }} />
+                        <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:GREEN }}>On Duty</span>
                       </div>
                     </div>
                   </div>
