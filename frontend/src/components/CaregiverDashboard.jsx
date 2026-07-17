@@ -334,6 +334,7 @@ export const CaregiverDashboard = ({
   const [shiftHistory, setShiftHistory] = useState([]);
   const [viewPhoto,  setViewPhoto]  = useState(null);
   const [gallery,    setGallery]    = useState(null); // { urls:[], idx:0 }
+  const incidentPhotos = React.useRef({}); // incidentId → photo urls[], survives SSE overwrites
   const [isMobile,      setIsMobile]      = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (t ? 1366 : 768); });
   const [isPhone,       setIsPhone]       = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return t && window.innerWidth < 768; });
 
@@ -1005,11 +1006,15 @@ export const CaregiverDashboard = ({
       incidents: incidents.filter(i => i.status === 'new').map(i => {
         const tod = i.filedAt ? ((i.filedAt.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i) || [])[0] || '').replace(/\s*(AM|PM)$/i, (_, m) => m.toLowerCase()) : '';
         const pre = tod ? `${tod} — ` : '';
+        const urls =
+          (incidentPhotos.current[i.incident_id] || []).length
+            ? incidentPhotos.current[i.incident_id]
+            : Array.isArray(i.photos) && i.photos.length
+              ? i.photos.map(p => p.url)
+              : Array.isArray(i.evidenceUrls) ? i.evidenceUrls : (i.evidenceUrl ? [i.evidenceUrl] : []);
         return {
           text: `${pre}${i.type || ''}: ${i.title || ''}`,
-          evidenceUrls: Array.isArray(i.photos) && i.photos.length
-            ? i.photos.map(p => p.url)
-            : Array.isArray(i.evidenceUrls) ? i.evidenceUrls : (i.evidenceUrl ? [i.evidenceUrl] : []),
+          evidenceUrls: urls,
         };
       }),
       activities: selfTasks,
@@ -2942,6 +2947,9 @@ export const CaregiverDashboard = ({
                   {activeTab === 'incident'      && <IncidentReportPage patientName={propertyName} incidents={incidents} onAddIncident={async (inc) => {
                     try {
                       const saved = await authApi.createIncident(inc);
+                      if (saved.incident_id && inc.photos?.length) {
+                        incidentPhotos.current[saved.incident_id] = inc.photos.map(p => p.url);
+                      }
                       setIncidents(p => [{ ...saved, photos: inc.photos || [] }, ...p]);
                     } catch { /* ignore */ }
                   }} />}
