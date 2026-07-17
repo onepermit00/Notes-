@@ -1007,7 +1007,9 @@ export const CaregiverDashboard = ({
         const pre = tod ? `${tod} — ` : '';
         return {
           text: `${pre}${i.type || ''}: ${i.title || ''}`,
-          evidenceUrls: Array.isArray(i.evidenceUrls) ? i.evidenceUrls : (i.evidenceUrl ? [i.evidenceUrl] : []),
+          evidenceUrls: Array.isArray(i.photos) && i.photos.length
+            ? i.photos.map(p => p.url)
+            : Array.isArray(i.evidenceUrls) ? i.evidenceUrls : (i.evidenceUrl ? [i.evidenceUrl] : []),
         };
       }),
       activities: selfTasks,
@@ -2940,7 +2942,7 @@ export const CaregiverDashboard = ({
                   {activeTab === 'incident'      && <IncidentReportPage patientName={propertyName} incidents={incidents} onAddIncident={async (inc) => {
                     try {
                       const saved = await authApi.createIncident(inc);
-                      setIncidents(p => [saved, ...p]);
+                      setIncidents(p => [{ ...saved, photos: inc.photos || [] }, ...p]);
                     } catch { /* ignore */ }
                   }} />}
                   {activeTab === 'tours'         && <ToursDashboard   onActivityLogged={handleActivityLogged} />}
