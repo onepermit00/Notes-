@@ -1309,31 +1309,6 @@ export const CaregiverDashboard = ({
 
               </div>
 
-              {/* ── Screen-only footer ───────────────────────────────────────────── */}
-              <div className="dar-screen-only">
-                <div style={{ background:CARD, borderTop:`1.5px solid ${BORDER}`, padding: isMobile ? '12px 20px' : '13px 32px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  {/* Left: live shift status */}
-                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <div style={{ width:8, height:8, borderRadius:'50%', background:GREEN, boxShadow:`0 0 0 3px rgba(52,199,89,0.22)`, flexShrink:0 }} />
-                    <div>
-                      <div style={{ fontFamily:SF_TEXT, fontSize: isPhone ? 12 : 13, fontWeight:600, color:TEXT, letterSpacing:'-0.01em', lineHeight:1.3 }}>On Duty</div>
-                      <div style={{ fontFamily:SF_TEXT, fontSize:11, fontWeight:400, color:MUTED, lineHeight:1.3 }}>Shift started {activeShift.clockIn}</div>
-                    </div>
-                  </div>
-                  {/* Right: End Shift */}
-                  <motion.button onClick={handleClockOut} whileTap={{ scale:0.93 }} transition={{ type:'spring', stiffness:500, damping:30 }}
-                    style={{ display:'inline-flex', alignItems:'center', gap: isPhone ? 0 : 6, background:BLUE, borderRadius:999, padding: isPhone ? '9px 11px' : '8px 18px', border:'none', cursor:'pointer', flexShrink:0, boxShadow:`0 2px 10px rgba(255,56,92,0.28)` }}>
-                    {isPhone ? (
-                      <LogOut size={14} color="white" />
-                    ) : (
-                      <>
-                        <LogOut size={13} color="white" />
-                        <span style={{ fontFamily:SF_TEXT, fontSize:13, fontWeight:700, color:'white' }}>End Shift</span>
-                      </>
-                    )}
-                  </motion.button>
-                </div>
-              </div>
 
               {/* ── Print-only 3-column handover footer ─────────────────────────── */}
               <div className="dar-print-only" style={{ padding:'0 32px 36px' }}>
