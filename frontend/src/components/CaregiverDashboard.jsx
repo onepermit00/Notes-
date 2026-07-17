@@ -1265,7 +1265,7 @@ export const CaregiverDashboard = ({
                 <SectionRow label="Guest Arrivals / Check-ins" activities={guests} last />
 
                 <Sect title="Shift Notes" accent='#8FAEDD' />
-                <div style={{ padding: isPhone ? '10px 12px' : '11px 18px', borderBottom:`1px solid ${BORDER}`, display:'flex', flexDirection:'column', gap:8 }}>
+                <div style={{ padding: isPhone ? '8px 4px' : '9px 6px', borderBottom:`1px solid ${BORDER}`, display:'flex', flexDirection:'column', gap:8 }}>
                   {activeShift.note && (
                     <p style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.65, margin:0 }}>
                       {activeShift.note}
