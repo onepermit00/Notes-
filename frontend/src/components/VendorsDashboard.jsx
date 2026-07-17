@@ -86,6 +86,8 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
   const [checkoutId,    setCheckoutId]    = useState(null);
   const [checkoutNotes, setCheckoutNotes] = useState('');
   const [form,          setForm]          = useState(EMPTY_FORM);
+  const [notesInterim,    setNotesInterim]    = useState('');
+  const [checkoutInterim, setCheckoutInterim] = useState('');
 
   const setF   = (key, val) => setForm(p => ({ ...p, [key]: val }));
   const goBack = () => { setView('list'); setForm(EMPTY_FORM); setVStep(1); };
@@ -252,13 +254,13 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
           <div style={{ position: 'relative' }}>
             <Label>Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
             <textarea
-              value={form.notes}
+              value={form.notes + (notesInterim ? (form.notes ? ' ' : '') + notesInterim : '')}
               onChange={e => setF('notes', e.target.value)}
               placeholder="e.g. Vendor arrived with two technicians, went to Unit 5B…"
               rows={3}
               style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
             />
-            <MicButton onTranscript={t => setF('notes', form.notes ? form.notes + ' ' + t : t)} />
+            <MicButton onTranscript={t => setF('notes', form.notes ? form.notes + ' ' + t : t)} onInterim={setNotesInterim} />
           </div>
         </div>
         <WizardFooter onBack={() => setVStep(2)} onContinue={checkIn} continueLabel="Check In Vendor" continueDisabled={!form.unit || !form.authorizedBy || !form.idMethod} />
@@ -321,13 +323,13 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
           <div style={{ position: 'relative' }}>
             <Label>Departure Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
             <textarea
-              value={checkoutNotes}
+              value={checkoutNotes + (checkoutInterim ? (checkoutNotes ? ' ' : '') + checkoutInterim : '')}
               onChange={e => setCheckoutNotes(e.target.value)}
               placeholder="e.g. Work completed in Unit 5B, all tools removed, area left clean…"
               rows={3}
               style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
             />
-            <MicButton onTranscript={t => setCheckoutNotes(p => p ? p + ' ' + t : t)} />
+            <MicButton onTranscript={t => setCheckoutNotes(p => p ? p + ' ' + t : t)} onInterim={setCheckoutInterim} />
           </div>
         </div>
 

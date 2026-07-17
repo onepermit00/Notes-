@@ -307,6 +307,9 @@ export const CaregiverDashboard = ({
   const [showNewTask,   setShowNewTask]   = useState(false);
   const [ntStep,        setNtStep]        = useState(1);
   const [ntForm,        setNTF]           = useState({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '', flagFollowUp: false });
+  const [ntTitleInterim, setNtTitleInterim] = useState('');
+  const [ntNotesInterim, setNtNotesInterim] = useState('');
+  const [auditNotesInterim, setAuditNotesInterim] = useState('');
   const [showModels,    setShowModels]    = useState(false);
   const [modelUnits,    setModelUnits]    = useState(MODEL_UNITS_INIT);
   const [showElevators, setShowElevators] = useState(false);
@@ -3300,7 +3303,7 @@ export const CaregiverDashboard = ({
                       <div style={{ position: 'relative' }}>
                         <textarea
                           placeholder="e.g. Helped resident in 1204 carry groceries, assisted maintenance with P2 shut-off valve..."
-                          value={ntForm.title}
+                          value={ntForm.title + (ntTitleInterim ? (ntForm.title ? ' ' : '') + ntTitleInterim : '')}
                           onChange={e => setNTF(p => ({ ...p, title: e.target.value }))}
                           rows={isPhone ? 4 : 5}
                           autoFocus={!isPhone}
@@ -3312,7 +3315,7 @@ export const CaregiverDashboard = ({
                             outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.6,
                             transition: 'border-color 0.15s',
                           }} />
-                        <MicButton onTranscript={t => setNTF(p => ({ ...p, title: p.title ? p.title + ' ' + t : t }))} />
+                        <MicButton onTranscript={t => setNTF(p => ({ ...p, title: p.title ? p.title + ' ' + t : t }))} onInterim={setNtTitleInterim} />
                       </div>
                     </div>
                   </>
@@ -3400,10 +3403,10 @@ export const CaregiverDashboard = ({
                       </h3>
                       <div style={{ position: 'relative' }}>
                         <textarea placeholder="Resident name, outcome, follow-up needed…"
-                          value={ntForm.notes} onChange={e => setNTF(p => ({ ...p, notes: e.target.value }))}
+                          value={ntForm.notes + (ntNotesInterim ? (ntForm.notes ? ' ' : '') + ntNotesInterim : '')} onChange={e => setNTF(p => ({ ...p, notes: e.target.value }))}
                           rows={3}
                           style={{ width: '100%', padding: '14px 44px 14px 16px', borderRadius: 14, border: `1.5px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
-                        <MicButton onTranscript={t => setNTF(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} />
+                        <MicButton onTranscript={t => setNTF(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} onInterim={setNtNotesInterim} />
                       </div>
                     </div>
                     {/* Flag for Follow-up */}
@@ -3562,9 +3565,9 @@ export const CaregiverDashboard = ({
                     </div>
                     <div style={{ position: 'relative' }}>
                       <textarea placeholder="Package location details, carrier breakdown, possible explanations..."
-                        value={auditForm.notes} onChange={e => setAuditForm(p => ({ ...p, notes: e.target.value }))} rows={3}
+                        value={auditForm.notes + (auditNotesInterim ? (auditForm.notes ? ' ' : '') + auditNotesInterim : '')} onChange={e => setAuditForm(p => ({ ...p, notes: e.target.value }))} rows={3}
                         style={{ width: '100%', padding: '14px 44px 14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 14, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
-                      <MicButton onTranscript={t => setAuditForm(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} />
+                      <MicButton onTranscript={t => setAuditForm(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} onInterim={setAuditNotesInterim} />
                     </div>
                   </div>
 

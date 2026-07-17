@@ -81,6 +81,8 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [lForm,        setLF]           = useState({ resident: '', unit: '', notes: '', photo: null, photoPreview: null, signature: null, signedAt: null });
   const [returnNotes,  setReturnNotes]  = useState('');
+  const [lNotesInterim,  setLNotesInterim]  = useState('');
+  const [retInterim,     setRetInterim]     = useState('');
   const [showSigPad,   setShowSigPad]   = useState(false);
 
   const openCheckout = (item) => { setSelectedItem(item); setView('checkout'); setLStep(1); };
@@ -237,13 +239,13 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
           <div style={{ position: 'relative' }}>
             <Label>Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
             <textarea
-              value={lForm.notes}
+              value={lForm.notes + (lNotesInterim ? (lForm.notes ? ' ' : '') + lNotesInterim : '')}
               onChange={e => setLF(p => ({ ...p, notes: e.target.value }))}
               placeholder="e.g. Item was in good condition, resident needed it for moving boxes…"
               rows={3}
               style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
             />
-            <MicButton onTranscript={t => setLF(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} />
+            <MicButton onTranscript={t => setLF(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} onInterim={setLNotesInterim} />
           </div>
         </div>
         <WizardFooter onBack={() => setLStep(1)} onContinue={checkoutLoaner} continueLabel="Check Out" continueDisabled={!lForm.resident || !lForm.unit || !lForm.signature} />
@@ -289,13 +291,13 @@ export const LoanersDashboard = ({ onActivityLogged }) => {
           <div style={{ position: 'relative' }}>
             <Label>Return Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
             <textarea
-              value={returnNotes}
+              value={returnNotes + (retInterim ? (returnNotes ? ' ' : '') + retInterim : '')}
               onChange={e => setReturnNotes(e.target.value)}
               placeholder="e.g. Item returned in good condition, no damage observed…"
               rows={3}
               style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
             />
-            <MicButton onTranscript={t => setReturnNotes(p => p ? p + ' ' + t : t)} />
+            <MicButton onTranscript={t => setReturnNotes(p => p ? p + ' ' + t : t)} onInterim={setRetInterim} />
           </div>
         </div>
 

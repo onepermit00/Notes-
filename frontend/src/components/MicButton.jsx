@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Mic, MicOff } from 'lucide-react';
 
-// Inject pulse keyframe once
 if (typeof document !== 'undefined' && !document.getElementById('mic-pulse-kf')) {
   const s = document.createElement('style');
   s.id = 'mic-pulse-kf';
@@ -9,42 +8,57 @@ if (typeof document !== 'undefined' && !document.getElementById('mic-pulse-kf'))
   document.head.appendChild(s);
 }
 
-export default function MicButton({ onTranscript, disabled = false, style = {} }) {
+export default function MicButton({ onTranscript, onInterim, disabled = false, style = {} }) {
   const [listening, setListening] = useState(false);
-  const recogRef = useRef(null);
+  const recogRef      = useRef(null);
+  const committedRef  = useRef(''); // accumulated final text sent via onTranscript this session
 
   const toggle = useCallback(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-      alert('Voice input requires Chrome or Safari.');
-      return;
-    }
+    if (!SR) { alert('Voice input requires Chrome or Safari.'); return; }
+
     if (listening) {
       recogRef.current?.stop();
-      setListening(false);
       return;
     }
+
+    committedRef.current = '';
     const r = new SR();
-    r.continuous = true;
-    r.interimResults = false;
-    r.lang = 'en-US';
+    r.continuous      = true;
+    r.interimResults  = true;
+    r.lang            = 'en-US';
+
     r.onresult = (e) => {
-      const text = Array.from(e.results)
-        .slice(e.resultIndex)
-        .filter(res => res.isFinal)
-        .map(res => res[0].transcript)
-        .join(' ')
-        .trim();
-      if (text) onTranscript(text);
+      let allFinal = '';
+      let interim  = '';
+      for (let i = 0; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) allFinal += (allFinal ? ' ' : '') + t.trim();
+        else                       interim   = t.trim();
+      }
+      // Commit only the new chunk since last onTranscript call
+      const newChunk = allFinal.slice(committedRef.current.length).trim();
+      if (newChunk) {
+        committedRef.current = allFinal;
+        onTranscript(newChunk);
+      }
+      // Always push live interim so the field updates in real time
+      onInterim?.(interim);
     };
-    r.onend = () => setListening(false);
-    r.onerror = () => setListening(false);
+
+    const cleanup = () => {
+      committedRef.current = '';
+      onInterim?.('');
+      setListening(false);
+    };
+    r.onend   = cleanup;
+    r.onerror = cleanup;
+
     recogRef.current = r;
     r.start();
     setListening(true);
-  }, [listening, onTranscript]);
+  }, [listening, onTranscript, onInterim]);
 
-  // Clean up on unmount
   useEffect(() => () => recogRef.current?.stop(), []);
 
   return (
@@ -55,16 +69,12 @@ export default function MicButton({ onTranscript, disabled = false, style = {} }
       title={listening ? 'Tap to stop' : 'Tap to speak'}
       style={{
         position: 'absolute',
-        top: 9,
-        right: 9,
-        width: 28,
-        height: 28,
+        top: 9, right: 9,
+        width: 28, height: 28,
         borderRadius: '50%',
         border: 'none',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: listening ? 'rgba(255,59,48,0.13)' : 'rgba(128,128,128,0.10)',
         color: listening ? '#FF3B30' : '#8E8E93',
         flexShrink: 0,

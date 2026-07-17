@@ -319,6 +319,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [taskOpen,  setTaskOpen]  = useState(false);
   const [taskStep,  setTaskStep]  = useState(1);
   const [taskForm,  setTaskForm]  = useState(EMPTY_TASK);
+  const [taskTitleInterim, setTaskTitleInterim] = useState('');
+  const [taskNotesInterim, setTaskNotesInterim] = useState('');
   const [taskLoading, setTaskLoading] = useState(false);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError,   setTasksError]   = useState(false);
@@ -3927,20 +3929,20 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   <div>
                     <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Task Title *</label>
                     <div style={{ position:'relative' }}>
-                      <input type="text" placeholder="e.g. Close rooftop pool at 10 PM" value={taskForm.title}
+                      <input type="text" placeholder="e.g. Close rooftop pool at 10 PM" value={taskForm.title + (taskTitleInterim ? (taskForm.title ? ' ' : '') + taskTitleInterim : '')}
                         onChange={e=>setTaskForm(p=>({...p,title:e.target.value}))}
                         style={{ width:'100%', padding:'14px 44px 14px 16px', borderRadius:12, border:taskForm.title?`1.5px solid ${BLUE}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
-                      <MicButton onTranscript={t=>setTaskForm(p=>({...p,title:p.title?p.title+' '+t:t}))} />
+                      <MicButton onTranscript={t=>setTaskForm(p=>({...p,title:p.title?p.title+' '+t:t}))} onInterim={setTaskTitleInterim} />
                     </div>
                   </div>
 
                   <div>
                     <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Notes (Optional)</label>
                     <div style={{ position:'relative' }}>
-                      <textarea placeholder="Details or context…" value={taskForm.notes} rows={4}
+                      <textarea placeholder="Details or context…" value={taskForm.notes + (taskNotesInterim ? (taskForm.notes ? ' ' : '') + taskNotesInterim : '')} rows={4}
                         onChange={e=>setTaskForm(p=>({...p,notes:e.target.value}))}
                         style={{ width:'100%', padding:'14px 44px 14px 16px', borderRadius:12, border:taskForm.notes?`1.5px solid ${BLUE}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', resize:'none', boxSizing:'border-box', lineHeight:1.5 }} />
-                      <MicButton onTranscript={t=>setTaskForm(p=>({...p,notes:p.notes?p.notes+' '+t:t}))} />
+                      <MicButton onTranscript={t=>setTaskForm(p=>({...p,notes:p.notes?p.notes+' '+t:t}))} onInterim={setTaskNotesInterim} />
                     </div>
                   </div>
 

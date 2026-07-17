@@ -89,6 +89,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   const [form,     setForm]     = useState({ guestName: '', residentName: '', unit: '', purpose: '', notes: '', photo: null, photoPreview: null });
   const [toastId,  setToastId]  = useState(null);
   const [toastMsg, setToastMsg] = useState('');
+  const [notesInterim, setNotesInterim] = useState('');
 
   // Pre-registration state
   const [preRegs,  setPreRegs]  = useState(loadPreRegs);
@@ -353,13 +354,13 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
           <div style={{ position: 'relative' }}>
             <Label>Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
             <textarea
-              value={form.notes}
+              value={form.notes + (notesInterim ? (form.notes ? ' ' : '') + notesInterim : '')}
               onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
               placeholder="e.g. Guest arrived with luggage, went directly to elevator…"
               rows={3}
               style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
             />
-            <MicButton onTranscript={t => setForm(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} />
+            <MicButton onTranscript={t => setForm(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} onInterim={setNotesInterim} />
           </div>
           <div>
             <Label>Photo <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
