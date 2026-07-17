@@ -1047,7 +1047,7 @@ export const CaregiverDashboard = ({
       const coloredEntry = (text) => {
         const d = text.indexOf(' — ');
         if (d === -1) return <span style={{ color:TEXT }}>{text}</span>;
-        return <><span style={{ color:'#8FAEDD', fontWeight:600 }}>{text.slice(0, d)} — </span><span style={{ color:TEXT }}>{text.slice(d + 3)}</span></>;
+        return <><span style={{ color:'#8FAEDD', fontWeight:600 }}>{text.slice(0, d)}– </span><span style={{ color:TEXT }}>{text.slice(d + 3)}</span></>;
       };
       return (
         <div style={{ borderBottom: last ? 'none' : `1px solid ${BORDER}`, padding: isPhone ? '8px 4px' : '9px 6px', display:'flex', flexDirection:'column', gap:6 }}>
@@ -1278,7 +1278,7 @@ export const CaregiverDashboard = ({
                         <span style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
                         <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>
                           {d !== -1
-                            ? <><span style={{ color:'#8FAEDD', fontWeight:600 }}>{text.slice(0,d)} — </span><span style={{ color:TEXT }}>{text.slice(d+3)}</span></>
+                            ? <><span style={{ color:'#8FAEDD', fontWeight:600 }}>{text.slice(0,d)}– </span><span style={{ color:TEXT }}>{text.slice(d+3)}</span></>
                             : <span style={{ color:TEXT }}>{text}</span>}
                         </span>
                       </div>
