@@ -1037,7 +1037,7 @@ export const CaregiverDashboard = ({
     const taskEntries = [...wizardActs, ...completedTaskActs].sort((a,b) => a.time.localeCompare(b.time));
 
     const Sect = ({ title, accent='#8FAEDD' }) => (
-      <div className="dar-print-sect-bar" style={{ background:accent, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px', marginTop:4 }}>
+      <div className="dar-print-sect-bar" style={{ background:accent, padding: isPhone ? '4px 12px' : isMobile ? '4px 16px' : '5px 32px', marginTop:4 }}>
         <span className="dar-print-sect" style={{ fontFamily:INTER, fontSize:12, fontWeight:600, color:TEXT, letterSpacing:'0.06em', textTransform:'uppercase' }}>{title}</span>
       </div>
     );
