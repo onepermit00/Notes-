@@ -1041,28 +1041,44 @@ export const CaregiverDashboard = ({
         <span className="dar-print-sect" style={{ fontFamily:INTER, fontSize:11, fontWeight:600, color:TEXT, letterSpacing:'0.06em', textTransform:'uppercase' }}>{title}</span>
       </div>
     );
-    const NarrativeEntry = ({ activity, last }) => (
-      <div style={{ display:'flex', alignItems:'flex-start', gap:10, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px' }}>
-        <span className="dar-entry-bullet" style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'#8FAEDD', lineHeight:1.65, flexShrink:0, userSelect:'none' }}>•</span>
-        <div style={{ flex:1 }}>
-          <p className="dar-print-entry" style={{ fontFamily:INTER, fontSize:15, fontWeight:400, color:TEXT, lineHeight:1.65, margin:0 }}>{toNarrative(activity)}</p>
-          {Array.isArray(activity.evidenceUrls) && activity.evidenceUrls.length > 0 && (
-            <div style={{ display:'flex', gap:6, marginTop:8 }}>
-              {activity.evidenceUrls.map((url,i) => (
-                <button key={i} onClick={() => setViewPhoto(url)} style={{ width:42,height:42,borderRadius:8,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD2,flexShrink:0 }}>
-                  <img src={url} alt={`evidence ${i+1}`} style={{ width:'100%',height:'100%',objectFit:'cover',display:'block' }} />
-                </button>
-              ))}
-            </div>
-          )}
+    const LBL_W = isPhone ? 102 : isMobile ? 134 : 164;
+    const SectionRow = ({ label, activities, strings, last }) => {
+      const hasActs = activities && activities.length > 0;
+      const hasStrs = strings && strings.length > 0;
+      return (
+        <div style={{ display:'flex', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
+          <div style={{ width:LBL_W, flexShrink:0, padding: isPhone ? '10px 12px' : '11px 18px', borderRight:`1px solid ${BORDER}` }}>
+            <span style={{ fontFamily:INTER, fontSize:isPhone?10:11, fontWeight:500, color:'#8FAEDD', lineHeight:1.4 }}>{label}</span>
+          </div>
+          <div style={{ flex:1, padding: isPhone ? '9px 12px' : '10px 18px', display:'flex', flexDirection:'column', gap:4 }}>
+            {hasActs ? activities.map((a,i) => (
+              <div key={a.id||i}>
+                <div style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
+                  <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:13, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+                  <span className="dar-print-entry" style={{ fontFamily:INTER, fontSize:isPhone?12:13, color:TEXT, lineHeight:1.55 }}>{toNarrative(a)}</span>
+                </div>
+                {Array.isArray(a.evidenceUrls) && a.evidenceUrls.length > 0 && (
+                  <div style={{ display:'flex', gap:5, marginTop:5, marginLeft:18 }}>
+                    {a.evidenceUrls.map((url,j) => (
+                      <button key={j} onClick={() => setViewPhoto(url)} style={{ width:34,height:34,borderRadius:6,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD2,flexShrink:0 }}>
+                        <img src={url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover',display:'block' }} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )) : hasStrs ? strings.map((str,i) => (
+              <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
+                <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:13, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+                <span className="dar-print-entry" style={{ fontFamily:INTER, fontSize:isPhone?12:13, color:TEXT, lineHeight:1.55 }}>{str}</span>
+              </div>
+            )) : (
+              <span style={{ fontFamily:INTER, fontSize:isPhone?12:13, color:MUTED, fontStyle:'italic' }}>N/A</span>
+            )}
+          </div>
         </div>
-      </div>
-    );
-    const NoActivity = ({ last }) => (
-      <div style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
-        <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, lineHeight:1.6, margin:0, fontStyle:'italic' }}>No activity logged this shift.</p>
-      </div>
-    );
+      );
+    };
 
     return (
     <div style={{ flex:1, minHeight:0, overflowY:'auto', padding: isMobile ? '64px 16px 48px' : '28px 28px 48px' }}>
@@ -1241,80 +1257,55 @@ export const CaregiverDashboard = ({
               {/* ── End print header ─────────────────────────────────────────────── */}
 
               <div style={{ background:CARD }}>
+
                 <Sect title="Start of Shift Package Audit" accent='#8FAEDD' />
-                {audit
-                  ? <NarrativeEntry activity={audit} last />
-                  : <NoActivity last />
-                }
+                <SectionRow label="Package Audit" activities={audit ? [audit] : []} last />
 
                 <Sect title="Packages" accent='#8FAEDD' />
-                {[...incoming, ...pickups].length > 0
-                  ? [...incoming, ...pickups].map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
-                  : <NoActivity last />
-                }
+                <SectionRow label="Delivered by Couriers" activities={incoming} />
+                <SectionRow label="Picked Up by Residents" activities={pickups} last />
 
                 <Sect title="Guests" accent='#8FAEDD' />
-                {guests.length > 0
-                  ? guests.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
-                  : <NoActivity last />
-                }
+                <SectionRow label="Guest Arrivals / Check-ins" activities={guests} last />
 
                 <Sect title="Shift Notes" accent='#8FAEDD' />
-                <div style={{ padding: isPhone ? '16px 14px 20px' : isMobile ? '16px 18px 20px' : '20px 32px 24px' }}>
-                  <p style={{ fontFamily:INTER, fontSize:17, color:TEXT, lineHeight:1.75, margin:0 }}>{activeShift.note}</p>
+                <div style={{ padding: isPhone ? '10px 12px' : '11px 18px', borderBottom:`1px solid ${BORDER}` }}>
+                  <p style={{ fontFamily:INTER, fontSize:isPhone?12:13, color:activeShift.note?TEXT:MUTED, lineHeight:1.65, margin:0, fontStyle:activeShift.note?'normal':'italic' }}>
+                    {activeShift.note || 'No shift notes added.'}
+                  </p>
                 </div>
 
                 <Sect title="Loaners" accent='#8FAEDD' />
-                {loaners.length > 0
-                  ? loaners.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
-                  : <NoActivity last />
-                }
+                <SectionRow label="Checkouts & Returns" activities={loaners} last />
 
                 <Sect title="Lockouts" accent='#8FAEDD' />
-                {lockouts.length > 0
-                  ? lockouts.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
-                  : <NoActivity last />
-                }
+                <SectionRow label="Keys & Access Requests" activities={lockouts} last />
 
                 <Sect title="Vendors" accent='#8FAEDD' />
-                {vends.length > 0
-                  ? vends.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
-                  : <NoActivity last />
-                }
+                <SectionRow label="Vendor Activity" activities={vends} last />
 
                 {rounds.length > 0 && (
                   <>
                     <Sect title="Security & Rounds" accent='#8FAEDD' />
-                    {rounds.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)}
+                    <SectionRow label="Patrol Rounds" activities={rounds} last />
                   </>
                 )}
 
-                <Sect title="Incident Report" accent='#8FAEDD' />
+                <Sect title="Incidents Filed" accent={RED} />
                 {activeShift.incidents.length > 0
-                  ? (
-                    <div>
-                      {activeShift.incidents.map((inc, i) => (
-                        <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:10, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px' }}>
-                          <span className="dar-entry-bullet" style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:'#8FAEDD', lineHeight:1.75, flexShrink:0, userSelect:'none' }}>•</span>
-                          <p className="dar-print-entry" style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{inc}</p>
-                        </div>
-                      ))}
+                  ? activeShift.incidents.map((inc, i) => (
+                      <SectionRow key={i} label={`Incident ${i+1}`} strings={[inc]} last={i === activeShift.incidents.length - 1} />
+                    ))
+                  : <div style={{ padding: isPhone ? '10px 12px' : '11px 18px' }}>
+                      <span style={{ fontFamily:INTER, fontSize:13, color:MUTED, fontStyle:'italic' }}>No incidents this shift.</span>
                     </div>
-                  )
-                  : <NoActivity last />
                 }
 
                 <Sect title="Tasks Completed" accent='#8FAEDD' />
-                {taskEntries.length > 0
-                  ? taskEntries.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
-                  : <NoActivity last />
-                }
+                <SectionRow label="Completed Items" activities={taskEntries} last />
 
                 <Sect title="Tours" accent='#8FAEDD' />
-                {tours.length > 0
-                  ? tours.map((a, i, arr) => <NarrativeEntry key={a.id} activity={a} last={i === arr.length - 1} />)
-                  : <NoActivity last />
-                }
+                <SectionRow label="Scheduled & Walk-in Tours" activities={tours} last />
 
               </div>
 
