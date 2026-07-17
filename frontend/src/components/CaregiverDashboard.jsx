@@ -1266,10 +1266,21 @@ export const CaregiverDashboard = ({
                 <SectionRow label="Guest Arrivals / Check-ins" activities={guests} last />
 
                 <Sect title="Shift Notes" accent='#8FAEDD' />
-                <div style={{ padding: isPhone ? '10px 12px' : '11px 18px', borderBottom:`1px solid ${BORDER}` }}>
-                  <p style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:activeShift.note?TEXT:MUTED, lineHeight:1.65, margin:0, fontStyle:activeShift.note?'normal':'italic' }}>
-                    {activeShift.note || 'No shift notes added.'}
-                  </p>
+                <div style={{ padding: isPhone ? '10px 12px' : '11px 18px', borderBottom:`1px solid ${BORDER}`, display:'flex', flexDirection:'column', gap:8 }}>
+                  {activeShift.note && (
+                    <p style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.65, margin:0 }}>
+                      {activeShift.note}
+                    </p>
+                  )}
+                  {taskEntries.length > 0 && taskEntries.map((a, i) => (
+                    <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
+                      <span style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+                      <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.55 }}>{toNarrative(a)}</span>
+                    </div>
+                  ))}
+                  {!activeShift.note && taskEntries.length === 0 && (
+                    <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>No shift notes added.</span>
+                  )}
                 </div>
 
                 <Sect title="Loaners" accent='#8FAEDD' />
@@ -1297,9 +1308,6 @@ export const CaregiverDashboard = ({
                       <span style={{ fontFamily:INTER, fontSize:13, color:MUTED, fontStyle:'italic' }}>No incidents this shift.</span>
                     </div>
                 }
-
-                <Sect title="Tasks Completed" accent='#8FAEDD' />
-                <SectionRow label="Completed Items" activities={taskEntries} last />
 
                 <Sect title="Tours" accent='#8FAEDD' />
                 <SectionRow label="Scheduled & Walk-in Tours" activities={tours} last />
