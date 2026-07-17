@@ -1002,7 +1002,7 @@ export const CaregiverDashboard = ({
       clockIn:   shiftStartTime,
       note:      '',
       incidents: incidents.filter(i => i.status === 'new').map(i => {
-        const tod = i.filedAt?.includes(', ') ? i.filedAt.split(', ')[1] : (i.filedAt || '');
+        const tod = i.filedAt ? ((i.filedAt.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i) || [])[0] || '') : '';
         const pre = tod ? `${tod} — ` : '';
         return `${pre}${i.type || ''}: ${i.title || ''}`;
       }),
@@ -1041,41 +1041,40 @@ export const CaregiverDashboard = ({
         <span className="dar-print-sect" style={{ fontFamily:INTER, fontSize:12, fontWeight:600, color:TEXT, letterSpacing:'0.06em', textTransform:'uppercase' }}>{title}</span>
       </div>
     );
-    const LBL_W = isPhone ? 102 : isMobile ? 134 : 164;
     const SectionRow = ({ label, activities, strings, last }) => {
       const hasActs = activities && activities.length > 0;
       const hasStrs = strings && strings.length > 0;
+      const coloredEntry = (text) => {
+        const d = text.indexOf(' — ');
+        if (d === -1) return <span style={{ color:TEXT }}>{text}</span>;
+        return <><span style={{ color:'#8FAEDD', fontWeight:600 }}>{text.slice(0, d)} — </span><span style={{ color:TEXT }}>{text.slice(d + 3)}</span></>;
+      };
       return (
-        <div style={{ display:'flex', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
-          <div style={{ width:LBL_W, flexShrink:0, padding: isPhone ? '10px 12px' : '11px 18px', borderRight:`1px solid ${BORDER}` }}>
-            <span style={{ fontFamily:INTER, fontSize:isPhone?11:12, fontWeight:500, color:'#8FAEDD', lineHeight:1.4 }}>{label}</span>
-          </div>
-          <div style={{ flex:1, padding: isPhone ? '9px 12px' : '10px 18px', display:'flex', flexDirection:'column', gap:4 }}>
-            {hasActs ? activities.map((a,i) => (
-              <div key={a.id||i}>
-                <div style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
-                  <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
-                  <span className="dar-print-entry" style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.55 }}>{toNarrative(a)}</span>
-                </div>
-                {Array.isArray(a.evidenceUrls) && a.evidenceUrls.length > 0 && (
-                  <div style={{ display:'flex', gap:5, marginTop:5, marginLeft:18 }}>
-                    {a.evidenceUrls.map((url,j) => (
-                      <button key={j} onClick={() => setViewPhoto(url)} style={{ width:34,height:34,borderRadius:6,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD2,flexShrink:0 }}>
-                        <img src={url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover',display:'block' }} />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )) : hasStrs ? strings.map((str,i) => (
-              <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
+        <div style={{ borderBottom: last ? 'none' : `1px solid ${BORDER}`, padding: isPhone ? '9px 12px' : '10px 18px', display:'flex', flexDirection:'column', gap:6 }}>
+          {hasActs ? activities.map((a,i) => (
+            <div key={a.id||i}>
+              <div style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
                 <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
-                <span className="dar-print-entry" style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.55 }}>{str}</span>
+                <span className="dar-print-entry" style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(toNarrative(a))}</span>
               </div>
-            )) : (
-              <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>N/A</span>
-            )}
-          </div>
+              {Array.isArray(a.evidenceUrls) && a.evidenceUrls.length > 0 && (
+                <div style={{ display:'flex', gap:5, marginTop:5, marginLeft:18 }}>
+                  {a.evidenceUrls.map((url,j) => (
+                    <button key={j} onClick={() => setViewPhoto(url)} style={{ width:34,height:34,borderRadius:6,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD2,flexShrink:0 }}>
+                      <img src={url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover',display:'block' }} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )) : hasStrs ? strings.map((str,i) => (
+            <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
+              <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+              <span className="dar-print-entry" style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(str)}</span>
+            </div>
+          )) : (
+            <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>N/A</span>
+          )}
         </div>
       );
     };
@@ -1272,12 +1271,20 @@ export const CaregiverDashboard = ({
                       {activeShift.note}
                     </p>
                   )}
-                  {taskEntries.length > 0 && taskEntries.map((a, i) => (
-                    <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
-                      <span style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
-                      <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.55 }}>{toNarrative(a)}</span>
-                    </div>
-                  ))}
+                  {taskEntries.length > 0 && taskEntries.map((a, i) => {
+                    const text = toNarrative(a);
+                    const d = text.indexOf(' — ');
+                    return (
+                      <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
+                        <span style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+                        <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>
+                          {d !== -1
+                            ? <><span style={{ color:'#8FAEDD', fontWeight:600 }}>{text.slice(0,d)} — </span><span style={{ color:TEXT }}>{text.slice(d+3)}</span></>
+                            : <span style={{ color:TEXT }}>{text}</span>}
+                        </span>
+                      </div>
+                    );
+                  })}
                   {!activeShift.note && taskEntries.length === 0 && (
                     <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>No shift notes added.</span>
                   )}
