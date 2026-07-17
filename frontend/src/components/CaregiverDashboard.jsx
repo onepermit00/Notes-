@@ -1286,7 +1286,7 @@ export const CaregiverDashboard = ({
                     );
                   })}
                   {!activeShift.note && taskEntries.length === 0 && (
-                    <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>No shift notes added.</span>
+                    <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>N/A</span>
                   )}
                 </div>
 
