@@ -1258,8 +1258,7 @@ export const CaregiverDashboard = ({
               <div style={{ background:CARD }}>
 
                 <Sect title="Packages" accent='#8FAEDD' />
-                <SectionRow label="Delivered by Couriers" activities={incoming} />
-                <SectionRow label="Picked Up by Residents" activities={pickups} last />
+                <SectionRow label="Packages" activities={[...incoming, ...pickups]} last />
 
                 <Sect title="Guests" accent='#8FAEDD' />
                 <SectionRow label="Guest Arrivals / Check-ins" activities={guests} last />
