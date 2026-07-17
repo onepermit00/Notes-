@@ -333,6 +333,7 @@ export const CaregiverDashboard = ({
   const [shiftsPage,   setShiftsPage]   = useState(0);
   const [shiftHistory, setShiftHistory] = useState([]);
   const [viewPhoto,  setViewPhoto]  = useState(null);
+  const [gallery,    setGallery]    = useState(null); // { urls:[], idx:0 }
   const [isMobile,      setIsMobile]      = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (t ? 1366 : 768); });
   const [isPhone,       setIsPhone]       = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return t && window.innerWidth < 768; });
 
@@ -1004,7 +1005,10 @@ export const CaregiverDashboard = ({
       incidents: incidents.filter(i => i.status === 'new').map(i => {
         const tod = i.filedAt ? ((i.filedAt.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i) || [])[0] || '').replace(/\s*(AM|PM)$/i, (_, m) => m.toLowerCase()) : '';
         const pre = tod ? `${tod} — ` : '';
-        return `${pre}${i.type || ''}: ${i.title || ''}`;
+        return {
+          text: `${pre}${i.type || ''}: ${i.title || ''}`,
+          evidenceUrls: Array.isArray(i.evidenceUrls) ? i.evidenceUrls : (i.evidenceUrl ? [i.evidenceUrl] : []),
+        };
       }),
       activities: selfTasks,
     } : null;
@@ -1049,30 +1053,34 @@ export const CaregiverDashboard = ({
         if (d === -1) return <span style={{ color:TEXT }}>{text}</span>;
         return <><span style={{ color:'#8FAEDD', fontWeight:600 }}>{text.slice(0, d)} – </span><span style={{ color:TEXT }}>{text.slice(d + 3)}</span></>;
       };
+      const thumb = (urls, node) => urls.length > 0 ? (
+        <button onClick={() => setGallery({ urls, idx:0 })}
+          style={{ flexShrink:0, width:20, height:20, borderRadius:3, overflow:'hidden', border:`1px solid ${BORDER}`, padding:0, cursor:'pointer', background:CARD2, marginLeft:5, alignSelf:'center' }}>
+          <img src={urls[0]} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+        </button>
+      ) : null;
       return (
         <div style={{ borderBottom: last ? 'none' : `1px solid ${BORDER}`, padding: isPhone ? '8px 4px' : '9px 6px', display:'flex', flexDirection:'column', gap:6 }}>
-          {hasActs ? activities.map((a,i) => (
-            <div key={a.id||i}>
-              <div style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
+          {hasActs ? activities.map((a,i) => {
+            const urls = Array.isArray(a.evidenceUrls) ? a.evidenceUrls : [];
+            return (
+              <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
                 <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
-                <span className="dar-print-entry" style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(toNarrative(a))}</span>
+                <span className="dar-print-entry" style={{ flex:1, fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(toNarrative(a))}</span>
+                {thumb(urls)}
               </div>
-              {Array.isArray(a.evidenceUrls) && a.evidenceUrls.length > 0 && (
-                <div style={{ display:'flex', gap:5, marginTop:5, marginLeft:12 }}>
-                  {a.evidenceUrls.map((url,j) => (
-                    <button key={j} onClick={() => setViewPhoto(url)} style={{ width:34,height:34,borderRadius:6,overflow:'hidden',border:`1.5px solid ${BORDER}`,padding:0,cursor:'pointer',background:CARD2,flexShrink:0 }}>
-                      <img src={url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover',display:'block' }} />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )) : hasStrs ? strings.map((str,i) => (
-            <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
-              <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
-              <span className="dar-print-entry" style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(str)}</span>
-            </div>
-          )) : (
+            );
+          }) : hasStrs ? strings.map((item,i) => {
+            const text = typeof item === 'string' ? item : item.text;
+            const urls = typeof item === 'string' ? [] : (item.evidenceUrls || []);
+            return (
+              <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
+                <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+                <span className="dar-print-entry" style={{ flex:1, fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(text)}</span>
+                {thumb(urls)}
+              </div>
+            );
+          }) : (
             <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>N/A</span>
           )}
         </div>
@@ -4058,6 +4066,41 @@ export const CaregiverDashboard = ({
                 style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <X size={18} color="white" />
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── DAR Image Gallery Viewer ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {gallery && (
+          <motion.div key="gallery-viewer"
+            initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+            onClick={() => setGallery(null)}
+            style={{ position:'fixed', inset:0, zIndex:201, background:'rgba(0,0,0,0.92)', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+            <motion.div initial={{ scale:0.92, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.92, opacity:0 }}
+              onClick={e => e.stopPropagation()}
+              style={{ position:'relative', maxWidth:680, width:'100%', borderRadius:20, overflow:'hidden', boxShadow:'0 32px 80px rgba(0,0,0,0.5)' }}>
+              <img src={gallery.urls[gallery.idx]} alt="Evidence" style={{ width:'100%', display:'block', maxHeight:'80vh', objectFit:'contain', background:'#111' }} />
+              <button onClick={() => setGallery(null)}
+                style={{ position:'absolute', top:12, right:12, width:36, height:36, borderRadius:'50%', background:'rgba(0,0,0,0.6)', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                <X size={18} color="white" />
+              </button>
+              {gallery.urls.length > 1 && (
+                <>
+                  <button onClick={() => setGallery(g => ({ ...g, idx:(g.idx - 1 + g.urls.length) % g.urls.length }))}
+                    style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', width:36, height:36, borderRadius:'50%', background:'rgba(0,0,0,0.6)', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                    <ChevronLeft size={18} color="white" />
+                  </button>
+                  <button onClick={() => setGallery(g => ({ ...g, idx:(g.idx + 1) % g.urls.length }))}
+                    style={{ position:'absolute', right:54, top:'50%', transform:'translateY(-50%)', width:36, height:36, borderRadius:'50%', background:'rgba(0,0,0,0.6)', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                    <ChevronRight size={18} color="white" />
+                  </button>
+                  <div style={{ position:'absolute', bottom:12, left:'50%', transform:'translateX(-50%)', background:'rgba(0,0,0,0.55)', borderRadius:12, padding:'3px 10px', fontFamily:INTER, fontSize:12, color:'white' }}>
+                    {gallery.idx + 1} / {gallery.urls.length}
+                  </div>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}
