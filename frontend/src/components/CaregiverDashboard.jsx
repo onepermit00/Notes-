@@ -337,7 +337,9 @@ export const CaregiverDashboard = ({
   const [shiftHistory, setShiftHistory] = useState([]);
   const [viewPhoto,  setViewPhoto]  = useState(null);
   const [gallery,    setGallery]    = useState(null); // { urls:[], idx:0 }
-  const incidentPhotos = React.useRef({}); // incidentId → photo urls[], survives SSE overwrites
+  const incidentPhotos = React.useRef(
+    (() => { try { return JSON.parse(localStorage.getItem('_incPhotos') || '{}'); } catch { return {}; } })()
+  );
   const [isMobile,      setIsMobile]      = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (t ? 1366 : 768); });
   const [isPhone,       setIsPhone]       = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return t && window.innerWidth < 768; });
 
@@ -461,9 +463,19 @@ export const CaregiverDashboard = ({
         });
       }
       if (newInc.length) {
+        const normalized = newInc.map(i => ({
+          id: i.incident_id, incident_id: i.incident_id,
+          title: i.description || i.title || '', type: i.type || '',
+          location: i.location || '', severity: i.severity || 'medium',
+          filedBy: i.created_by || '',
+          filedAt: i.created_at ? new Date(i.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '',
+          note: i.notes || '', status: i.status || 'new',
+          unit_number: i.unit_number || '', person_involved: i.person_involved || '',
+          photos: (incidentPhotos.current[i.incident_id] || []).map(url => ({ url })),
+        }));
         setIncidents(prev => {
           const ids = new Set(prev.map(x => x.incident_id));
-          const fresh = newInc.filter(i => !ids.has(i.incident_id));
+          const fresh = normalized.filter(i => !ids.has(i.incident_id));
           return fresh.length ? [...fresh, ...prev] : prev;
         });
       }
@@ -2952,8 +2964,14 @@ export const CaregiverDashboard = ({
                       const saved = await authApi.createIncident(inc);
                       if (saved.incident_id && inc.photos?.length) {
                         incidentPhotos.current[saved.incident_id] = inc.photos.map(p => p.url);
+                        try { localStorage.setItem('_incPhotos', JSON.stringify(incidentPhotos.current)); } catch {}
                       }
-                      setIncidents(p => [{ ...saved, photos: inc.photos || [] }, ...p]);
+                      const withPhotos = { ...saved, photos: inc.photos || [] };
+                      setIncidents(prev => {
+                        const exists = prev.some(i => i.incident_id === saved.incident_id);
+                        if (exists) return prev.map(i => i.incident_id === saved.incident_id ? withPhotos : i);
+                        return [withPhotos, ...prev];
+                      });
                     } catch { /* ignore */ }
                   }} />}
                   {activeTab === 'tours'         && <ToursDashboard   onActivityLogged={handleActivityLogged} />}
