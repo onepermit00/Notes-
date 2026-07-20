@@ -1061,7 +1061,7 @@ export const CaregiverDashboard = ({
       const coloredEntry = (text) => {
         const d = text.indexOf(' — ');
         if (d === -1) return <span style={{ color:TEXT }}>{text}</span>;
-        return <><span style={{ color:'#8FAEDD', fontWeight:600 }}>{text.slice(0, d)} – </span><span style={{ color:TEXT }}>{text.slice(d + 3)}</span></>;
+        return <><span style={{ color:TEXT, fontWeight:600 }}>{text.slice(0, d)} – </span><span style={{ color:TEXT }}>{text.slice(d + 3)}</span></>;
       };
       const thumb = (urls, node) => urls.length > 0 ? (
         <button onClick={() => setGallery({ urls, idx:0 })}
@@ -1296,7 +1296,7 @@ export const CaregiverDashboard = ({
                         <span style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
                         <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>
                           {d !== -1
-                            ? <><span style={{ color:'#8FAEDD', fontWeight:600 }}>{text.slice(0,d)} – </span><span style={{ color:TEXT }}>{text.slice(d+3)}</span></>
+                            ? <><span style={{ color:TEXT, fontWeight:600 }}>{text.slice(0,d)} – </span><span style={{ color:TEXT }}>{text.slice(d+3)}</span></>
                             : <span style={{ color:TEXT }}>{text}</span>}
                         </span>
                       </div>
@@ -1326,7 +1326,7 @@ export const CaregiverDashboard = ({
                 <Sect title="Incidents Filed" accent={RED} />
                 {activeShift.incidents.length > 0
                   ? activeShift.incidents.map((inc, i) => (
-                      <SectionRow key={i} label={`Incident ${i+1}`} strings={[inc]} last={i === activeShift.incidents.length - 1} />
+                      <SectionRow key={i} label={`Incident ${i+1}`} strings={[inc]} last />
                     ))
                   : <div style={{ padding: isPhone ? '10px 12px' : '11px 18px' }}>
                       <span style={{ fontFamily:INTER, fontSize:13, color:MUTED, fontStyle:'italic' }}>No incidents this shift.</span>
