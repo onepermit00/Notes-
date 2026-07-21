@@ -1082,7 +1082,7 @@ export const CaregiverDashboard = ({
         </button>
       ) : null;
       return (
-        <div style={{ borderBottom: last ? 'none' : `1px solid ${BORDER}`, padding: isPhone ? '8px 4px' : '9px 6px', display:'flex', flexDirection:'column', gap:6 }}>
+        <div style={{ borderBottom: last ? 'none' : `1px solid ${BORDER}`, padding: isPhone ? '4px 4px' : '5px 6px', display:'flex', flexDirection:'column', gap:4 }}>
           {hasActs ? activities.map((a,i) => {
             const urls = Array.isArray(a.evidenceUrls) ? a.evidenceUrls : [];
             return (
