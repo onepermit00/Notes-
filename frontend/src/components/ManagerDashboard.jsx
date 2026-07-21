@@ -379,7 +379,12 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       incidents: (s.incidents || []).filter(i => {
         if (!i.created_at) return true;
         return new Date(i.created_at).toLocaleDateString() === todayStr;
-      }).map(i => `${i.type || ''}: ${i.description || ''}`),
+      }).map(i => {
+        const tod = i.created_at
+          ? new Date(i.created_at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }).replace(/\s*(AM|PM)$/i, (_, m) => m.toLowerCase())
+          : '';
+        return `${tod ? tod + ' — ' : ''}${i.type || ''}: ${i.description || ''}`;
+      }),
       activities: (s.activities || []).filter(t => {
         if (!t.created_at) return false;
         return new Date(t.created_at).toLocaleDateString() === todayStr;
@@ -617,19 +622,39 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   const DARSect = ({ title, accent='#8FAEDD' }) => (
-    <div style={{ background:accent, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px', marginTop:4 }}>
-      <span style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:TEXT, letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
+    <div style={{ background:accent, padding: isPhone ? '4px 12px' : '4px 16px', marginTop:4 }}>
+      <span style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'#fff', letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
     </div>
   );
-  const DARField = ({ label, value, sub, last }) => (
-    <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 3 : 18, padding: isPhone ? '12px 14px' : isMobile ? '12px 18px' : '14px 32px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
-      <div style={{ width: isMobile ? '100%' : 210, flexShrink:0, fontFamily:INTER, fontSize:13, fontWeight: isMobile ? 700 : 600, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
-      <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.6, whiteSpace:'pre-line' }}>{value}</div>
-        {sub && <div style={{ fontFamily:INTER, fontSize:13, color:MUTED, marginTop:2 }}>{sub}</div>}
+  const DARSectionRow = ({ activities, strings, last }) => {
+    const hasActs = activities && activities.length > 0;
+    const hasStrs = strings && strings.length > 0;
+    const coloredEntry = (text) => {
+      const d = text.indexOf(' — ');
+      if (d === -1) return <span style={{ color:TEXT }}>{text}</span>;
+      return <><span style={{ color:TEXT, fontWeight:600 }}>{text.slice(0, d)} – </span><span style={{ color:TEXT }}>{text.slice(d + 3)}</span></>;
+    };
+    return (
+      <div style={{ borderBottom: last ? 'none' : `1px solid ${BORDER}`, padding: isPhone ? '4px 4px' : '5px 6px', display:'flex', flexDirection:'column', gap:4 }}>
+        {hasActs ? activities.map((a, i) => (
+          <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
+            <span style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+            <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(toNarrative(a))}</span>
+          </div>
+        )) : hasStrs ? strings.map((item, i) => {
+          const text = typeof item === 'string' ? item : item.text;
+          return (
+            <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
+              <span style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+              <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(text)}</span>
+            </div>
+          );
+        }) : (
+          <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>N/A</span>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   /* ── Manager Profile Panel ────────────────────────────────────────────────── */
   const renderProfilePanel = () => (
@@ -2003,9 +2028,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               ...(audit ? [audit.id] : []),
             ]);
             const tasksDoneEntries = todayShift.activities.filter(a => !claimedDARIds.has(a.id));
-            const toStr = arr => arr.length > 0
-              ? arr.map(a => `${a.time}: ${a.title}${a.notes ? ' · ' + a.notes : ''}`).join('\n')
-              : 'N/A';
             return (
               <>
                 {/* DAR Header */}
@@ -2071,83 +2093,77 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   )}
                 </div>
 
-                {/* DAR body */}
-                <div>
+                {/* DAR body — matches concierge layout exactly */}
+                <div style={{ background:CARD }}>
+                  {(() => {
+                    const todayLabel = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
+                    const liveIncidents = incidents
+                      .filter(i => i.status !== 'resolved' && i.filedAt && i.filedAt.startsWith(todayLabel))
+                      .map(i => {
+                        const tod = (i.filedAt.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i) || [])[0]?.replace(/\s*(AM|PM)$/i, (_, m) => m.toLowerCase()) || '';
+                        return `${tod ? tod + ' — ' : ''}${i.type || ''}: ${i.title || ''}`;
+                      });
+                    const allIncidents = liveIncidents.length ? liveIncidents : todayShift.incidents;
+                    return (
+                      <>
+                        <DARSect title="Packages" />
+                        <DARSectionRow activities={[...incoming, ...pickups]} last />
 
-                  {/* Start of Shift — blue accent to match brand */}
-                  <DARSect title="Start of Shift Package Audit" accent='#8FAEDD' />
-                  <DARField label="Package Audit Completed" value="Yes" />
-                  <DARField label="Keys Found at Start of Shift" value="Yes" />
-                  {audit && <DARField label="Package Room Count" value={audit.notes} last />}
+                        <DARSect title="Guests" />
+                        <DARSectionRow activities={guests} last />
 
-                  {/* Packages — brand pink */}
-                  <DARSect title="Packages" accent='#8FAEDD' />
-                  <DARField label="Delivered by Couriers" value={toStr(incoming)} />
-                  <DARField label="Picked Up by Residents" value={toStr(pickups)} last />
-
-                  {/* Guests — brand pink */}
-                  <DARSect title="Guests" accent='#8FAEDD' />
-                  <DARField label="Guest Arrivals / Check-ins" value={toStr(guests)} last />
-
-                  {/* Tours — brand pink */}
-                  <DARSect title="Tours" accent='#8FAEDD' />
-                  <DARField label="Scheduled & Walk-in Tours" value={toStr(tours)} last />
-
-                  {/* Loaners — brand pink */}
-                  <DARSect title="Loaners" accent='#8FAEDD' />
-                  <DARField label="Checkouts & Returns" value={toStr(loaners)} last />
-
-                  {/* Lockouts — brand pink */}
-                  <DARSect title="Lockouts" accent='#8FAEDD' />
-                  <DARField label="Keys & Access Requests" value={toStr(lockouts)} last />
-
-                  {/* Vendors — brand pink */}
-                  <DARSect title="Vendors" accent='#8FAEDD' />
-                  {vendors.length > 0
-                    ? vendors.map((a, i, arr) => (
-                        <DARField key={a.id} label={a.title} value={a.time} sub={a.notes} last={i === arr.length - 1} />
-                      ))
-                    : <DARField label="Vendor Activity" value="N/A" last />
-                  }
-
-                  {/* Security & Rounds — blue accent */}
-                  {rounds.length > 0 && (
-                    <>
-                      <DARSect title="Security & Rounds" accent='#8FAEDD' />
-                      {rounds.map((a, i, arr) => (
-                        <DARField key={a.id} label={a.title} value={a.time} sub={a.notes} last={i === arr.length - 1} />
-                      ))}
-                    </>
-                  )}
-
-                  {/* Tasks Completed — concierge self-logged tasks */}
-                  {tasksDoneEntries.length > 0 && (
-                    <>
-                      <DARSect title="Tasks Completed" accent='#8FAEDD' />
-                      {tasksDoneEntries.map((a, i, arr) => (
-                        <div key={a.id} style={{ padding: isPhone ? '14px 14px' : isMobile ? '14px 18px' : '16px 32px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${BORDER}` }}>
-                          <p style={{ fontFamily:INTER, fontSize:15, color:TEXT, lineHeight:1.75, margin:0 }}>{toNarrative({ ...a, time: a.time })}</p>
+                        <DARSect title="Today's Tasks" />
+                        <div style={{ padding: isPhone ? '4px 4px' : '5px 6px', display:'flex', flexDirection:'column', gap:4 }}>
+                          {tasksDoneEntries.length > 0
+                            ? tasksDoneEntries.map((a, i) => {
+                                const text = toNarrative(a);
+                                const d = text.indexOf(' — ');
+                                return (
+                                  <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
+                                    <span style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+                                    <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>
+                                      {d !== -1
+                                        ? <><span style={{ color:TEXT, fontWeight:600 }}>{text.slice(0,d)} – </span><span style={{ color:TEXT }}>{text.slice(d+3)}</span></>
+                                        : <span style={{ color:TEXT }}>{text}</span>}
+                                    </span>
+                                  </div>
+                                );
+                              })
+                            : <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>N/A</span>
+                          }
                         </div>
-                      ))}
-                    </>
-                  )}
 
-                  {/* Shift Notes narrative — blue accent */}
-                  <DARSect title="Shift Notes" accent='#8FAEDD' />
-                  <div style={{ padding: isPhone ? '16px 14px 20px' : isMobile ? '16px 18px 20px' : '20px 32px 24px' }}>
-                    <p style={{ fontFamily:INTER, fontSize:17, color:TEXT, lineHeight:1.75, margin:0 }}>{todayShift.note}</p>
-                  </div>
+                        <DARSect title="Loaners" />
+                        <DARSectionRow activities={loaners} last />
 
-                  {/* Incidents — red */}
-                  {todayShift.incidents.length > 0 && (
-                    <>
-                      <DARSect title="Incidents Filed" accent={RED} />
-                      {todayShift.incidents.map((inc, i, arr) => (
-                        <DARField key={i} label={`Incident ${i + 1}`} value={inc} last={i === arr.length - 1} />
-                      ))}
-                    </>
-                  )}
+                        <DARSect title="Lockouts" />
+                        <DARSectionRow activities={lockouts} last />
 
+                        <DARSect title="Vendors" />
+                        <DARSectionRow activities={vendors} last />
+
+                        {rounds.length > 0 && (
+                          <>
+                            <DARSect title="Security & Rounds" />
+                            <DARSectionRow activities={rounds} last />
+                          </>
+                        )}
+
+                        <DARSect title="Incidents Filed" accent={RED} />
+                        {allIncidents.length > 0
+                          ? allIncidents.map((inc, i) => (
+                              <DARSectionRow key={i} strings={[inc]} last />
+                            ))
+                          : <div style={{ padding: isPhone ? '4px 4px' : '5px 6px' }}>
+                              <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>No incidents this shift.</span>
+                            </div>
+                        }
+
+                        <DARSect title="Tours" />
+                        <DARSectionRow activities={tours} last />
+                      </>
+                    );
+                  })()}
                 </div>
               </>
             );
