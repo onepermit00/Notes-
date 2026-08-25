@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, ArrowUpRight, Calendar, Activity, FileCheck, Check } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Calendar, Activity, FileCheck, Check, ShieldCheck, ListChecks, Users, Quote, Building2 } from 'lucide-react';
 import { UserRole } from '../types';
 
 // ── Content (preserved from the original product copy) ──────────────────────
@@ -150,6 +150,19 @@ const Eyebrow = ({ children, tone = 'light' }) => (
   </div>
 );
 
+/* Section intro — icon + bold title + helper text (reference: "Unit operations" block) */
+const SectionIntro = ({ Icon, title, helper, tone = 'light', id }) => (
+  <div>
+    <div className="flex items-center gap-3.5">
+      <Icon size={30} strokeWidth={2.2} className="shrink-0 text-[#ff385c]" aria-hidden="true" />
+      <h2 id={id} className="text-[30px] font-extrabold leading-[1.02] tracking-[-0.03em] sm:text-[38px]">{title}</h2>
+    </div>
+    <p className={`mt-4 max-w-[560px] text-[15px] leading-[1.65] md:text-[16px] ${tone === 'dark' ? 'text-white/55' : 'text-[#717171]'}`}>
+      {helper}
+    </p>
+  </div>
+);
+
 const useReveal = () => {
   const reduceMotion = useReducedMotion();
   return reduceMotion
@@ -172,28 +185,31 @@ export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
 
       {/* ══ Header ══════════════════════════════════════════════════════════ */}
       <header className="sticky top-0 z-50 border-b border-[#ebebeb] bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex h-20 w-full max-w-[1280px] items-center justify-between px-4 md:px-6">
-          <a href="#top" className="flex min-h-11 items-center text-[12px] font-extrabold uppercase tracking-[0.24em] text-[#222]" data-testid="brand-link">
-            ✦ Notes
+        <div className="mx-auto flex h-[88px] w-full max-w-[1280px] items-center justify-between gap-6 px-4 md:px-6">
+          <a href="#top" className="flex min-h-11 items-center text-[24px] font-extrabold tracking-[-0.03em] text-[#222]" data-testid="brand-link">
+            Notes
           </a>
-          <nav className="hidden items-center gap-8 lg:flex" aria-label="Primary">
+          <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
             {NAV_LINKS.map(({ label, href }) => (
-              <a key={href} href={href} className="flex min-h-11 items-center text-[13px] font-semibold text-[#717171] transition-colors hover:text-[#222]">
+              <a
+                key={href}
+                href={href}
+                className="flex min-h-11 items-center rounded-2xl px-5 py-3 text-[16px] font-semibold text-[#6b7280] transition-colors hover:bg-[#f2f2f2] hover:text-[#222]">
                 {label}
               </a>
             ))}
           </nav>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 rounded-full border border-[#ebebeb] bg-white py-1.5 pl-5 pr-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
             <button
               onClick={onSignIn}
               data-testid="header-signin-btn"
-              className="flex min-h-11 items-center rounded-full border border-[#ebebeb] bg-white px-5 text-[13px] font-bold text-[#222] transition-colors hover:border-[#222]">
+              className="flex min-h-10 items-center text-[15px] font-bold text-[#222] transition-opacity hover:opacity-70">
               Sign in
             </button>
             <button
               onClick={onSignUp}
               data-testid="header-signup-btn"
-              className="flex min-h-11 items-center rounded-full bg-[#222] px-5 text-[13px] font-bold text-white transition-opacity hover:opacity-85">
+              className="ml-2 flex min-h-10 items-center rounded-full bg-[#222] px-5 text-[14px] font-bold text-white transition-opacity hover:opacity-85">
               Sign up
             </button>
           </div>
@@ -211,7 +227,7 @@ export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
                 id="hero-heading"
                 data-testid="hero-heading"
                 className="mt-7 max-w-[1120px] text-[52px] font-extrabold leading-[0.9] tracking-[-0.055em] sm:text-[76px] md:text-[96px] lg:text-[112px]">
-                Every shift.<br />On the record.
+                Every shift.<br /><span className="text-[#ff385c]">On the record.</span>
               </h1>
 
               <div className="mt-12 grid gap-10 border-t border-[#ebebeb] pt-10 md:mt-16 md:grid-cols-[1.25fr_0.75fr] md:gap-20 md:pt-12">
@@ -250,9 +266,12 @@ export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
                 <p className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 sm:block">Three systems, one desk</p>
               </div>
               <div className="grid gap-12 pt-10 md:grid-cols-[0.9fr_1.1fr] md:gap-20 md:pt-14">
-                <h2 id="product-heading" className="max-w-[560px] text-[38px] font-extrabold leading-[0.97] tracking-[-0.04em] sm:text-[48px] md:text-[56px]">
-                  Proof, not promises.
-                </h2>
+                <SectionIntro
+                  Icon={ShieldCheck}
+                  id="product-heading"
+                  title="Proof, not promises."
+                  helper="Every action on shift is verified, timestamped, and attributed — photo evidence on tasks, structured incidents, and handoffs the next shift actually reads."
+                />
                 <ol className="border-t border-[#ebebeb]">
                   {FEATURES.map(({ Icon, num, title, desc }) => (
                     <li key={num} className="grid gap-4 border-b border-[#ebebeb] py-7 sm:grid-cols-[44px_0.7fr_1.3fr] sm:gap-6">
@@ -282,12 +301,12 @@ export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
               </div>
               <div className="grid gap-12 pt-10 md:grid-cols-[0.9fr_1.1fr] md:gap-20 md:pt-14">
                 <div>
-                  <h2 id="process-heading" className="max-w-[720px] text-[42px] font-extrabold leading-[0.92] tracking-[-0.05em] sm:text-[58px] md:text-[68px]">
-                    Complex buildings.<br />A calm routine.
-                  </h2>
-                  <p className="mt-7 max-w-lg text-[15px] leading-relaxed text-black/60 md:text-[17px]">
-                    From first login to management review, one guided flow carries every task, incident, and handoff through the day.
-                  </p>
+                  <SectionIntro
+                    Icon={ListChecks}
+                    id="process-heading"
+                    title={<>Complex buildings.<br />A calm routine.</>}
+                    helper="From first login to management review, one guided flow carries every task, incident, and handoff through the day."
+                  />
                   <button
                     onClick={() => onGetStarted(UserRole.CAREGIVER)}
                     data-testid="process-cta-btn"
@@ -318,9 +337,15 @@ export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
                 <p className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-white/35 sm:block">One record, three views</p>
               </div>
 
-              <h2 id="roles-heading" className="mt-10 max-w-[900px] text-[38px] font-extrabold leading-[0.94] tracking-[-0.04em] sm:text-[52px] md:mt-14 md:text-[64px]">
-                The same shift, seen from every side.
-              </h2>
+              <div className="mt-10 md:mt-14">
+                <SectionIntro
+                  Icon={Users}
+                  id="roles-heading"
+                  tone="dark"
+                  title="The same shift, seen from every side."
+                  helper="One shared record with three tailored views — front desk, property management, and vendor supervision."
+                />
+              </div>
 
               <div className="mt-12 grid gap-5 md:mt-16 md:grid-cols-3">
                 {ROLES.map(({ name, tagline, desc, userRole }) => (
@@ -358,8 +383,15 @@ export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
               <div className="border-b border-[#ebebeb] pb-5">
                 <Eyebrow>From the front desk</Eyebrow>
               </div>
-              <h2 id="testimonials-heading" className="sr-only">Testimonials</h2>
-              <div className="grid gap-0 pt-4 md:grid-cols-3 md:gap-10 md:pt-10">
+              <div className="pt-10 md:pt-14">
+                <SectionIntro
+                  Icon={Quote}
+                  id="testimonials-heading"
+                  title="Operators on Notes."
+                  helper="Concierge leads, property managers, and vendor operators on what changed at their desks."
+                />
+              </div>
+              <div className="grid gap-0 pt-4 md:grid-cols-3 md:gap-10 md:pt-12">
                 {TESTIMONIALS.map(({ quote, name, role }) => (
                   <figure key={name} className="border-b border-[#ebebeb] py-8 md:border-b-0 md:py-0">
                     <blockquote className="text-[15px] font-semibold leading-[1.6] tracking-[-0.01em] text-[#222]">
@@ -384,9 +416,14 @@ export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
                 <Eyebrow>Pricing</Eyebrow>
                 <p className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 sm:block">Simple, per-property plans</p>
               </div>
-              <h2 id="pricing-heading" className="mt-10 max-w-[760px] text-[38px] font-extrabold leading-[0.94] tracking-[-0.04em] sm:text-[48px] md:mt-14 md:text-[56px]">
-                Pay for buildings,<br />not seats.
-              </h2>
+              <div className="mt-10 md:mt-14">
+                <SectionIntro
+                  Icon={Building2}
+                  id="pricing-heading"
+                  title={<>Pay for buildings,<br />not seats.</>}
+                  helper="Simple per-property plans with unlimited staff logins — pricing that scales with your portfolio, not your headcount."
+                />
+              </div>
 
               <div className="mt-12 grid gap-5 md:mt-16 md:grid-cols-3">
                 {PLANS.map(({ name, price, period, desc, features, featured, cta }) => (
