@@ -326,6 +326,10 @@ export const CaregiverDashboard = ({
   const [shiftStarting,    setShiftStarting]    = useState(false);
   const [showSearch,       setShowSearch]       = useState(false);
   const [showSummary,      setShowSummary]      = useState(false);
+  const [showHandover,      setShowHandover]      = useState(false);
+  const [handoverNotes,     setHandoverNotes]     = useState('');
+  const [handoverItems,     setHandoverItems]     = useState('');
+  const [handoverSaving,    setHandoverSaving]    = useState(false);
   const [summaryText,      setSummaryText]      = useState('');
   const [summaryCopied,    setSummaryCopied]    = useState(false);
   const followUps = useFollowUps();
@@ -349,6 +353,7 @@ export const CaregiverDashboard = ({
       if (e.key !== 'Escape') return;
       if (showSearch) return; // search input manages its own Escape
       if (showSummary) { setShowSummary(false); return; }
+      if (showHandover) { setShowHandover(false); return; }
       if (selectedTask) { setSelectedTask(null); return; }
       if (showNewTask) { setShowNewTask(false); setNtStep(1); setNTF({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '' }); return; }
       if (showContacts) { setShowContacts(false); return; }
@@ -359,7 +364,7 @@ export const CaregiverDashboard = ({
     };
     window.addEventListener('keydown', onEsc);
     return () => window.removeEventListener('keydown', onEsc);
-  }, [showSearch, showSummary, selectedTask, showNewTask, showContacts, showPkgAudit, showAmenities, showModels, activeTab]);
+  }, [showSearch, showSummary, showHandover, selectedTask, showNewTask, showContacts, showPkgAudit, showAmenities, showModels, activeTab]);
 
 
   // Load real data + shift state on mount
@@ -655,26 +660,44 @@ export const CaregiverDashboard = ({
       setShowClockAlert(true);
     } catch { /* silently ignore */ }
   };
-  const [showHandover,      setShowHandover]      = useState(false);
-  const [handoverNotes,     setHandoverNotes]     = useState('');
-  const [handoverItems,     setHandoverItems]     = useState('');
-  const [handoverSaving,    setHandoverSaving]    = useState(false);
   const [showChecklist,     setShowChecklist]     = useState(false);
   const [checklistAcks,     setChecklistAcks]     = useState({});  // id → 'done' | 'escalate'
 
   const { isOnline, queueLen, isSyncing } = useOfflineQueue();
 
-  const handleClockOut = async () => {
+  const handleClockOut = () => {
+    // Open the editorial handoff drawer instead of ending the shift silently
+    setShowHandover(true);
+  };
+
+  const submitHandover = async (skipNotes = false) => {
+    setHandoverSaving(true);
     try {
-      const res = await authApi.handoverShift('', []);
+      const items = skipNotes ? [] : handoverItems.split('\n').map(s => s.trim()).filter(Boolean);
+      const res = await authApi.handoverShift(skipNotes ? '' : handoverNotes.trim(), items);
       setIsShiftActive(false);
       setCurrentShiftId(null);
       setClockOutTime(new Date(res.clock_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+      setShowHandover(false);
+      setHandoverNotes('');
+      setHandoverItems('');
       setClockAlertTitle('Shift Ended');
-      setClockAlertMsg('Your shift has been clocked out. All documentation has been saved.');
+      setClockAlertMsg(skipNotes
+        ? 'Your shift has been clocked out. All documentation has been saved.'
+        : 'Your shift has been clocked out and your handoff briefing was sent to the next shift.');
       setShowClockAlert(true);
     } catch { /* silently ignore */ }
+    finally { setHandoverSaving(false); }
   };
+  const openAiSummary = () => {
+    const lines = selfTasks.map((t, i) => `${i+1}. [${t.category||'General'}] ${t.title}${t.notes ? ` — ${t.notes}` : ''}${t.location ? ` (${t.location})` : ''}`).join('\n');
+    const date = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+    const name = authUser?.name || 'Concierge';
+    const text = `SHIFT SUMMARY\n${date} · ${name}\nTime on Duty: ${shiftStartTime ? `${shiftStartTime} – Present` : 'Active shift'}\n\nACTIVITIES LOGGED (${selfTasks.length}):\n${lines || '• No activities logged yet'}\n\nKEY STATS:\n• Packages handled: ${selfTasks.filter(t=>(t.category||'').includes('Delivery')).length}\n• Security events: ${selfTasks.filter(t=>(t.category||'').includes('Safety')).length}\n• Resident assists: ${selfTasks.filter(t=>(t.category||'').includes('Resident')).length}\n\nAll events documented in the activity log. Ready for handoff.`;
+    setSummaryText(text);
+    setShowSummary(true);
+  };
+
   const handleActivityLogged = ({ title, category = '', notes = '', evidenceUrls = [] }) => {
     const t = nowStr();
     const local = { id: Date.now(), title, category, notes, evidenceUrls, location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed', _source: 'dashboard' };
@@ -1220,8 +1243,11 @@ export const CaregiverDashboard = ({
                   /* Mobile: 2-col matching Manager */
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div>
-                      <div style={{ fontFamily:INTER, fontSize:10, fontWeight:500, color:'rgba(255,255,255,0.4)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:3 }}>DAR</div>
-                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:'white', marginBottom:2, letterSpacing:'-0.025em' }}>{activeShift.concierge.name}</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:6 }}>
+                        <span style={{ width:18, height:2, background:BLUE, display:'inline-block' }} />
+                        <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.55)', letterSpacing:'0.24em', textTransform:'uppercase' }}>DAR</span>
+                      </div>
+                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:17, fontWeight:800, color:'white', marginBottom:2, letterSpacing:'-0.03em' }}>{activeShift.concierge.name}</div>
                       <div style={{ fontFamily:INTER, fontSize:11, fontWeight:400, color:'rgba(255,255,255,0.50)' }}>
                         {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {activeShift.clockIn} – Now
                       </div>
@@ -1237,22 +1263,45 @@ export const CaregiverDashboard = ({
                           <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:GREEN }}>On Duty</span>
                         </div>
                       )}
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <button onClick={openAiSummary} aria-label="AI shift summary" data-testid="dar-ai-summary-btn"
+                          style={{ height:34, width:38, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.16)', borderRadius:999, cursor:'pointer', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
+                          <Sparkles size={14} color={BLUE} />
+                        </button>
+                        <button onClick={handleClockOut} data-testid="dar-end-shift-btn"
+                          style={{ height:34, padding:'0 12px', background:BLUE, border:'none', borderRadius:999, fontFamily:INTER, fontSize:11, fontWeight:700, color:'white', cursor:'pointer', display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
+                          <LogOut size={12} /> End Shift
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
                   /* Desktop: 2-column matching Manager */
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div>
-                      <div style={{ fontFamily:INTER, fontSize:10, fontWeight:500, color:'rgba(255,255,255,0.4)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:4 }}>Daily Activity Report</div>
-                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:20, fontWeight:700, color:'white', marginBottom:3, letterSpacing:'-0.025em' }}>{activeShift.concierge.name}</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:7 }}>
+                        <span style={{ width:24, height:2, background:BLUE, display:'inline-block' }} />
+                        <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.55)', letterSpacing:'0.24em', textTransform:'uppercase' }}>Daily Activity Report</span>
+                      </div>
+                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:'white', marginBottom:3, letterSpacing:'-0.03em' }}>{activeShift.concierge.name}</div>
                       <div style={{ fontFamily:INTER, fontSize:12, fontWeight:400, color:'rgba(255,255,255,0.55)' }}>
                         {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {activeShift.clockIn} – Present
                       </div>
                     </div>
-                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10 }}>
                       <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'4px 10px' }}>
                         <div className="dar-onduty-dot" style={{ width:6, height:6, borderRadius:'50%', background:GREEN }} />
                         <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:GREEN }}>On Duty</span>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <button onClick={openAiSummary} data-testid="dar-ai-summary-btn"
+                          style={{ height:34, padding:'0 14px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.16)', borderRadius:999, fontFamily:INTER, fontSize:12, fontWeight:700, color:'white', cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, whiteSpace:'nowrap' }}>
+                          <Sparkles size={13} color={BLUE} /> AI Summary
+                        </button>
+                        <button onClick={handleClockOut} data-testid="dar-end-shift-btn"
+                          style={{ height:34, padding:'0 14px', background:BLUE, border:'none', borderRadius:999, fontFamily:INTER, fontSize:12, fontWeight:700, color:'white', cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, whiteSpace:'nowrap', boxShadow:`0 6px 18px ${BLUE}45` }}>
+                          <LogOut size={13} /> End Shift
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -3059,34 +3108,141 @@ export const CaregiverDashboard = ({
       </AnimatePresence>
 
       {/* AI Shift Summary modal */}
+      {/* ── End-Shift Handoff drawer ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {showHandover && (
+          <>
+            <motion.div key="ho-bg"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => !handoverSaving && setShowHandover(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: 67, background: 'rgba(0,0,0,0.32)', backdropFilter: 'blur(2px)' }} />
+            <motion.div key="ho-panel"
+              role="dialog" aria-modal="true" aria-label="End shift handoff"
+              initial={{ x: '110%' }} animate={{ x: 0 }} exit={{ x: '110%' }}
+              transition={{ type: 'spring', damping: 32, stiffness: 300 }}
+              style={{ position: 'fixed', right: 0, top: 0, bottom: 0, ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}), background: BG, zIndex: 68, display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
+
+              {/* Header — editorial */}
+              <div style={{ padding: isMobile ? '22px 20px 18px' : '30px 32px 24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, borderBottom: `1px solid ${BORDER}`, background: BG, flexShrink: 0 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 12 }}>{propertyName}</div>
+                  <h2 style={{ fontFamily: INTER, fontSize: isMobile ? 32 : 42, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.045em', lineHeight: 0.95 }}>Shift Handoff</h2>
+                  <p style={{ fontFamily: INTER, fontSize: 15, color: MUTED, margin: '10px 0 0', lineHeight: 1.5 }}>Brief the next shift before you clock out</p>
+                </div>
+                <button onClick={() => setShowHandover(false)} aria-label="Close" data-testid="handover-close-btn"
+                  style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  <X size={19} color={TEXT} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 20px 40px' : '28px 32px 48px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+                {/* Shift recap — dark editorial chapter card */}
+                <div style={{ background: '#0b0b0b', borderRadius: 16, padding: isMobile ? '20px' : '24px 28px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <span style={{ width: 28, height: 2, background: BLUE, display: 'inline-block' }} />
+                    <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.24em', textTransform: 'uppercase' }}>Your shift at a glance</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+                    {[
+                      { label: 'On duty since', value: shiftStartTime || '—' },
+                      { label: 'Tasks logged', value: String(selfTasks.length) },
+                      { label: 'Open requests', value: String(tasks.filter(t => t.status !== TaskStatus.COMPLETED && t.status !== 'completed').length) },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <div style={{ fontFamily: INTER, fontSize: isMobile ? 20 : 26, fontWeight: 800, color: 'white', letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
+                        <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.45)', marginTop: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Handoff notes */}
+                <div>
+                  <label htmlFor="handover-notes" style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, display: 'block', marginBottom: 4 }}>Handoff notes</label>
+                  <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: '0 0 10px', lineHeight: 1.5 }}>What should the next concierge know the moment they sit down?</p>
+                  <textarea
+                    id="handover-notes"
+                    data-testid="handover-notes-input"
+                    value={handoverNotes}
+                    onChange={(e) => setHandoverNotes(e.target.value)}
+                    placeholder="e.g. HVAC tech expected around 8 PM — let them into the mechanical room. Resident in 402 is waiting on an oversized delivery."
+                    rows={5}
+                    style={{ width: '100%', boxSizing: 'border-box', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '14px 16px', fontFamily: INTER, fontSize: 16, color: TEXT, lineHeight: 1.6, outline: 'none', resize: 'vertical' }}
+                    onFocus={(e) => { e.target.style.borderColor = BLUE; }}
+                    onBlur={(e) => { e.target.style.borderColor = BORDER; }}
+                  />
+                </div>
+
+                {/* Open items */}
+                <div>
+                  <label htmlFor="handover-items" style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, display: 'block', marginBottom: 4 }}>Open items <span style={{ fontWeight: 500, color: MUTED }}>(optional)</span></label>
+                  <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: '0 0 10px', lineHeight: 1.5 }}>Unfinished follow-ups — one per line. They appear as a checklist in the next shift's briefing.</p>
+                  <textarea
+                    id="handover-items"
+                    data-testid="handover-items-input"
+                    value={handoverItems}
+                    onChange={(e) => setHandoverItems(e.target.value)}
+                    placeholder={"Follow up on unit 233 noise complaint\nRelease package #4412 to unit 108"}
+                    rows={3}
+                    style={{ width: '100%', boxSizing: 'border-box', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '14px 16px', fontFamily: INTER, fontSize: 16, color: TEXT, lineHeight: 1.6, outline: 'none', resize: 'vertical' }}
+                    onFocus={(e) => { e.target.style.borderColor = BLUE; }}
+                    onBlur={(e) => { e.target.style.borderColor = BORDER; }}
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: isMobile ? '12px 20px 20px' : '16px 32px 24px', background: CARD, borderTop: `1px solid ${BORDER}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button
+                  onClick={() => submitHandover(false)}
+                  disabled={handoverSaving}
+                  data-testid="handover-submit-btn"
+                  style={{ width: '100%', minHeight: 52, background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 16, fontWeight: 700, color: 'white', cursor: handoverSaving ? 'not-allowed' : 'pointer', opacity: handoverSaving ? 0.55 : 1, boxShadow: handoverSaving ? 'none' : `0 8px 24px ${BLUE}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  {handoverSaving ? 'Ending shift…' : (<><LogOut size={17} /> End Shift & Send Handoff</>)}
+                </button>
+                <button
+                  onClick={() => submitHandover(true)}
+                  disabled={handoverSaving}
+                  data-testid="handover-skip-btn"
+                  style={{ width: '100%', minHeight: 44, background: 'transparent', border: 'none', fontFamily: INTER, fontSize: 13, fontWeight: 600, color: MUTED, cursor: handoverSaving ? 'not-allowed' : 'pointer' }}>
+                  End shift without notes
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {showSummary && (
         <>
           <div onClick={() => setShowSummary(false)} style={{ position:'fixed', inset:0, zIndex:90, background:'rgba(0,0,0,0.4)', backdropFilter:'blur(4px)' }} />
-          <div style={{ position:'fixed', left:'50%', top:'50%', transform:'translate(-50%,-50%)', zIndex:91, width: isPhone ? 'calc(100% - 32px)' : 520, maxHeight: '80vh', background:CARD, borderRadius:24, display:'flex', flexDirection:'column', overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.25)' }}>
-            <div style={{ padding:'20px 20px 14px', borderBottom:`1px solid ${BORDER}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <div style={{ width:36, height:36, borderRadius:10, background:'rgba(255,56,92,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <Sparkles size={18} color={BLUE} />
+          <div role="dialog" aria-modal="true" aria-label="AI shift summary" style={{ position:'fixed', left:'50%', top:'50%', transform:'translate(-50%,-50%)', zIndex:91, width: isPhone ? 'calc(100% - 32px)' : 560, maxHeight: '82vh', background:BG, borderRadius:20, display:'flex', flexDirection:'column', overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.25)', border:`1px solid ${BORDER}` }}>
+            <div style={{ padding: isPhone ? '20px 20px 16px' : '26px 28px 20px', borderBottom:`1px solid ${BORDER}`, display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16 }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+                  <Sparkles size={13} color={BLUE} />
+                  <span style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase' }}>AI Summary</span>
                 </div>
-                <div>
-                  <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT }}>AI Shift Summary</div>
-                  <div style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>Ready to copy or share</div>
-                </div>
+                <div style={{ fontFamily:INTER, fontSize: isPhone ? 26 : 30, fontWeight:800, color:TEXT, letterSpacing:'-0.04em', lineHeight:0.97 }}>Shift Summary</div>
+                <div style={{ fontFamily:INTER, fontSize:14, color:MUTED, marginTop:8 }}>Ready to copy or share with the next shift</div>
               </div>
-              <button onClick={() => setShowSummary(false)} style={{ width:32, height:32, borderRadius:'50%', border:'none', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-                <X size={16} color={MUTED} />
+              <button onClick={() => setShowSummary(false)} aria-label="Close" style={{ width:44, height:44, borderRadius:999, border:`1px solid ${BORDER}`, background:BG, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+                <X size={18} color={TEXT} />
               </button>
             </div>
-            <div style={{ flex:1, overflowY:'auto', padding:20 }}>
-              <pre style={{ fontFamily:INTER, fontSize:13, color:TEXT, lineHeight:1.7, whiteSpace:'pre-wrap', wordBreak:'break-word', background:CARD2, borderRadius:14, padding:16, margin:0 }}>{summaryText}</pre>
+            <div style={{ flex:1, overflowY:'auto', padding: isPhone ? 20 : '24px 28px' }}>
+              <pre style={{ fontFamily:INTER, fontSize:13, color:TEXT, lineHeight:1.7, whiteSpace:'pre-wrap', wordBreak:'break-word', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, padding:18, margin:0 }}>{summaryText}</pre>
             </div>
-            <div style={{ padding:'14px 20px', borderTop:`1px solid ${BORDER}`, display:'flex', gap:10 }}>
+            <div style={{ padding: isPhone ? '14px 20px 18px' : '16px 28px 22px', borderTop:`1px solid ${BORDER}`, display:'flex', gap:10, background:CARD }}>
               <button onClick={() => { navigator.clipboard.writeText(summaryText).then(() => { setSummaryCopied(true); setTimeout(() => setSummaryCopied(false), 2500); }); }}
-                style={{ flex:1, padding:'13px 0', background: summaryCopied ? GREEN : BLUE, border:'none', borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer' }}>
+                style={{ flex:1, minHeight:48, background: summaryCopied ? GREEN : BLUE, border:'none', borderRadius:14, fontFamily:INTER, fontSize:15, fontWeight:700, color:'white', cursor:'pointer', boxShadow: summaryCopied ? 'none' : `0 8px 24px ${BLUE}40` }}>
                 {summaryCopied ? '✓ Copied!' : 'Copy Summary'}
               </button>
               <a href={`sms:?body=${encodeURIComponent(summaryText)}`}
-                style={{ flex:1, padding:'13px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, cursor:'pointer', textDecoration:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                style={{ flex:1, minHeight:48, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, cursor:'pointer', textDecoration:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 Send SMS
               </a>
             </div>
@@ -3106,20 +3262,20 @@ export const CaregiverDashboard = ({
             <motion.div initial={{ scale: 0.88, opacity: 0, y: 16 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.88, opacity: 0, y: 16 }}
               transition={{ type: 'spring', stiffness: 420, damping: 28 }}
               style={{ ...glass(), borderRadius: 24, margin: '0 20px', maxWidth: 360, width: '100%', overflow: 'hidden' }}>
-              {/* Colored top band */}
-              <div style={{ background: clockAlertTitle === 'Clocked In' ? GREEN : RED, padding: '28px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 72, height: 72, borderRadius: 20, background: 'rgba(255,255,255,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {clockAlertTitle === 'Clocked In' ? <Check size={36} color="white" strokeWidth={2.5} /> : <LogOut size={34} color="white" strokeWidth={2} />}
+              {/* Colored top band — success stays green, shift end is editorial dark */}
+              <div style={{ background: clockAlertTitle === 'Clocked In' ? GREEN : '#0b0b0b', padding: '28px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 72, height: 72, borderRadius: 20, background: clockAlertTitle === 'Clocked In' ? 'rgba(255,255,255,0.22)' : 'rgba(255,56,92,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {clockAlertTitle === 'Clocked In' ? <Check size={36} color="white" strokeWidth={2.5} /> : <LogOut size={34} color={BLUE} strokeWidth={2} />}
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: INTER, fontSize: '1.4rem', fontWeight: 700, color: 'white', letterSpacing: '-0.02em', marginBottom: 4 }}>{clockAlertTitle}</div>
-                  <p style={{ fontFamily: INTER, fontSize: 14, color: 'rgba(255,255,255,0.82)', lineHeight: 1.55, margin: 0 }}>{clockAlertMsg}</p>
+                  <div style={{ fontFamily: INTER, fontSize: '1.4rem', fontWeight: 800, color: 'white', letterSpacing: '-0.03em', marginBottom: 4 }}>{clockAlertTitle}</div>
+                  <p style={{ fontFamily: INTER, fontSize: 14, color: 'rgba(255,255,255,0.72)', lineHeight: 1.55, margin: 0 }}>{clockAlertMsg}</p>
                 </div>
               </div>
               {/* Action */}
               <div style={{ padding: '16px 20px 20px', background: CARD }}>
                 <button onClick={() => setShowClockAlert(false)} data-testid="clock-alert-ok-btn"
-                  style={{ width: '100%', padding: '14px 0', background: clockAlertTitle === 'Clocked In' ? GREEN : RED, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 6px 20px ${clockAlertTitle === 'Clocked In' ? GREEN : RED}50` }}>
+                  style={{ width: '100%', padding: '14px 0', background: clockAlertTitle === 'Clocked In' ? GREEN : BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 6px 20px ${clockAlertTitle === 'Clocked In' ? GREEN : BLUE}50` }}>
                   Got it
                 </button>
               </div>
@@ -3145,7 +3301,7 @@ export const CaregiverDashboard = ({
               {/* Header */}
               <div style={{ padding: isMobile ? '22px 20px 18px' : '28px 32px 22px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}`, background: BG, flexShrink: 0 }}>
                 <div>
-                  <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{propertyName}</div>
+                  <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 12 }}>{propertyName}</div>
                   <h2 style={{ fontFamily: INTER, fontSize: isMobile ? 28 : 34, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.04em', lineHeight: 0.97 }}>Emergency Contacts</h2>
                 </div>
                 <button onClick={() => setShowContacts(false)}
