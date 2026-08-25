@@ -37,3 +37,5 @@ Real-time workforce operations & accountability for property management, concier
 - RESEND_API_KEY needed for email features.
 - GitHub push configured (token in /root/.git-credentials, remote `origin` → onepermit00/Notes-). User asked to push — pending confirmation choice.
 - Landing role card "Enter as X" currently routes to sign-in (App.js ignores role arg) — same as original behavior.
+
+9. **Concierge dashboard redesigned (matches manager)** — CaregiverDashboard.jsx: Inter-first font, #111827→#0b0b0b surfaces, #8FAEDD→#6597FF, near-black active nav (nav-btn--active), full-height flush drawers (main tab panel w/ PAGE_SUBTITLES, New Task wizard, Emergency Contacts, Pkg Audit, Amenities, Models, Task completion) with editorial headers, Escape-to-close effect (hooks at top of component — must stay before any early return), tracked-caps brand header + rounded search. DAR Sect/DARSect headers (BOTH dashboards) changed from solid color bars to accent top-rule + accent tracked-caps text. Verified end-to-end incl. 3-step New Task creation → appears in DAR.

@@ -635,8 +635,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   const DARSect = ({ title, accent='#6597FF' }) => (
-    <div style={{ background:accent, padding: isPhone ? '4px 12px' : '4px 16px', marginTop:4 }}>
-      <span style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'#fff', letterSpacing:'0.10em', textTransform:'uppercase' }}>{title}</span>
+    <div style={{ background:'transparent', borderTop:`2px solid ${accent}`, padding: isPhone ? '7px 12px 2px' : '7px 16px 2px', marginTop:10 }}>
+      <span style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:accent, letterSpacing:'0.18em', textTransform:'uppercase' }}>{title}</span>
     </div>
   );
   const DARSectionRow = ({ activities, strings, last }) => {

@@ -44,7 +44,7 @@ import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { SignaturePad } from './SignaturePad';
 
 // ─── Static / brand tokens (theme-independent) ────────────────────────────────
-const INTER      = `-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
+const INTER      = `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
 const SF_DISPLAY = INTER;
 const SF_TEXT    = INTER;
 const GREEN   = '#34C759';
@@ -342,6 +342,25 @@ export const CaregiverDashboard = ({
   );
   const [isMobile,      setIsMobile]      = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (t ? 1366 : 768); });
   const [isPhone,       setIsPhone]       = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return t && window.innerWidth < 768; });
+
+  // Escape closes the topmost open drawer/modal (accessibility)
+  useEffect(() => {
+    const onEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      if (showSearch) return; // search input manages its own Escape
+      if (showSummary) { setShowSummary(false); return; }
+      if (selectedTask) { setSelectedTask(null); return; }
+      if (showNewTask) { setShowNewTask(false); setNtStep(1); setNTF({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '' }); return; }
+      if (showContacts) { setShowContacts(false); return; }
+      if (showPkgAudit) { setShowPkgAudit(false); return; }
+      if (showAmenities) { setShowAmenities(false); return; }
+      if (showModels) { setShowModels(false); return; }
+      if (activeTab !== 'home') handleTabChange('home');
+    };
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [showSearch, showSummary, selectedTask, showNewTask, showContacts, showPkgAudit, showAmenities, showModels, activeTab]);
+
 
   // Load real data + shift state on mount
   useEffect(() => {
@@ -760,7 +779,7 @@ export const CaregiverDashboard = ({
           <div style={{ padding: isMobile ? '64px 16px 0' : '20px 16px 0' }}>
             <div style={{ borderRadius: 20, overflow: 'hidden', border: `1.5px solid ${BORDER}` }}>
               {/* Dark header shimmer */}
-              <div style={{ background: '#111827', padding: '28px 28px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ background: '#0b0b0b', padding: '28px 28px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ height: 11, borderRadius: 6, width: '34%', background: 'rgba(255,255,255,0.08)' }} />
                 <div style={{ height: 22, borderRadius: 8, width: '52%', background: 'rgba(255,255,255,0.11)' }} />
                 <div style={{ height: 14, borderRadius: 6, width: '44%', background: 'rgba(255,255,255,0.07)' }} />
@@ -812,9 +831,9 @@ export const CaregiverDashboard = ({
     const tasksDone = acts.filter(a => a.id && !claimedActIds.has(a.id));
 
     // Same Sect/Field/toStr as Manager Dashboard — unified DAR format
-    const Sect = ({ title, accent = '#8FAEDD' }) => (
-      <div style={{ background: accent, padding: isPhone ? '7px 14px' : isMobile ? '7px 18px' : '8px 32px', marginTop: 4 }}>
-        <span style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: TEXT, letterSpacing: '0.10em', textTransform: 'uppercase' }}>{title}</span>
+    const Sect = ({ title, accent = '#6597FF' }) => (
+      <div style={{ background: 'transparent', borderTop: `2px solid ${accent}`, padding: isPhone ? '8px 14px 2px' : isMobile ? '8px 18px 2px' : '10px 32px 2px', marginTop: 10 }}>
+        <span style={{ fontFamily: INTER, fontSize: 11, fontWeight: 800, color: accent, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{title}</span>
       </div>
     );
     const Field = ({ label, value, sub, last }) => (
@@ -838,7 +857,7 @@ export const CaregiverDashboard = ({
         <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr 460px', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
           <div style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
             {/* Header */}
-            <div style={{ background: '#111827', padding: isPhone ? '16px 18px' : isMobile ? '18px 20px 16px' : '20px 32px 18px' }}>
+            <div style={{ background: '#0b0b0b', padding: isPhone ? '16px 18px' : isMobile ? '18px 20px 16px' : '20px 32px 18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: isPhone ? 5 : 6 }}>Previous Shift · Handoff</div>
@@ -1062,9 +1081,9 @@ export const CaregiverDashboard = ({
     // Tasks Completed: all wizard tasks + all manager-assigned completed tasks
     const taskEntries = [...wizardActs, ...completedTaskActs].sort((a,b) => a.time.localeCompare(b.time));
 
-    const Sect = ({ title, accent='#8FAEDD' }) => (
-      <div className="dar-print-sect-bar" style={{ background:accent, padding: isPhone ? '4px 12px' : isMobile ? '4px 16px' : '5px 32px', marginTop:4 }}>
-        <span className="dar-print-sect" style={{ fontFamily:INTER, fontSize:12, fontWeight:600, color:TEXT, letterSpacing:'0.06em', textTransform:'uppercase' }}>{title}</span>
+    const Sect = ({ title, accent='#6597FF' }) => (
+      <div className="dar-print-sect-bar" style={{ background:'transparent', borderTop:`2px solid ${accent}`, padding: isPhone ? '7px 12px 2px' : isMobile ? '7px 16px 2px' : '8px 32px 2px', marginTop:10 }}>
+        <span className="dar-print-sect" style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:accent, letterSpacing:'0.18em', textTransform:'uppercase' }}>{title}</span>
       </div>
     );
     const SectionRow = ({ label, activities, strings, last }) => {
@@ -1087,7 +1106,7 @@ export const CaregiverDashboard = ({
             const urls = Array.isArray(a.evidenceUrls) ? a.evidenceUrls : [];
             return (
               <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
-                <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+                <span className="dar-entry-bullet" style={{ color:'#6597FF', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
                 <span className="dar-print-entry" style={{ flex:1, fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(toNarrative(a))}</span>
                 {thumb(urls)}
               </div>
@@ -1097,7 +1116,7 @@ export const CaregiverDashboard = ({
             const urls = typeof item === 'string' ? [] : (item.evidenceUrls || []);
             return (
               <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
-                <span className="dar-entry-bullet" style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+                <span className="dar-entry-bullet" style={{ color:'#6597FF', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
                 <span className="dar-print-entry" style={{ flex:1, fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(text)}</span>
                 {thumb(urls)}
               </div>
@@ -1175,7 +1194,7 @@ export const CaregiverDashboard = ({
                     font-size: 11pt !important; font-weight: 400 !important;
                     line-height: 1.7 !important; color: #1a1a1a !important;
                   }
-                  .dar-entry-bullet { color: #8FAEDD !important; font-size: 12pt !important; }
+                  .dar-entry-bullet { color: #6597FF !important; font-size: 12pt !important; }
                   .dar-print-sect-bar {
                     background: transparent !important;
                     border-top: 1.5pt solid #0d1117 !important;
@@ -1196,7 +1215,7 @@ export const CaregiverDashboard = ({
                   @page { margin: 0.75in; }
                 }
               `}</style>
-              <div className="dar-screen-only" style={{ background:'#111827', padding: isMobile ? '10px 16px' : '14px 32px 12px' }}>
+              <div className="dar-screen-only" style={{ background:'#0b0b0b', padding: isMobile ? '10px 16px' : '14px 32px 12px' }}>
                 {isMobile ? (
                   /* Mobile: 2-col matching Manager */
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
@@ -1287,13 +1306,13 @@ export const CaregiverDashboard = ({
 
               <div style={{ background:CARD }}>
 
-                <Sect title="Packages" accent='#8FAEDD' />
+                <Sect title="Packages" accent='#6597FF' />
                 <SectionRow label="Packages" activities={[...incoming, ...pickups]} last />
 
-                <Sect title="Guests" accent='#8FAEDD' />
+                <Sect title="Guests" accent='#6597FF' />
                 <SectionRow label="Guest Arrivals / Check-ins" activities={guests} last />
 
-                <Sect title="Today's Tasks" accent='#8FAEDD' />
+                <Sect title="Today's Tasks" accent='#6597FF' />
                 <div style={{ padding: isPhone ? '4px 4px' : '5px 6px', display:'flex', flexDirection:'column', gap:4 }}>
                   {activeShift.note && (
                     <p style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.55, margin:0 }}>
@@ -1305,7 +1324,7 @@ export const CaregiverDashboard = ({
                     const d = text.indexOf(' — ');
                     return (
                       <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
-                        <span style={{ color:'#8FAEDD', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+                        <span style={{ color:'#6597FF', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
                         <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>
                           {d !== -1
                             ? <><span style={{ color:TEXT, fontWeight:600 }}>{text.slice(0,d)} – </span><span style={{ color:TEXT }}>{text.slice(d+3)}</span></>
@@ -1319,18 +1338,18 @@ export const CaregiverDashboard = ({
                   )}
                 </div>
 
-                <Sect title="Loaners" accent='#8FAEDD' />
+                <Sect title="Loaners" accent='#6597FF' />
                 <SectionRow label="Checkouts & Returns" activities={loaners} last />
 
-                <Sect title="Lockouts" accent='#8FAEDD' />
+                <Sect title="Lockouts" accent='#6597FF' />
                 <SectionRow label="Keys & Access Requests" activities={lockouts} last />
 
-                <Sect title="Vendors" accent='#8FAEDD' />
+                <Sect title="Vendors" accent='#6597FF' />
                 <SectionRow label="Vendor Activity" activities={vends} last />
 
                 {rounds.length > 0 && (
                   <>
-                    <Sect title="Security & Rounds" accent='#8FAEDD' />
+                    <Sect title="Security & Rounds" accent='#6597FF' />
                     <SectionRow label="Patrol Rounds" activities={rounds} last />
                   </>
                 )}
@@ -1345,7 +1364,7 @@ export const CaregiverDashboard = ({
                     </div>
                 }
 
-                <Sect title="Tours" accent='#8FAEDD' />
+                <Sect title="Tours" accent='#6597FF' />
                 <SectionRow label="Scheduled & Walk-in Tours" activities={tours} last />
 
               </div>
@@ -2107,6 +2126,24 @@ export const CaregiverDashboard = ({
     sops: 'Building SOPs', training: 'Training', followup: 'Follow-up Tracker',
   };
 
+  const PAGE_SUBTITLES = {
+    requests: 'Resident requests waiting on the desk',
+    packages: 'Log, audit, and release packages',
+    loaners: 'Track loaned items and returns',
+    lockout: 'Record lockouts and key access',
+    tours: 'Prospect tours and walk-ins',
+    vendors: 'Vendor arrivals and departures',
+    incident: 'Structured reports with photo evidence',
+    calendar: 'Your shift schedule and history',
+    'shift-history': 'Past shifts and daily reports',
+    messages: 'Team messages for this property',
+    guests: 'Guest check-ins and authorizations',
+    settings: 'Account, appearance, and preferences',
+    profile: 'Your account and certifications',
+    sops: 'Standard operating procedures for the desk',
+    training: 'Onboarding guides and desk reference',
+  };
+
   const NAV_ITEMS = [
     { id: 'home',          Icon: Home,          label: "Today's"             },
     { id: 'new-task',      Icon: Plus,          label: 'New Task',           action: () => setShowNewTask(true) },
@@ -2195,9 +2232,9 @@ export const CaregiverDashboard = ({
       const incoming = delivery.filter(a => !a.title.toLowerCase().includes('pickup'));
       const lockouts = security.filter(a => a.title.toLowerCase().includes('lockout'));
       const rounds   = security.filter(a => !a.title.toLowerCase().includes('lockout'));
-      const Sect = ({ title, accent='#8FAEDD' }) => (
-        <div style={{ background:accent, padding: isMobile ? '7px 16px' : '6px 28px', marginTop:6 }}>
-          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:TEXT, letterSpacing:'0.12em', textTransform:'uppercase' }}>{title}</span>
+      const Sect = ({ title, accent='#6597FF' }) => (
+        <div style={{ background:'transparent', borderTop:`2px solid ${accent}`, padding: isMobile ? '8px 16px 2px' : '9px 28px 2px', marginTop:10 }}>
+          <span style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:accent, letterSpacing:'0.18em', textTransform:'uppercase' }}>{title}</span>
         </div>
       );
       const Field = ({ label, value, sub, last }) => (
@@ -2211,7 +2248,7 @@ export const CaregiverDashboard = ({
       );
       return (
         <>
-          <div style={{ background:'#111827', padding:'28px 28px 22px' }}>
+          <div style={{ background:'#0b0b0b', padding:'28px 28px 22px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
               <div>
                 <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:8 }}>Daily Activity Report</div>
@@ -2491,7 +2528,7 @@ export const CaregiverDashboard = ({
             const active = !action && activeTab === id;
             return (
               <button key={id}
-                className="nav-btn touch-target"
+                className={`nav-btn touch-target${active ? ' nav-btn--active' : ''}`}
                 onClick={() => {
                   if (collapsed) setSidebarCollapsed(false);
                   action ? action() : handleTabChange(id);
@@ -2503,18 +2540,18 @@ export const CaregiverDashboard = ({
                   justifyContent: collapsed ? 'center' : 'flex-start',
                   gap: collapsed ? 0 : 12, padding: '10px 12px', marginBottom: 2,
                   border: 'none', cursor: 'pointer', textAlign: 'left',
-                  background: active ? `rgba(255,56,92,0.08)` : 'transparent',
+                  background: active ? (isDarkMode ? 'rgba(255,255,255,0.10)' : '#222222') : 'transparent',
                   borderRadius: 12, width: '100%',
                   transition: 'background 120ms', position: 'relative',
                   minHeight: 44,
                 }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                  background: active ? `rgba(255,56,92,0.12)` : CARD2,
+                  background: active ? 'rgba(255,255,255,0.14)' : CARD2,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   transition: 'background 120ms', position: 'relative',
                 }}>
-                  <Icon size={18} color={active ? BLUE : MUTED} strokeWidth={active ? 2.2 : 1.6} />
+                  <Icon size={18} color={active ? '#FFFFFF' : MUTED} strokeWidth={active ? 2.2 : 1.6} />
                   {id === 'requests' && pendingRequests.length > 0 && (
                     <span style={{ position: 'absolute', top: 2, right: 2, minWidth: 14, height: 14, borderRadius: '50%', background: RED, border: `2px solid ${CARD}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px' }}>
                       <span style={{ fontFamily: INTER, fontSize: 7, fontWeight: 800, color: 'white', lineHeight: 1 }}>{pendingRequests.length}</span>
@@ -2522,14 +2559,14 @@ export const CaregiverDashboard = ({
                   )}
                 </div>
                 {!collapsed && (
-                  <span style={{ fontFamily: INTER, fontSize: 15, fontWeight: active ? 700 : 500, color: active ? TEXT : MUTED, flex: 1, letterSpacing: active ? '-0.01em' : 'normal', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontFamily: INTER, fontSize: 15, fontWeight: active ? 700 : 500, color: active ? '#FFFFFF' : MUTED, flex: 1, letterSpacing: active ? '-0.01em' : 'normal', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                     {label}
                   </span>
                 )}
                 {!collapsed && !isDrawer && id === 'home' && (
                   <button aria-label="Collapse sidebar" onClick={(e) => { e.stopPropagation(); setSidebarCollapsed(true); }}
                     style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                    <X size={16} color={MUTED} />
+                    <X size={16} color={active ? 'rgba(255,255,255,0.7)' : MUTED} />
                   </button>
                 )}
                 {!collapsed && (isDrawer || id !== 'home') && active && <div style={{ width: 6, height: 6, borderRadius: '50%', background: BLUE, flexShrink: 0 }} />}
@@ -2540,7 +2577,7 @@ export const CaregiverDashboard = ({
 
         {/* Bottom branding */}
         <div style={{ flexShrink: 0, padding: collapsed ? '12px 0' : '20px 20px 0', paddingBottom: 'max(24px, env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start' }}>
-          {!collapsed && <span style={{ fontFamily: "'Helvetica Neue','Arial',sans-serif", fontSize: 11, fontWeight: 300, color: TEXT, letterSpacing: '0.22em', textTransform: 'uppercase' }}>onepermit</span>}
+          {!collapsed && <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: MUTED, letterSpacing: '0.24em', textTransform: 'uppercase' }}>onepermit</span>}
         </div>
       </>
     );
@@ -2554,18 +2591,18 @@ export const CaregiverDashboard = ({
       </div>
       {/* ── Full-width desktop header ────────────────────────────────────── */}
       {!isMobile && (
-        <div style={{ height: 52, background: '#111827', display: 'flex', alignItems: 'center', padding: '0 20px', flexShrink: 0, gap: 14, zIndex: 20 }}>
+        <div style={{ height: 56, background: '#0b0b0b', display: 'flex', alignItems: 'center', padding: '0 20px', flexShrink: 0, gap: 14, zIndex: 20 }}>
           {/* Left: branding — compact */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(255,255,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Building2 size={15} color="white" />
             </div>
-            <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: 'white', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>{propertyName}</span>
+            <span style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: 'white', letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{propertyName}</span>
           </div>
 
           {/* Search — fills all remaining space */}
           <div style={{ flex: 1, position: 'relative', marginRight: 520, marginLeft: 220 }}>
-            <Search size={14} color="#6B7280" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 1 }} />
+            <Search size={14} color="#717171" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 1 }} />
             <input
               ref={searchInputRef}
               value={searchQuery}
@@ -2583,12 +2620,12 @@ export const CaregiverDashboard = ({
                 }
               }}
               placeholder="Search or jump to a section… (⌘K)"
-              style={{ width: '100%', height: 34, background: '#FFFFFF', border: 'none', borderRadius: 6, paddingLeft: 36, paddingRight: searchQuery ? 30 : 14, fontFamily: INTER, fontSize: 13, color: '#111827', outline: 'none', boxSizing: 'border-box' }}
+              style={{ width: '100%', height: 38, background: '#FFFFFF', border: 'none', borderRadius: 12, paddingLeft: 36, paddingRight: searchQuery ? 30 : 14, fontFamily: INTER, fontSize: 13, color: '#222222', outline: 'none', boxSizing: 'border-box' }}
             />
             {searchQuery && (
               <button aria-label="Clear search" onClick={() => { setSearchQuery(''); setShowSearch(false); }}
                 style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:2, display:'flex' }}>
-                <X size={13} color="#6B7280" />
+                <X size={13} color="#717171" />
               </button>
             )}
             {/* Unified search + command dropdown */}
@@ -2923,33 +2960,38 @@ export const CaregiverDashboard = ({
                 initial={{ x: '100%', opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: '100%', opacity: 0 }}
                 transition={{ type: 'spring', damping: 34, stiffness: 320 }}
                 style={{
-                  position: 'fixed', right: 16, top: 16, bottom: 16,
+                  position: 'fixed', right: 0, top: 0, bottom: 0,
                   ...(activeTab === 'calendar'
-                    ? (isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : { left: isMobile ? 16 : (sidebarCollapsed ? 80 : 264) })
-                    : (isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? { left: 16 } : { width: Math.min(640, window.innerWidth - 280) })),
+                    ? (isPhone || isMobile ? {left:0} : { left: sidebarCollapsed ? 64 : 248, borderLeft: `1px solid ${BORDER}` })
+                    : (isPhone || isMobile ? {left:0} : { width: Math.min(720, window.innerWidth - 280), borderLeft: `1px solid ${BORDER}` })),
                   background: BG, zIndex: 66,
                   display: 'flex', flexDirection: 'column',
-                  borderRadius: isPhone ? 0 : 24, overflow: 'hidden',
-                  boxShadow: '0 24px 64px rgba(0,0,0,0.20)',
+                  borderRadius: 0, overflow: 'hidden',
+                  boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
                 }}>
 
-                {/* Panel title bar */}
+                {/* Panel title bar — editorial drawer header */}
                 <div style={{
-                  background: CARD, borderBottom: `1px solid ${BORDER}`,
-                  padding: '16px 20px', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: BG, borderBottom: `1px solid ${BORDER}`,
+                  padding: isMobile ? '22px 20px 18px' : '30px 32px 24px', flexShrink: 0,
+                  display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16,
                 }}>
-                  <div>
-                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 12px' }}>
                       {propertyName}
                     </p>
-                    <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>
+                    <h2 style={{ fontFamily: INTER, fontSize: isMobile ? 32 : 42, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.045em', lineHeight: 0.95 }}>
                       {PAGE_TITLES[activeTab] || activeTab}
                     </h2>
+                    {PAGE_SUBTITLES[activeTab] && (
+                      <p style={{ fontFamily: INTER, fontSize: 15, color: MUTED, margin: '10px 0 0', lineHeight: 1.5 }}>
+                        {PAGE_SUBTITLES[activeTab]}
+                      </p>
+                    )}
                   </div>
-                  <button onClick={() => handleTabChange('home')}
-                    style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                    <X size={18} color={MUTED} strokeWidth={2} />
+                  <button onClick={() => handleTabChange('home')} aria-label="Close panel" data-testid="panel-close-btn"
+                    style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                    <X size={19} color={TEXT} strokeWidth={2} />
                   </button>
                 </div>
 
@@ -3003,11 +3045,11 @@ export const CaregiverDashboard = ({
               initial={{ x: '110%' }} animate={{ x: 0 }} exit={{ x: '110%' }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
               style={{
-                position: 'fixed', right: 16, top: 16, bottom: 16,
-                ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}),
+                position: 'fixed', right: 0, top: 0, bottom: 0,
+                ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}),
                 background: CARD, zIndex: 68,
                 display: 'flex', flexDirection: 'column',
-                borderRadius: isPhone ? 0 : 24, overflow: 'hidden',
+                borderRadius: 0, overflow: 'hidden',
                 boxShadow: '0 24px 64px rgba(0,0,0,0.20)',
               }}>
               <TaskCompletionModal task={selectedTask} onClose={() => setSelectedTask(null)} onComplete={handleCompleteTask} />
@@ -3098,13 +3140,13 @@ export const CaregiverDashboard = ({
             <motion.div key="ec-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 66, display: 'flex', flexDirection: 'column', borderRadius: isPhone ? 0 : 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 0, top: 0, bottom: 0, ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}), background: BG, zIndex: 66, display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
-              <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
+              <div style={{ padding: isMobile ? '22px 20px 18px' : '28px 32px 22px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}`, background: BG, flexShrink: 0 }}>
                 <div>
                   <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{propertyName}</div>
-                  <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Emergency Contacts</h2>
+                  <h2 style={{ fontFamily: INTER, fontSize: isMobile ? 28 : 34, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.04em', lineHeight: 0.97 }}>Emergency Contacts</h2>
                 </div>
                 <button onClick={() => setShowContacts(false)}
                   style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${BORDER}`, background: CARD, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -3112,7 +3154,7 @@ export const CaregiverDashboard = ({
                 </button>
               </div>
 
-              <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 28 }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 20px 40px' : '28px 32px 48px', display: 'flex', flexDirection: 'column', gap: 28 }}>
 
                 {/* Emergency Numbers */}
                 <div>
@@ -3264,30 +3306,32 @@ export const CaregiverDashboard = ({
               initial={{ x: 600 }} animate={{ x: 0 }} exit={{ x: 600 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
               style={{
-                position: 'fixed', right: 16, top: 16, bottom: 16,
-                ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}),
+                position: 'fixed', right: 0, top: 0, bottom: 0,
+                ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}),
                 background: CARD, zIndex: 66,
                 display: 'flex', flexDirection: 'column',
-                borderRadius: isPhone ? 0 : 24,
+                borderRadius: 0,
                 boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
                 overflow: 'hidden',
               }}>
 
-              {/* Wizard header */}
-              <div style={{ flexShrink: 0, background: CARD, borderBottom: `1px solid ${BORDER}` }}>
-                <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>
+              {/* Wizard header — editorial */}
+              <div style={{ flexShrink: 0, background: BG, borderBottom: `1px solid ${BORDER}` }}>
+                <div style={{ padding: isMobile ? '22px 20px 12px' : '28px 32px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 12 }}>{propertyName}</div>
+                    <div style={{ fontFamily: INTER, fontSize: isMobile ? 30 : 38, fontWeight: 800, color: TEXT, letterSpacing: '-0.045em', lineHeight: 0.95 }}>
                       {ntStep === 1 ? 'Describe the task' : ntStep === 2 ? 'Choose a category' : 'Priority & details'}
                     </div>
-                    <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 3 }}>Step {ntStep} of 3</div>
+                    <div style={{ fontFamily: INTER, fontSize: 15, color: MUTED, marginTop: 10 }}>Step {ntStep} of 3 · Log a new task</div>
                   </div>
                   <button onClick={() => { setShowNewTask(false); setNtStep(1); setNTF({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '' }); }}
-                    style={{ fontFamily: INTER, fontSize: 14, fontWeight: 600, color: MUTED, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginTop: 2 }}>
-                    Cancel
+                    aria-label="Close"
+                    style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                    <X size={19} color={TEXT} />
                   </button>
                 </div>
-                <div style={{ display: 'flex', gap: 4, padding: '0 20px 14px' }}>
+                <div style={{ display: 'flex', gap: 4, padding: isMobile ? '0 20px 16px' : '0 32px 18px' }}>
                   {[1, 2, 3].map(i => (
                     <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= ntStep ? BLUE : BORDER, transition: 'background 200ms' }} />
                   ))}
@@ -3493,21 +3537,21 @@ export const CaregiverDashboard = ({
             <motion.div key="pkgaudit-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: isPhone ? 0 : 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 0, top: 0, bottom: 0, ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
-              <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ background: BG, borderBottom: `1px solid ${BORDER}`, padding: isMobile ? '22px 20px 18px' : '28px 32px 22px', flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 44, height: 44, background: 'rgba(255,56,92,0.10)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Package size={22} color={BLUE} />
                   </div>
                   <div>
-                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{propertyName}</p>
-                    <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Package Room Audit</h2>
+                    <p style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 12px' }}>{propertyName}</p>
+                    <h2 style={{ fontFamily: INTER, fontSize: isMobile ? 28 : 34, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.04em', lineHeight: 0.97 }}>Package Room Audit</h2>
                   </div>
                 </div>
                 <button onClick={() => setShowPkgAudit(false)}
-                  style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                   <X size={18} color={MUTED} strokeWidth={2} />
                 </button>
               </div>
@@ -3669,21 +3713,21 @@ export const CaregiverDashboard = ({
             <motion.div key="am-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: isPhone ? 0 : 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 0, top: 0, bottom: 0, ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
-              <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ background: BG, borderBottom: `1px solid ${BORDER}`, padding: isMobile ? '22px 20px 18px' : '28px 32px 22px', flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 44, height: 44, background: 'rgba(255,56,92,0.10)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Waves size={22} color={BLUE} />
                   </div>
                   <div>
-                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{propertyName}</p>
-                    <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Amenity Spaces</h2>
+                    <p style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 12px' }}>{propertyName}</p>
+                    <h2 style={{ fontFamily: INTER, fontSize: isMobile ? 28 : 34, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.04em', lineHeight: 0.97 }}>Amenity Spaces</h2>
                   </div>
                 </div>
                 <button onClick={() => setShowAmenities(false)}
-                  style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                   <X size={18} color={MUTED} strokeWidth={2} />
                 </button>
               </div>
@@ -3779,21 +3823,21 @@ export const CaregiverDashboard = ({
             <motion.div key="models-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: isPhone ? 0 : 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 0, top: 0, bottom: 0, ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
-              <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ background: BG, borderBottom: `1px solid ${BORDER}`, padding: isMobile ? '22px 20px 18px' : '28px 32px 22px', flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 44, height: 44, background: 'rgba(255,56,92,0.10)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <DoorOpen size={22} color={BLUE} />
                   </div>
                   <div>
-                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{propertyName}</p>
-                    <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Open Models</h2>
+                    <p style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 12px' }}>{propertyName}</p>
+                    <h2 style={{ fontFamily: INTER, fontSize: isMobile ? 28 : 34, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.04em', lineHeight: 0.97 }}>Open Models</h2>
                   </div>
                 </div>
                 <button onClick={() => setShowModels(false)}
-                  style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                   <X size={18} color={MUTED} strokeWidth={2} />
                 </button>
               </div>
@@ -3889,21 +3933,21 @@ export const CaregiverDashboard = ({
             <motion.div key="elev-panel"
               initial={{ x: 620 }} animate={{ x: 0 }} exit={{ x: 620 }}
               transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: isPhone ? 0 : 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+              style={{ position: 'fixed', right: 0, top: 0, bottom: 0, ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}), background: BG, zIndex: 61, display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
 
               {/* Header */}
-              <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: '16px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ background: BG, borderBottom: `1px solid ${BORDER}`, padding: isMobile ? '22px 20px 18px' : '28px 32px 22px', flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 44, height: 44, background: 'rgba(255,56,92,0.10)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Zap size={22} color={BLUE} />
                   </div>
                   <div>
-                    <p style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{propertyName}</p>
-                    <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Move Activity</h2>
+                    <p style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 12px' }}>{propertyName}</p>
+                    <h2 style={{ fontFamily: INTER, fontSize: isMobile ? 28 : 34, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.04em', lineHeight: 0.97 }}>Move Activity</h2>
                   </div>
                 </div>
                 <button onClick={() => { setShowElevators(false); setShowElevForm(false); }}
-                  style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                   <X size={18} color={MUTED} strokeWidth={2} />
                 </button>
               </div>
