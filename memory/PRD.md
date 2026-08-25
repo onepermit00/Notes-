@@ -22,7 +22,8 @@ Real-time workforce operations & accountability for property management, concier
 2. **LandingPage.jsx** — full editorial rebuild: 80px sticky header, text-led hero "Every shift. On the record.", numbered product rows, warm process chapter, near-black roles chapter + benefits rows, testimonials, pricing panels (featured = dark), dark conversion footer. All original copy/content preserved; vecteezy cartoon carousel removed per asset policy.
 3. **SignIn.jsx / SignUp.jsx** — auth-shell pattern (dark editorial left panel, form right, mobile full-height). All logic preserved verbatim (role selector, 3-step signup, validation, strength meter, summary box). data-testids added throughout.
 4. **ThemeContext.jsx** — added `ACCENT/ACCENT_SOFT/ACCENT_GLOW/WARM/EASE` canonical aliases (legacy `BLUE` kept — used by ~9000 lines of dashboards which already match DS palette).
-5. **Dashboards NOT rewritten** — they already used the exact DS palette via ThemeContext.
+5. **ManagerDashboard.jsx restyled (editorial)** — near-black `#0b0b0b` header/search bar + DAR chapter surfaces (was `#111827`), coral eyebrow rules on DAR/panel/modal headers, editorial workspace heading on home ("MANAGER WORKSPACE" eyebrow + 46px "Overview"), near-black active nav items with white text (light-on-dark in dark mode, `.nav-btn--active` class excluded from App.css hover rule), panel headers use coral rule + property eyebrow + 24px/800 title, off-token colors normalized (#6B7280→#717171, #8FAEDD→#6597FF), Inter wordmark. Added Escape-to-close for modals AND tab panels, aria-labels + data-testids (`panel-close-btn`, `task-modal-close`). Sidebar auto-expands after opening a panel (pre-existing behavior — collapsed rail buttons have `title` attrs, expanded ones don't).
+6. **CaregiverDashboard NOT restyled yet** — likely next request.
 
 ## Bug fixes
 - Dev-server "Invalid Host header" → `allowedHosts: "all"` in craco.config.js.

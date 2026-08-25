@@ -858,7 +858,7 @@ textarea:focus:not(:focus-visible) {
 }
 
 /* ── Hover state for nav items ── */
-.nav-btn:hover:not([disabled]) {
+.nav-btn:hover:not([disabled]):not(.nav-btn--active) {
   background: rgba(255, 56, 92, 0.06) !important;
 }
 .nav-btn:active:not([disabled]) {
