@@ -1,0 +1,18 @@
+﻿node_modules/
+build/
+.env
+.env.local
+.env.production
+*.log
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.egg-info/
+frontend/node_modules/.cache/default-development/2.pack
+frontend/node_modules/.cache/default-development/0.pack
