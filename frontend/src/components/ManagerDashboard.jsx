@@ -3897,25 +3897,23 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <motion.div key={tab}
               initial={{ x:'110%' }} animate={{ x:0 }} exit={{ x:'110%' }}
               transition={{ type:'spring', damping:32, stiffness:300 }}
-              style={{ position:'fixed', top:16, bottom:16, right:16, background:BG, zIndex:66, display:'flex', flexDirection:'column', borderRadius:24, overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.20)', ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : tab==='shifts' ? { left: isMobile?16:(sidebarCollapsed?80:264) } : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}) }}>
+              style={{ position:'fixed', top:0, bottom:0, right:0, background:BG, zIndex:66, display:'flex', flexDirection:'column', borderRadius:0, borderLeft:`1px solid ${BORDER}`, overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.18)', ...(isPhone ? {left:0,borderLeft:'none'} : tab==='shifts' ? { left: isMobile?0:(sidebarCollapsed?64:248) } : isMobile ? {left:0,borderLeft:'none'} : {width:Math.min(720, window.innerWidth-280)}) }}>
 
-              {/* Panel header */}
-              <div style={{ background:CARD, borderBottom:`1px solid ${BORDER}`, padding:'20px 32px', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <div>
-                  <div style={{ display:'flex', alignItems:'center', gap:9, marginBottom:6 }}>
-                    <span style={{ width:26, height:2, background:BLUE, display:'inline-block' }} />
-                    <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, letterSpacing:'0.24em', textTransform:'uppercase' }}>{propertyName}</span>
-                  </div>
-                  <h2 style={{ fontFamily:INTER, fontSize:24, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-0.03em', lineHeight:1 }}>
+              {/* Panel header — editorial drawer */}
+              <div style={{ background:BG, borderBottom:`1px solid ${BORDER}`, padding: isMobile ? '22px 20px 18px' : '30px 32px 24px', flexShrink:0, display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16 }}>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:12 }}>{propertyName}</div>
+                  <h2 style={{ fontFamily:INTER, fontSize: isMobile ? 32 : 42, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-0.045em', lineHeight:0.95 }}>
                     {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', residents:'Residents Directory', analytics:'Analytics', scheduled:'Scheduled Tasks', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings' }[tab]}
                   </h2>
+                  <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>
+                    {{ shifts:'Browse shift history and daily activity reports', tasks:'Assign, track, and verify shift tasks', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', scheduled:'Recurring tasks that auto-assign each shift', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
+                  </p>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <button onClick={() => setTab('home')} aria-label="Close panel" data-testid="panel-close-btn"
-                    style={{ width:36, height:36, borderRadius:10, border:`1px solid ${BORDER}`, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-                    <X size={16} color={MUTED} />
-                  </button>
-                </div>
+                <button onClick={() => setTab('home')} aria-label="Close panel" data-testid="panel-close-btn"
+                  style={{ width:44, height:44, borderRadius:999, border:`1px solid ${BORDER}`, background:BG, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+                  <X size={19} color={TEXT} />
+                </button>
               </div>
 
               {/* Panel content */}
@@ -3955,20 +3953,17 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             role="dialog" aria-modal="true" aria-label="Assign Task"
             initial={{ x:'110%' }} animate={{ x:0 }} exit={{ x:'110%' }}
             transition={{ type:'spring', damping:32, stiffness:300 }}
-            style={{ position:'fixed', right:16, top:16, bottom:16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), zIndex:68, background:BG, borderRadius: isPhone ? 0 : 24, boxShadow:'0 24px 64px rgba(0,0,0,0.20)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            style={{ position:'fixed', top:0, bottom:0, right:0, ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}), zIndex:68, background:BG, borderRadius:0, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
-            <div style={{ padding:'16px 20px 14px', borderBottom:`1px solid ${BORDER}`, flexShrink:0 }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-                <div>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
-                    <span style={{ width:22, height:2, background:BLUE, display:'inline-block' }} />
-                    <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, letterSpacing:'0.24em', textTransform:'uppercase' }}>{propertyName}</span>
-                  </div>
-                  <div style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT, letterSpacing:'-0.03em', margin:'0 0 2px' }}>Assign Task</div>
-                  <div style={{ fontFamily:INTER, fontSize:13, color:MUTED }}>Step {taskStep} of 2</div>
+            <div style={{ padding: isMobile ? '22px 20px 16px' : '30px 32px 20px', borderBottom:`1px solid ${BORDER}`, flexShrink:0 }}>
+              <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, marginBottom:16 }}>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:12 }}>{propertyName}</div>
+                  <div style={{ fontFamily:INTER, fontSize: isMobile ? 32 : 42, fontWeight:800, color:TEXT, letterSpacing:'-0.045em', lineHeight:0.95 }}>Assign Task</div>
+                  <div style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>Step {taskStep} of 2 · Dispatch a task to the desk</div>
                 </div>
-                <button onClick={closeTask} aria-label="Close" data-testid="task-modal-close" style={{ width:36, height:36, borderRadius:10, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-                  <X size={18} color={MUTED} />
+                <button onClick={closeTask} aria-label="Close" data-testid="task-modal-close" style={{ width:44, height:44, borderRadius:999, border:`1px solid ${BORDER}`, background:BG, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+                  <X size={19} color={TEXT} />
                 </button>
               </div>
               <div style={{ display:'flex', gap:6 }}>
@@ -3976,7 +3971,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               </div>
             </div>
 
-            <div style={{ flex:1, overflowY:'auto', padding:'24px 20px' }}>
+            <div style={{ flex:1, overflowY:'auto', padding: isMobile ? '20px 20px 40px' : '28px 32px 48px' }}>
               {taskStep === 1 ? (
                 <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
                   <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>What needs to be done?</h3>
@@ -4096,7 +4091,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               )}
             </div>
 
-            <div style={{ flexShrink:0, padding:'12px 20px 20px', background:CARD, borderTop:`1px solid ${BORDER}` }}>
+            <div style={{ flexShrink:0, padding: isMobile ? '12px 20px 20px' : '16px 32px 24px', background:CARD, borderTop:`1px solid ${BORDER}` }}>
               <div style={{ display:'flex', gap:12 }}>
                 {taskStep > 1 && (
                   <button onClick={()=>setTaskStep(1)}
@@ -4124,23 +4119,22 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <motion.div key="con-panel"
             initial={{ x: '110%' }} animate={{ x: 0 }} exit={{ x: '110%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-            style={{ position: 'fixed', right: 16, top: 16, bottom: 16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), background: BG, zIndex: 68, display: 'flex', flexDirection: 'column', borderRadius: isPhone ? 0 : 24, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.20)' }}>
+            style={{ position: 'fixed', top:0, bottom:0, right:0, ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}), background: BG, zIndex: 68, display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
 
             {/* Header */}
-            <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
-              <div>
-                <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{propertyName}</div>
-                <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, margin: 0, letterSpacing: '-0.01em' }}>Emergency Contacts</h2>
+            <div style={{ padding: isMobile ? '22px 20px 18px' : '30px 32px 24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap:16, borderBottom: `1px solid ${BORDER}`, background: BG, flexShrink: 0 }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 12 }}>{propertyName}</div>
+                <h2 style={{ fontFamily: INTER, fontSize: isMobile ? 32 : 42, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.045em', lineHeight:0.95 }}>Emergency Contacts</h2>
+                <p style={{ fontFamily: INTER, fontSize: 15, color: MUTED, margin: '10px 0 0', lineHeight:1.5 }}>Building contact directory for the desk</p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button onClick={() => { setConOpen(false); setShowAddContact(false); }}
-                  style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${BORDER}`, background: CARD, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                  <X size={18} color={MUTED} />
-                </button>
-              </div>
+              <button onClick={() => { setConOpen(false); setShowAddContact(false); }} aria-label="Close"
+                style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                <X size={19} color={TEXT} />
+              </button>
             </div>
 
-            <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 28 }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 20px 40px' : '28px 32px 48px', display: 'flex', flexDirection: 'column', gap: 28 }}>
 
               {/* CTA — full-width incident-style */}
               <button onClick={() => { setNewContactDraft({ label:'', number:'' }); setShowAddContact(s => !s); }}
@@ -4346,20 +4340,21 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               role="dialog" aria-modal="true" aria-label="Add Team Members"
               initial={{ x:'110%' }} animate={{ x:0 }} exit={{ x:'110%' }}
               transition={{ type:'spring', damping:32, stiffness:300 }}
-              style={{ position:'fixed', right:16, top:16, bottom:16, ...(isPhone ? {top:0,bottom:0,left:0,right:0,borderRadius:0} : isMobile ? {left:16} : {width:Math.min(640, window.innerWidth-280)}), zIndex:68, background:BG, borderRadius: isPhone ? 0 : 24, boxShadow:'0 24px 64px rgba(0,0,0,0.20)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+              style={{ position:'fixed', top:0, bottom:0, right:0, ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}), zIndex:68, background:BG, borderRadius:0, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
-            <div style={{ padding:'16px 20px', borderBottom:`1px solid ${BORDER}`, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <div>
-                <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:2 }}>{propertyName}</div>
-                <h2 style={{ fontFamily:INTER, fontSize:20, fontWeight:700, color:TEXT, margin:0, letterSpacing:'-0.01em' }}>Add Team Members</h2>
+            <div style={{ padding: isMobile ? '22px 20px 18px' : '30px 32px 24px', borderBottom:`1px solid ${BORDER}`, flexShrink:0, display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16 }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:12 }}>{propertyName}</div>
+                <h2 style={{ fontFamily:INTER, fontSize: isMobile ? 32 : 42, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-0.045em', lineHeight:0.95 }}>Add Team Members</h2>
+                <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>Create a concierge login for your property</p>
               </div>
-              <button onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'', password:'' }); setShowPw(false); }}
-                style={{ width:36, height:36, borderRadius:10, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
-                <X size={18} color={MUTED} />
+              <button onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'', password:'' }); setShowPw(false); }} aria-label="Close"
+                style={{ width:44, height:44, borderRadius:999, border:`1px solid ${BORDER}`, background:BG, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+                <X size={19} color={TEXT} />
               </button>
             </div>
 
-            <div style={{ flex:1, overflowY:'auto', padding:'24px 20px' }}>
+            <div style={{ flex:1, overflowY:'auto', padding: isMobile ? '20px 20px 40px' : '28px 32px 48px' }}>
               <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
                 <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Who are you adding?</h3>
 
@@ -4449,7 +4444,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 } finally { setAddLoading(false); }
               };
               return (
-                <div style={{ flexShrink:0, padding:'12px 20px 20px', background:CARD, borderTop:`1px solid ${BORDER}` }}>
+                <div style={{ flexShrink:0, padding: isMobile ? '12px 20px 20px' : '16px 32px 24px', background:CARD, borderTop:`1px solid ${BORDER}` }}>
                   {addError && <p style={{ fontFamily:INTER, fontSize:13, color:RED, marginBottom:10, fontWeight:600 }}>{addError}</p>}
                   <button
                     disabled={!lValid || addLoading}
