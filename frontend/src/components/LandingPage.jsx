@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, ArrowUpRight, Calendar, Activity, FileCheck, Check, ShieldCheck, ListChecks, Users, Quote, Building2 } from 'lucide-react';
 import { UserRole } from '../types';
@@ -179,6 +179,33 @@ const useReveal = () => {
 
 export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
   const reveal = useReveal();
+  const [activeSection, setActiveSection] = useState(null);
+
+  // Scroll-spy — highlight the nav pill for the section currently in view
+  useEffect(() => {
+    const ids = NAV_LINKS.map(({ href }) => href.slice(1));
+    let ticking = false;
+    const update = () => {
+      ticking = false;
+      const line = window.scrollY + window.innerHeight * 0.35;
+      let current = null;
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (el && el.offsetTop <= line) current = id;
+      }
+      // Below the last section's end (footer) — keep last; above first — none
+      const first = document.getElementById(ids[0]);
+      if (first && window.scrollY + window.innerHeight * 0.35 < first.offsetTop) current = null;
+      setActiveSection(current);
+    };
+    const onScroll = () => {
+      if (!ticking) { ticking = true; requestAnimationFrame(update); }
+    };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); };
+  }, []);
 
   return (
     <div className="bg-white font-sans text-[#222222]" style={{ fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
@@ -190,14 +217,21 @@ export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
             Notes
           </a>
           <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
-            {NAV_LINKS.map(({ label, href }) => (
-              <a
-                key={href}
-                href={href}
-                className="flex min-h-11 items-center rounded-2xl px-5 py-3 text-[16px] font-semibold text-[#6b7280] transition-colors hover:bg-[#f2f2f2] hover:text-[#222]">
-                {label}
-              </a>
-            ))}
+            {NAV_LINKS.map(({ label, href }) => {
+              const isActive = activeSection === href.slice(1);
+              return (
+                <a
+                  key={href}
+                  href={href}
+                  aria-current={isActive ? 'true' : undefined}
+                  data-testid={`nav-${href.slice(1)}`}
+                  className={`flex min-h-11 items-center rounded-2xl px-5 py-3 text-[16px] font-semibold transition-colors ${
+                    isActive ? 'bg-[#f2f2f2] text-[#222]' : 'text-[#6b7280] hover:bg-[#f2f2f2] hover:text-[#222]'
+                  }`}>
+                  {label}
+                </a>
+              );
+            })}
           </nav>
           <div className="flex items-center gap-2 rounded-full border border-[#ebebeb] bg-white py-1.5 pl-5 pr-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
             <button
