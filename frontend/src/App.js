@@ -21,7 +21,7 @@ function Spinner() {
           border:'3px solid #f0f0f0', borderTop:'3px solid #FF385C',
           animation:'spin 0.8s linear infinite',
         }} />
-        <p style={{ fontFamily:"'Helvetica Neue',Arial,sans-serif", fontSize:11, letterSpacing:'0.22em', textTransform:'uppercase', color:'#bbb', margin:0 }}>
+        <p style={{ fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", fontSize:10, fontWeight:800, letterSpacing:'0.24em', textTransform:'uppercase', color: isDark ? '#8a8a8a' : '#717171', margin:0 }}>
           onepermit
         </p>
       </div>

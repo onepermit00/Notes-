@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BACKEND = process.env.REACT_APP_API_URL || 'http://localhost:8001/api';
+const BACKEND = `${process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001'}/api`;
 
 const api = axios.create({ baseURL: BACKEND });
 
@@ -301,7 +301,7 @@ export const authApi = {
   // SSE — returns an EventSource; caller must close it on unmount
   openEventStream(onUpdate) {
     const token = localStorage.getItem('op_token');
-    const BACKEND = process.env.REACT_APP_API_URL || 'http://localhost:8001/api';
+    const BACKEND = `${process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001'}/api`;
     const url = `${BACKEND}/events${token ? `?token=${encodeURIComponent(token)}` : ''}`;
     const es = new EventSource(url);
     es.addEventListener('update', (e) => {

@@ -1,55 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ArrowRight, ArrowLeft, Eye, EyeOff, Check } from 'lucide-react';
-import { UserRole } from '../types';
 import { authApi } from '../services/authApi';
 
-const BLUE  = '#FF385C';
-const GREEN = '#34C759';
-const INTER = "'Inter','Plus Jakarta Sans',sans-serif";
-
 const STEPS = [
-  { num: 1, title: 'Your Details',  desc: 'Tell us about yourself' },
+  { num: 1, title: 'Your Details', desc: 'Tell us about yourself' },
   { num: 2, title: 'Your Property', desc: 'Where you manage' },
-  { num: 3, title: 'Security',      desc: 'Protect your account' },
+  { num: 3, title: 'Security', desc: 'Protect your account' },
 ];
 
-const Label = ({ children }) => (
-  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#555', marginBottom: '8px' }}>
-    {children}
-  </label>
-);
+const inputClass =
+  'min-h-12 w-full rounded-xl border border-[#ebebeb] bg-[#f7f7f7] px-4 text-base text-[#222] placeholder:text-[#9b9b9b] focus:border-[#ff385c] focus:outline-none';
 
-const Field = ({ label, children }) => (
+const Field = ({ label, htmlFor, children }) => (
   <div>
-    <Label>{label}</Label>
+    <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-semibold">{label}</label>
     {children}
   </div>
 );
 
 export const SignUp = ({ onSignUp, onGoToSignIn, onBack }) => {
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [step,     setStep]     = useState(1);
+  const [step, setStep] = useState(1);
   const [showPass, setShowPass] = useState(false);
   const [showConf, setShowConf] = useState(false);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const [form, setForm] = useState({
-    // Step 1 — personal
     firstName: '', lastName: '', email: '', phone: '', jobTitle: '',
-    // Step 2 — property
     propertyName: '', address: '', city: '', state: '', units: '',
-    // Step 3 — security
     password: '', confirm: '',
   });
 
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', fn, { passive: true });
-    return () => window.removeEventListener('resize', fn);
-  }, []);
-
-  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setError(''); };
+  const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setError(''); };
 
   const validateStep = () => {
     if (step === 1) {
@@ -76,287 +58,256 @@ export const SignUp = ({ onSignUp, onGoToSignIn, onBack }) => {
     e.preventDefault();
     const err = validateStep();
     if (err) { setError(err); return; }
-    if (step < 3) { setStep(s => s + 1); setError(''); return; }
+    if (step < 3) { setStep((s) => s + 1); setError(''); return; }
     setLoading(true);
     try {
       const user = await authApi.signUpManager(form);
       onSignUp(user);
-    } catch (err) {
-      setError(err?.response?.data?.detail || err.message || 'Sign up failed. Please try again.');
+    } catch (err2) {
+      setError(err2?.response?.data?.detail || err2.message || 'Sign up failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const inputBase = {
-    width: '100%', padding: '13px 16px',
-    fontSize: '15px', fontFamily: INTER,
-    border: '1.5px solid #E5E5E5', borderRadius: '10px',
-    color: '#0F0F0F', outline: 'none', backgroundColor: '#FAFAFA',
-    transition: 'border-color 200ms', boxSizing: 'border-box',
-  };
-  const focusIn  = e => { e.target.style.borderColor = BLUE; };
-  const focusOut = e => { e.target.style.borderColor = '#E5E5E5'; };
+  const strength = form.password.length >= 12 ? 'strong' : form.password.length >= 8 ? 'good' : 'short';
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: INTER, overflow: 'hidden' }}>
+    <div
+      className="flex min-h-[100dvh] bg-white text-[#222]"
+      style={{ fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
 
-      {/* ── Left panel ─────────────────────────────────────────── */}
-      {!isMobile && (
-        <div style={{
-          width: '40%', backgroundColor: '#0F0F0F',
-          display: 'flex', flexDirection: 'column',
-          justifyContent: 'space-between', padding: '48px 52px',
-          position: 'relative', overflow: 'hidden', flexShrink: 0,
-        }}>
-          <div style={{ position: 'absolute', top: '-60px', right: '-60px', width: '260px', height: '260px', borderRadius: '50%', backgroundColor: BLUE, opacity: 0.08 }} />
-          <div style={{ position: 'absolute', bottom: '-80px', left: '-40px', width: '220px', height: '220px', borderRadius: '50%', backgroundColor: BLUE, opacity: 0.06 }} />
+      {/* ── Left — editorial narrative + step progress (desktop) ──────────── */}
+      <aside className="hidden w-[40%] shrink-0 flex-col justify-between bg-[#0b0b0b] p-12 text-white lg:flex">
+        <button onClick={onBack} className="self-start text-left text-[12px] font-extrabold uppercase tracking-[0.24em] text-white" data-testid="signup-brand-back">
+          ✦ Notes
+        </button>
 
-          {/* Brand */}
-          <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}>
-            <span style={{ fontFamily: "'Helvetica Neue','Arial',sans-serif", fontSize: '13px', fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.22em', color: 'white' }}>
-              onepermit
-            </span>
-          </button>
-
-          {/* Headline */}
-          <div>
-            <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'rgba(255,255,255,0.3)', marginBottom: '18px' }}>
-              ✦ Manager Registration
-            </p>
-            <h1 style={{
-              fontFamily: "'Anton','Impact',sans-serif",
-              fontSize: 'clamp(40px, 4vw, 62px)',
-              lineHeight: 0.95, textTransform: 'uppercase',
-              letterSpacing: '-0.02em', color: 'white', margin: '0 0 20px',
-            }}>
-              Set up your<br />property.
-            </h1>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, maxWidth: 280, margin: 0 }}>
-              Create your manager account and invite your concierge team — they'll sign in with the credentials you assign.
-            </p>
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="h-0.5 w-9 bg-[#ff385c]" aria-hidden="true" />
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.24em] text-white/55">Manager registration</p>
           </div>
-
-          {/* Step progress */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {STEPS.map(({ num, title, desc }) => {
-              const done    = step > num;
-              const current = step === num;
-              return (
-                <div key={num} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  {/* Circle */}
-                  <div style={{
-                    width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: done ? GREEN : current ? BLUE : 'rgba(255,255,255,0.08)',
-                    border: `2px solid ${done ? GREEN : current ? BLUE : 'rgba(255,255,255,0.12)'}`,
-                    transition: 'all 300ms',
-                  }}>
-                    {done
-                      ? <Check size={15} color="white" strokeWidth={3} />
-                      : <span style={{ fontFamily: INTER, fontSize: '13px', fontWeight: 700, color: current ? 'white' : 'rgba(255,255,255,0.3)' }}>{num}</span>
-                    }
-                  </div>
-                  {/* Labels */}
-                  <div>
-                    <p style={{ fontFamily: INTER, fontSize: '14px', fontWeight: 700, color: done || current ? 'white' : 'rgba(255,255,255,0.3)', margin: '0 0 2px', transition: 'color 300ms' }}>{title}</p>
-                    <p style={{ fontFamily: INTER, fontSize: '12px', color: 'rgba(255,255,255,0.25)', margin: 0 }}>{desc}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <h1 className="mt-7 text-[44px] font-extrabold leading-[0.92] tracking-[-0.05em] xl:text-[56px]">
+            Set up your<br />property.
+          </h1>
+          <p className="mt-6 max-w-[320px] text-[14px] leading-[1.75] text-white/50">
+            Create your manager account and invite your concierge team — they'll sign in with the credentials you assign.
+          </p>
         </div>
-      )}
 
-      {/* ── Right panel ─────────────────────────────────────────── */}
-      <div style={{
-        flex: 1, backgroundColor: '#ffffff',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: isMobile ? '40px 24px' : '48px 64px',
-        overflowY: 'auto',
-      }}>
-        <div style={{ width: '100%', maxWidth: 440 }}>
-
-          {/* Mobile: brand + step indicator */}
-          {isMobile && (
-            <div style={{ marginBottom: '32px' }}>
-              <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 24px' }}>
-                <span style={{ fontFamily: "'Helvetica Neue','Arial',sans-serif", fontSize: '13px', fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.22em', color: '#0F0F0F' }}>
-                  onepermit
+        <ol className="flex flex-col gap-5" aria-label="Registration steps">
+          {STEPS.map(({ num, title, desc }) => {
+            const done = step > num;
+            const current = step === num;
+            return (
+              <li key={num} className="flex items-center gap-4">
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-[13px] font-bold transition-colors ${
+                    done
+                      ? 'border-[#34c759] bg-[#34c759] text-white'
+                      : current
+                        ? 'border-[#ff385c] bg-[#ff385c] text-white'
+                        : 'border-white/15 bg-white/[0.06] text-white/40'
+                  }`}>
+                  {done ? <Check size={15} strokeWidth={3} /> : num}
                 </span>
-              </button>
-              {/* Mobile progress dots */}
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                {STEPS.map(({ num }) => (
-                  <div key={num} style={{ height: 4, borderRadius: 2, flex: step === num ? 2 : 1, background: step > num ? GREEN : step === num ? BLUE : '#E5E5E5', transition: 'all 300ms' }} />
-                ))}
-              </div>
-              <p style={{ fontFamily: INTER, fontSize: '12px', color: '#aaa', margin: '8px 0 0' }}>Step {step} of 3 — {STEPS[step-1].title}</p>
-            </div>
-          )}
+                <span>
+                  <span className={`block text-[14px] font-bold ${done || current ? 'text-white' : 'text-white/40'}`}>{title}</span>
+                  <span className="block text-[12px] text-white/35">{desc}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </aside>
 
-          {/* Header */}
-          <div style={{ marginBottom: '32px' }}>
-            <h2 style={{
-              fontFamily: "'Anton','Impact',sans-serif", fontSize: 'clamp(28px, 4vw, 40px)',
-              textTransform: 'uppercase', letterSpacing: '-0.02em',
-              color: '#0F0F0F', margin: '0 0 6px', lineHeight: 1,
-            }}>
-              {STEPS[step-1].title}
-            </h2>
-            <p style={{ fontSize: '14px', color: '#888', margin: 0, lineHeight: 1.6 }}>
-              {step === 1 && <>Already have an account?{' '}<button onClick={onGoToSignIn} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: BLUE, fontWeight: 600, fontSize: '14px', fontFamily: INTER }}>Sign in</button></>}
-              {step === 2 && 'Tell us about the property you manage.'}
-              {step === 3 && 'Choose a strong password to protect your account.'}
-            </p>
+      {/* ── Right — form ──────────────────────────────────────────────────── */}
+      <div className="flex flex-1 items-start justify-center overflow-y-auto px-4 py-10 md:px-16 md:py-12 lg:items-center">
+        <div className="w-full max-w-[460px]">
+
+          {/* Mobile: brand + progress */}
+          <div className="mb-8 lg:hidden">
+            <button onClick={onBack} className="mb-6 flex min-h-11 items-center text-[12px] font-extrabold uppercase tracking-[0.24em] text-[#222]" data-testid="signup-mobile-back">
+              ✦ Notes
+            </button>
+            <div className="flex items-center gap-2" role="progressbar" aria-valuemin={1} aria-valuemax={3} aria-valuenow={step} aria-label={`Step ${step} of 3`}>
+              {STEPS.map(({ num }) => (
+                <span
+                  key={num}
+                  className={`h-1 rounded-full transition-all ${step === num ? 'flex-[2]' : 'flex-1'} ${
+                    step > num ? 'bg-[#34c759]' : step === num ? 'bg-[#ff385c]' : 'bg-[#ebebeb]'
+                  }`}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-[12px] font-medium text-[#717171]">Step {step} of 3 — {STEPS[step - 1].title}</p>
           </div>
 
-          <form onSubmit={handleNext} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="flex items-center gap-3">
+            <span className="h-0.5 w-9 bg-[#ff385c]" aria-hidden="true" />
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.24em] text-black/55">Create account</p>
+          </div>
+          <h2 className="mt-5 text-[34px] font-extrabold leading-[0.97] tracking-[-0.04em] sm:text-[40px]" data-testid="signup-step-heading">
+            {STEPS[step - 1].title}
+          </h2>
+          <p className="mt-3 text-[14px] leading-relaxed text-[#717171]">
+            {step === 1 && (
+              <>
+                Already have an account?{' '}
+                <button onClick={onGoToSignIn} className="font-bold text-[#ff385c]" data-testid="go-to-signin-btn">Sign in</button>
+              </>
+            )}
+            {step === 2 && 'Tell us about the property you manage.'}
+            {step === 3 && 'Choose a strong password to protect your account.'}
+          </p>
 
-            {/* ── Step 1: Personal info ── */}
-            {step === 1 && <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <Field label="First Name">
-                  <input type="text" placeholder="George" value={form.firstName} onChange={e => set('firstName', e.target.value)} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
-                </Field>
-                <Field label="Last Name">
-                  <input type="text" placeholder="Smith" value={form.lastName} onChange={e => set('lastName', e.target.value)} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
-                </Field>
-              </div>
-              <Field label="Email Address">
-                <input type="email" placeholder="you@property.com" value={form.email} onChange={e => set('email', e.target.value)} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
-              </Field>
-              <Field label="Phone Number">
-                <input type="tel" placeholder="(555) 000-0000" value={form.phone} onChange={e => set('phone', e.target.value)} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
-              </Field>
-              <Field label="Job Title">
-                <input type="text" placeholder="e.g. Property Manager" value={form.jobTitle} onChange={e => set('jobTitle', e.target.value)} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
-              </Field>
-            </>}
+          <form onSubmit={handleNext} className="mt-8 flex flex-col gap-4" noValidate>
 
-            {/* ── Step 2: Property info ── */}
-            {step === 2 && <>
-              <Field label="Property Name">
-                <input type="text" placeholder="e.g. The Hannah" value={form.propertyName} onChange={e => set('propertyName', e.target.value)} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
-              </Field>
-              <Field label="Street Address">
-                <input type="text" placeholder="123 Main St" value={form.address} onChange={e => set('address', e.target.value)} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
-              </Field>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '16px' }}>
-                <Field label="City">
-                  <input type="text" placeholder="Philadelphia" value={form.city} onChange={e => set('city', e.target.value)} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+            {/* ── Step 1: Personal ── */}
+            {step === 1 && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="First name" htmlFor="su-first">
+                    <input id="su-first" type="text" autoComplete="given-name" placeholder="George" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} className={inputClass} data-testid="signup-firstname-input" />
+                  </Field>
+                  <Field label="Last name" htmlFor="su-last">
+                    <input id="su-last" type="text" autoComplete="family-name" placeholder="Smith" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} className={inputClass} data-testid="signup-lastname-input" />
+                  </Field>
+                </div>
+                <Field label="Email address" htmlFor="su-email">
+                  <input id="su-email" type="email" autoComplete="email" placeholder="you@property.com" value={form.email} onChange={(e) => set('email', e.target.value)} className={inputClass} data-testid="signup-email-input" />
                 </Field>
-                <Field label="State">
-                  <input type="text" placeholder="PA" maxLength={2} value={form.state} onChange={e => set('state', e.target.value.toUpperCase())} style={{ ...inputBase, textTransform: 'uppercase' }} onFocus={focusIn} onBlur={focusOut} />
+                <Field label="Phone number" htmlFor="su-phone">
+                  <input id="su-phone" type="tel" autoComplete="tel" placeholder="(555) 000-0000" value={form.phone} onChange={(e) => set('phone', e.target.value)} className={inputClass} data-testid="signup-phone-input" />
                 </Field>
-              </div>
-              <Field label="Number of Units">
-                <input type="number" placeholder="e.g. 120" min="1" value={form.units} onChange={e => set('units', e.target.value)} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
-              </Field>
-            </>}
+                <Field label="Job title" htmlFor="su-job">
+                  <input id="su-job" type="text" placeholder="e.g. Property Manager" value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} className={inputClass} data-testid="signup-jobtitle-input" />
+                </Field>
+              </>
+            )}
+
+            {/* ── Step 2: Property ── */}
+            {step === 2 && (
+              <>
+                <Field label="Property name" htmlFor="su-property">
+                  <input id="su-property" type="text" placeholder="e.g. The Hannah" value={form.propertyName} onChange={(e) => set('propertyName', e.target.value)} className={inputClass} data-testid="signup-property-input" />
+                </Field>
+                <Field label="Street address" htmlFor="su-address">
+                  <input id="su-address" type="text" autoComplete="street-address" placeholder="123 Main St" value={form.address} onChange={(e) => set('address', e.target.value)} className={inputClass} data-testid="signup-address-input" />
+                </Field>
+                <div className="grid grid-cols-[1fr_88px] gap-4">
+                  <Field label="City" htmlFor="su-city">
+                    <input id="su-city" type="text" placeholder="Philadelphia" value={form.city} onChange={(e) => set('city', e.target.value)} className={inputClass} data-testid="signup-city-input" />
+                  </Field>
+                  <Field label="State" htmlFor="su-state">
+                    <input id="su-state" type="text" maxLength={2} placeholder="PA" value={form.state} onChange={(e) => set('state', e.target.value.toUpperCase())} className={`${inputClass} uppercase`} data-testid="signup-state-input" />
+                  </Field>
+                </div>
+                <Field label="Number of units" htmlFor="su-units">
+                  <input id="su-units" type="number" min="1" placeholder="e.g. 120" value={form.units} onChange={(e) => set('units', e.target.value)} className={inputClass} data-testid="signup-units-input" />
+                </Field>
+              </>
+            )}
 
             {/* ── Step 3: Security ── */}
-            {step === 3 && <>
-              <Field label="Password">
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showPass ? 'text' : 'password'}
-                    placeholder="Min. 8 characters"
-                    value={form.password}
-                    onChange={e => set('password', e.target.value)}
-                    style={{ ...inputBase, paddingRight: '48px' }}
-                    onFocus={focusIn} onBlur={focusOut}
-                  />
-                  <button type="button" onClick={() => setShowPass(p => !p)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#999', padding: 0, display: 'flex' }}>
-                    {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
-                  </button>
-                </div>
-                {/* Password strength bar */}
-                {form.password.length > 0 && (
-                  <div style={{ marginTop: '8px' }}>
-                    <div style={{ height: 4, borderRadius: 2, background: '#E5E5E5', overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%', borderRadius: 2, transition: 'width 300ms, background 300ms',
-                        width: form.password.length >= 12 ? '100%' : form.password.length >= 8 ? '65%' : '30%',
-                        background: form.password.length >= 12 ? GREEN : form.password.length >= 8 ? '#FF9500' : BLUE,
-                      }} />
-                    </div>
-                    <p style={{ fontFamily: INTER, fontSize: '11px', color: '#aaa', margin: '4px 0 0' }}>
-                      {form.password.length >= 12 ? 'Strong' : form.password.length >= 8 ? 'Good' : 'Too short'}
-                    </p>
+            {step === 3 && (
+              <>
+                <Field label="Password" htmlFor="su-pass">
+                  <div className="relative">
+                    <input
+                      id="su-pass"
+                      type={showPass ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      placeholder="Min. 8 characters"
+                      value={form.password}
+                      onChange={(e) => set('password', e.target.value)}
+                      className={`${inputClass} pr-12`}
+                      data-testid="signup-password-input"
+                    />
+                    <button type="button" onClick={() => setShowPass((p) => !p)} aria-label={showPass ? 'Hide password' : 'Show password'} className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl text-[#717171]">
+                      {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
                   </div>
-                )}
-              </Field>
-              <Field label="Confirm Password">
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showConf ? 'text' : 'password'}
-                    placeholder="Re-enter password"
-                    value={form.confirm}
-                    onChange={e => set('confirm', e.target.value)}
-                    style={{ ...inputBase, paddingRight: '48px' }}
-                    onFocus={focusIn} onBlur={focusOut}
-                  />
-                  <button type="button" onClick={() => setShowConf(p => !p)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#999', padding: 0, display: 'flex' }}>
-                    {showConf ? <EyeOff size={17} /> : <Eye size={17} />}
-                  </button>
+                  {form.password.length > 0 && (
+                    <div className="mt-2">
+                      <div className="h-1 overflow-hidden rounded-full bg-[#ebebeb]">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            strength === 'strong' ? 'w-full bg-[#34c759]' : strength === 'good' ? 'w-2/3 bg-[#ff9500]' : 'w-1/3 bg-[#ff3b30]'
+                          }`}
+                        />
+                      </div>
+                      <p className="mt-1 text-[11px] font-medium text-[#717171]">
+                        {strength === 'strong' ? 'Strong' : strength === 'good' ? 'Good' : 'Too short'}
+                      </p>
+                    </div>
+                  )}
+                </Field>
+                <Field label="Confirm password" htmlFor="su-confirm">
+                  <div className="relative">
+                    <input
+                      id="su-confirm"
+                      type={showConf ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      placeholder="Re-enter password"
+                      value={form.confirm}
+                      onChange={(e) => set('confirm', e.target.value)}
+                      className={`${inputClass} pr-12`}
+                      data-testid="signup-confirm-input"
+                    />
+                    <button type="button" onClick={() => setShowConf((p) => !p)} aria-label={showConf ? 'Hide password' : 'Show password'} className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl text-[#717171]">
+                      {showConf ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                </Field>
+
+                {/* Account summary */}
+                <div className="rounded-[14px] border border-[#ebebeb] bg-[#f7f7f7] p-4" data-testid="signup-summary">
+                  <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#717171]">Account summary</p>
+                  <p className="mt-2 text-[14px] font-bold">{form.firstName} {form.lastName}</p>
+                  <p className="mt-0.5 text-[13px] text-[#717171]">{form.email} · {form.jobTitle}</p>
+                  <p className="mt-0.5 text-[13px] text-[#717171]">{form.propertyName} · {form.units} units · {form.city}, {form.state}</p>
                 </div>
-              </Field>
+              </>
+            )}
 
-              {/* Summary box */}
-              <div style={{ background: '#F8F8F8', border: '1px solid #EBEBEB', borderRadius: '12px', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <p style={{ fontFamily: INTER, fontSize: '11px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 6px' }}>Account Summary</p>
-                <p style={{ fontFamily: INTER, fontSize: '14px', fontWeight: 600, color: '#222', margin: 0 }}>{form.firstName} {form.lastName}</p>
-                <p style={{ fontFamily: INTER, fontSize: '13px', color: '#888', margin: 0 }}>{form.email} · {form.jobTitle}</p>
-                <p style={{ fontFamily: INTER, fontSize: '13px', color: '#888', margin: 0 }}>{form.propertyName} · {form.units} units · {form.city}, {form.state}</p>
-              </div>
-            </>}
+            {error && (
+              <p role="alert" data-testid="signup-error" className="rounded-xl border border-[#ff3b30]/20 bg-[#ff3b30]/[0.07] p-3 text-[13px] font-medium leading-relaxed text-[#c22a20]">
+                {error}
+              </p>
+            )}
 
-            {/* Error */}
-            {error && <p style={{ fontSize: '13px', color: '#E05A3A', margin: 0, fontWeight: 500 }}>{error}</p>}
-
-            {/* Nav buttons */}
-            <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+            {/* Navigation */}
+            <div className="mt-1 flex gap-3">
               {step > 1 && (
                 <button
                   type="button"
-                  onClick={() => { setStep(s => s - 1); setError(''); }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    padding: '16px 20px', borderRadius: '12px',
-                    background: 'white', border: '1.5px solid #E5E5E5',
-                    fontFamily: INTER, fontSize: '15px', fontWeight: 600,
-                    color: '#555', cursor: 'pointer',
-                  }}>
+                  onClick={() => { setStep((s) => s - 1); setError(''); }}
+                  aria-label="Previous step"
+                  data-testid="signup-back-btn"
+                  className="flex min-h-12 w-12 items-center justify-center rounded-xl border border-[#ebebeb] bg-[#f7f7f7] text-[#555] transition-colors hover:border-[#222]">
                   <ArrowLeft size={18} />
                 </button>
               )}
               <button
                 type="submit"
                 disabled={loading}
-                style={{
-                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                  padding: '16px',
-                  backgroundColor: loading ? '#ddd' : (step === 3 ? GREEN : BLUE),
-                  color: 'white', border: 'none', borderRadius: '12px',
-                  fontFamily: "'Anton','Impact',sans-serif", fontSize: '18px',
-                  textTransform: 'uppercase', letterSpacing: '-0.01em',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  transition: 'background-color 200ms, transform 150ms',
-                }}
-                onMouseEnter={e => { if (!loading) e.currentTarget.style.transform = 'scale(1.01)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}>
-                {loading ? 'Creating account…' : step < 3 ? <> Continue <ArrowRight size={20} strokeWidth={2.5} /> </> : <> Create Account <Check size={20} strokeWidth={2.5} /> </>}
+                data-testid="signup-continue-btn"
+                className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-[#ff385c] bg-[#ff385c] px-5 text-[15px] font-bold text-white shadow-[0_8px_24px_rgba(255,56,92,.25)] transition-transform hover:-translate-y-px active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none disabled:hover:translate-y-0">
+                {loading
+                  ? 'Creating account…'
+                  : step < 3
+                    ? (<>Continue <ArrowRight size={17} /></>)
+                    : (<>Create account <Check size={17} strokeWidth={2.5} /></>)}
               </button>
             </div>
           </form>
 
-          <p style={{ fontSize: '12px', color: '#bbb', textAlign: 'center', marginTop: '28px', lineHeight: 1.6 }}>
+          <p className="mt-7 text-center text-[12px] leading-relaxed text-[#9b9b9b]">
             By signing up you agree to our{' '}
-            <span style={{ color: '#888', textDecoration: 'underline', cursor: 'pointer' }}>Terms</span>
-            {' '}and{' '}
-            <span style={{ color: '#888', textDecoration: 'underline', cursor: 'pointer' }}>Privacy Policy</span>.
+            <span className="cursor-pointer text-[#717171] underline">Terms</span> and{' '}
+            <span className="cursor-pointer text-[#717171] underline">Privacy Policy</span>.
           </p>
         </div>
       </div>

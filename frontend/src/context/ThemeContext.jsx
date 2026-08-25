@@ -28,11 +28,18 @@ const DARK = {
 
 // Brand / status colors — identical in both themes
 const SHARED = {
-  BLUE:   '#FF385C',
-  GREEN:  '#34C759',
-  RED:    '#FF3B30',
-  ORANGE: '#FF9500',
-  INTER:  `'Inter','Plus Jakarta Sans',sans-serif`,
+  // Canonical accent name per design system. `BLUE` kept as legacy alias
+  // (it was always coral) so existing components keep working.
+  ACCENT:      '#FF385C',
+  ACCENT_SOFT: 'rgba(255,56,92,0.08)',
+  ACCENT_GLOW: 'rgba(255,56,92,0.25)',
+  WARM:        '#F2F1EE',
+  BLUE:        '#FF385C',
+  GREEN:       '#34C759',
+  RED:         '#FF3B30',
+  ORANGE:      '#FF9500',
+  INTER:       `'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif`,
+  EASE:        'cubic-bezier(0.22, 1, 0.36, 1)',
 };
 
 export const ThemeProvider = ({ children }) => {

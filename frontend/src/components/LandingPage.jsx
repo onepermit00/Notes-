@@ -1,57 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, ArrowRight, ArrowUpRight, Calendar, Activity, FileCheck, Check, Quote } from 'lucide-react';
+import React from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { ArrowRight, ArrowUpRight, Calendar, Activity, FileCheck, Check } from 'lucide-react';
 import { UserRole } from '../types';
 
-// ── Carousel data ─────────────────────────────────────────────────────────────
-
-const IMAGES = [
-  {
-    src: 'https://static.vecteezy.com/system/resources/thumbnails/055/330/473/large/a-cartoon-female-hotel-worker-stands-confidently-png.png',
-    bg: '#F4845F',
-    centerScale: 1.20,
-  },
-  {
-    src: 'https://static.vecteezy.com/system/resources/thumbnails/060/767/298/large/a-man-in-a-red-uniform-likely-a-concierge-or-attendant-png.png',
-    bg: '#C4822A',
-    centerScale: 1.20,
-  },
-  {
-    // ★ security guard, green bg
-    src: 'https://static.vecteezy.com/system/resources/thumbnails/060/815/482/large/a-friendly-cartoon-depiction-of-a-security-guard-in-uniform-png.png',
-    bg: '#6BBF7A',
-    centerScale: 1.60,
-  },
-  {
-    src: 'https://static.vecteezy.com/system/resources/thumbnails/060/762/064/large/a-female-employee-in-a-navy-blue-professional-uniform-png.png',
-    bg: '#1C2B4A',
-    centerScale: 1.20,
-  },
-];
-
-// ── Below-fold content data ───────────────────────────────────────────────────
-
+// ── Content (preserved from the original product copy) ──────────────────────
 
 const FEATURES = [
   {
     Icon: FileCheck,
+    num: '01',
     title: 'Shift Verification',
     desc: 'Every task completed on shift is timestamped and photo-verified. Know exactly what happened, when, and by whom — before the next person walks in.',
-    accent: '#F4845F',
   },
   {
     Icon: Activity,
+    num: '02',
     title: 'Incident Documentation',
     desc: 'Structured incident reports with photo evidence, severity levels, and automatic escalation. No more verbal reports that disappear after a shift change.',
-    accent: '#6BBF7A',
   },
   {
     Icon: Calendar,
+    num: '03',
     title: 'Handoff Continuity',
     desc: 'Incoming staff read a structured briefing the moment they clock in. Open issues, unresolved incidents, and notes from the previous shift — all in one place.',
-    accent: '#C4822A',
   },
 ];
-
 
 const STEPS = [
   {
@@ -73,24 +46,21 @@ const STEPS = [
 
 const ROLES = [
   {
-    name:     'Concierge',
-    tagline:  'Run your shift with confidence.',
-    desc:     'Shift tasks, incident reports, building status, and handoff notes — everything you need at the front desk, on a shared property tablet.',
-    accent:   '#F4845F',
+    name: 'Concierge',
+    tagline: 'Run your shift with confidence.',
+    desc: 'Shift tasks, incident reports, building status, and handoff notes — everything you need at the front desk, on a shared property tablet.',
     userRole: UserRole.CONCIERGE,
   },
   {
-    name:     'Management',
-    tagline:  'Full visibility. Total control.',
-    desc:     'Live building overview, shift history, incident management, and staff accountability — for property managers and head concierge.',
-    accent:   '#6BBF7A',
+    name: 'Management',
+    tagline: 'Full visibility. Total control.',
+    desc: 'Live building overview, shift history, incident management, and staff accountability — for property managers and head concierge.',
     userRole: UserRole.MANAGER,
   },
   {
-    name:     'Vendor',
-    tagline:  'Your staff. Every property.',
-    desc:     'Cross-property view of your team\'s shifts, task completion, and incidents. Built for concierge, cleaning, and security companies.',
-    accent:   '#C4822A',
+    name: 'Vendor',
+    tagline: 'Your staff. Every property.',
+    desc: "Cross-property view of your team's shifts, task completion, and incidents. Built for concierge, cleaning, and security companies.",
     userRole: UserRole.ENTERPRISE,
   },
 ];
@@ -98,851 +68,420 @@ const ROLES = [
 const BENEFITS = [
   {
     title: 'Built for deskless workers',
-    desc:  'Designed for the front desk tablet. Fast, photo-first, and usable on a first shift with zero training.',
+    desc: 'Designed for the front desk tablet. Fast, photo-first, and usable on a first shift with zero training.',
   },
   {
     title: 'Eliminates verbal handoffs',
-    desc:  'Incoming staff read a structured shift briefing at login. No phone calls, no WhatsApp chains, no memory lapses.',
+    desc: 'Incoming staff read a structured shift briefing at login. No phone calls, no WhatsApp chains, no memory lapses.',
   },
   {
     title: 'Multi-vendor accountability',
-    desc:  'Third-party staff log in with individual credentials on the property device. Every action is attributed, timestamped, and auditable.',
+    desc: 'Third-party staff log in with individual credentials on the property device. Every action is attributed, timestamped, and auditable.',
   },
   {
     title: 'Management visibility everywhere',
-    desc:  'Property managers and vendor supervisors monitor activity from any device, in real time, without being on-site.',
+    desc: 'Property managers and vendor supervisors monitor activity from any device, in real time, without being on-site.',
   },
 ];
 
 const TESTIMONIALS = [
   {
-    quote:  'Before Notes, our night shift team had no idea what happened during the day. Now they read a full briefing the moment they clock in. Incidents that used to escalate quietly are caught before the next shift starts.',
-    name:   'George A.',
-    role:   'Head Concierge · Greystar',
-    accent: '#F4845F',
+    quote: 'Before Notes, our night shift team had no idea what happened during the day. Now they read a full briefing the moment they clock in. Incidents that used to escalate quietly are caught before the next shift starts.',
+    name: 'George A.',
+    role: 'Head Concierge · Greystar',
   },
   {
-    quote:  'As a property manager I was always the last to know. Now I get a real-time feed of every incident and every shift from my phone. I don\'t have to chase anyone for updates anymore.',
-    name:   'Sarah T.',
-    role:   'Property Manager · Bozzuto',
-    accent: '#6BBF7A',
+    quote: "As a property manager I was always the last to know. Now I get a real-time feed of every incident and every shift from my phone. I don't have to chase anyone for updates anymore.",
+    name: 'Sarah T.',
+    role: 'Property Manager · Bozzuto',
   },
   {
-    quote:  'We manage 60 properties worth of concierge coverage. Notes gives us one view of every one of our staff members — who\'s on shift, what they did, and where issues happened. It\'s completely changed how we manage contracts.',
-    name:   'Paul W.',
-    role:   'Operations Manager · Maverick Concierge',
-    accent: '#C4822A',
+    quote: "We manage 60 properties worth of concierge coverage. Notes gives us one view of every one of our staff members — who's on shift, what they did, and where issues happened. It's completely changed how we manage contracts.",
+    name: 'Paul W.',
+    role: 'Operations Manager · Maverick Concierge',
   },
 ];
 
 const PLANS = [
   {
-    name:     'Property',
-    price:    '$99',
-    period:   '/mo',
-    desc:     'One property, unlimited staff logins.',
+    name: 'Property',
+    price: '$99',
+    period: '/mo',
+    desc: 'One property, unlimited staff logins.',
     features: ['1 property / building', 'Unlimited concierge logins', 'Shift tasks & incident reports', 'Shift handoff system', 'Management portal access'],
-    accent:   '#F4845F',
     featured: false,
-    cta:      'Get Started',
+    cta: 'Get Started',
   },
   {
-    name:     'Portfolio',
-    price:    '$249',
-    period:   '/mo',
-    desc:     'For operators managing multiple buildings.',
+    name: 'Portfolio',
+    price: '$249',
+    period: '/mo',
+    desc: 'For operators managing multiple buildings.',
     features: ['Up to 10 properties', 'All Property features', 'Cross-property dashboard', 'Vendor portal access', 'AI shift summaries', 'Priority support'],
-    accent:   '#6BBF7A',
     featured: true,
-    cta:      'Start Free Trial',
+    cta: 'Start Free Trial',
   },
   {
-    name:     'Enterprise',
-    price:    'Custom',
-    period:   '',
-    desc:     'For large operators and vendor companies.',
+    name: 'Enterprise',
+    price: 'Custom',
+    period: '',
+    desc: 'For large operators and vendor companies.',
     features: ['Unlimited properties', 'Vendor company portal', 'Analytics & reporting', 'API access', 'SSO & audit exports', 'Dedicated account manager'],
-    accent:   '#C4822A',
     featured: false,
-    cta:      'Contact Sales',
+    cta: 'Contact Sales',
   },
 ];
 
-// ── Carousel constants ────────────────────────────────────────────────────────
+const NAV_LINKS = [
+  { label: 'Product', href: '#product' },
+  { label: 'Process', href: '#process' },
+  { label: 'Roles', href: '#roles' },
+  { label: 'Pricing', href: '#pricing' },
+];
 
-const EASE       = 'cubic-bezier(0.4,0,0.2,1)';
-const DUR        = '650ms';
-const TRANSITION = `transform ${DUR} ${EASE}, filter ${DUR} ${EASE}, opacity ${DUR} ${EASE}, left ${DUR} ${EASE}`;
+// ── Shared building blocks ───────────────────────────────────────────────────
 
-// ── Component ─────────────────────────────────────────────────────────────────
+const Eyebrow = ({ children, tone = 'light' }) => (
+  <div className="flex items-center gap-3">
+    <span className="h-0.5 w-9 bg-[#ff385c]" aria-hidden="true" />
+    <p className={`text-[10px] font-extrabold uppercase tracking-[0.24em] ${tone === 'dark' ? 'text-white/55' : 'text-black/55'}`}>
+      {children}
+    </p>
+  </div>
+);
+
+const useReveal = () => {
+  const reduceMotion = useReducedMotion();
+  return reduceMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 24 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, margin: '-10%' },
+        transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] },
+      };
+};
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [isMobile,    setIsMobile]    = useState(window.innerWidth < 640);
-
-  /* Preload carousel images */
-  useEffect(() => {
-    IMAGES.forEach(({ src }) => { const img = new Image(); img.src = src; });
-  }, []);
-
-  /* Responsive */
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener('resize', fn, { passive: true });
-    return () => window.removeEventListener('resize', fn);
-  }, []);
-
-  /* Navigate */
-  const navigate = useCallback((dir) => {
-    if (isAnimating) return;
-    setIsAnimating(true);
-    setActiveIndex(prev => dir === 'next' ? (prev + 1) % 4 : (prev + 3) % 4);
-    setTimeout(() => setIsAnimating(false), 650);
-  }, [isAnimating]);
-
-  /* Keyboard nav */
-  useEffect(() => {
-    const fn = (e) => {
-      if (e.key === 'ArrowLeft')  navigate('prev');
-      if (e.key === 'ArrowRight') navigate('next');
-    };
-    window.addEventListener('keydown', fn);
-    return () => window.removeEventListener('keydown', fn);
-  }, [navigate]);
-
-  const center = activeIndex;
-  const left   = (activeIndex + 3) % 4;
-  const right  = (activeIndex + 1) % 4;
-
-  const getRoleStyle = (index) => {
-    const H = isMobile ? '58%' : '46%';
-    if (index === center) {
-      const sc = IMAGES[index].centerScale ?? 1;
-      return {
-        left: '50%', height: H, bottom: 0,
-        transform: `translateX(-50%) scale(${sc})`,
-        transformOrigin: 'bottom center',
-        filter: 'none', opacity: 1, zIndex: 20,
-      };
-    }
-    if (index === left) return {
-      left: isMobile ? '18%' : '28%', height: H, bottom: 0,
-      transform: 'translateX(-50%) scale(1)',
-      transformOrigin: 'bottom center',
-      filter: 'none', opacity: 1, zIndex: 10,
-    };
-    if (index === right) return {
-      left: isMobile ? '82%' : '72%', height: H, bottom: 0,
-      transform: 'translateX(-50%) scale(1)',
-      transformOrigin: 'bottom center',
-      filter: 'none', opacity: 1, zIndex: 10,
-    };
-    return {
-      left: '50%', height: isMobile ? '18%' : '14%', bottom: 0,
-      transform: 'translateX(-50%) scale(1)',
-      transformOrigin: 'bottom center',
-      filter: 'none', opacity: 0.4, zIndex: 5,
-    };
-  };
-
-  // ── Shared style helpers ──────────────────────────────────────────────────
-  const sectionPad = isMobile ? '80px 24px 96px' : '120px 80px 140px';
-  const overline   = (color = '#F4845F') => ({
-    fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 600,
-    textTransform: 'uppercase', letterSpacing: '0.18em',
-    color, margin: '0 0 20px',
-  });
-  const bigHead = (color = '#0F0F0F') => ({
-    fontFamily: 'Anton, sans-serif',
-    fontSize: 'clamp(40px, 6vw, 88px)',
-    lineHeight: 0.95, textTransform: 'uppercase',
-    letterSpacing: '-0.02em', color, margin: 0,
-  });
+  const reveal = useReveal();
 
   return (
-    <div style={{ fontFamily: 'Inter, sans-serif' }}>
+    <div className="bg-white font-sans text-[#222222]" style={{ fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
 
-      {/* ── Global keyframes + utility classes ────────────────────────────── */}
-      <style>{`
-        .feat-card  { transition: transform 300ms ease, box-shadow 300ms ease; }
-        .feat-card:hover { transform: translateY(-8px); box-shadow: 0 28px 56px rgba(0,0,0,0.09); }
-        .role-card  { transition: transform 260ms ease, border-color 260ms ease; cursor: pointer; }
-        .role-card:hover { transform: translateY(-6px); }
-        .nav-btn    { transition: transform 150ms ease, background-color 150ms ease; }
-        .nav-btn:hover { transform: scale(1.08); background-color: rgba(255,255,255,0.12) !important; }
-      `}</style>
-
-      {/* ════════════════════════════ HERO ════════════════════════════════ */}
-      <div
-        style={{
-          backgroundColor: '#ffffff',
-          position:        'relative',
-          height:          '100vh',
-          overflow:        'hidden',
-          width:           '100%',
-        }}>
-
-        {/* Coloured background — only the top portion, bottom stays white */}
-        <div style={{
-          position:        'absolute',
-          top:             0, left: 0, right: 0,
-          height:          '92%',
-          backgroundColor: IMAGES[activeIndex].bg,
-          transition:      `background-color ${DUR} ${EASE}`,
-          zIndex:          0,
-        }} />
-
-        {/* Giant ghost text */}
-        <div
-          className="absolute inset-x-0 flex items-center justify-center pointer-events-none select-none"
-          style={{ zIndex: 2, top: '18%' }}>
-          <span style={{
-            fontFamily: 'Anton, sans-serif',
-            fontSize: 'clamp(90px, 28vw, 380px)',
-            fontWeight: 900, color: 'white', opacity: 1,
-            lineHeight: 1, textTransform: 'uppercase',
-            letterSpacing: '-0.02em', whiteSpace: 'nowrap',
-          }}>
-            CLOCKIT
-          </span>
-        </div>
-
-        {/* Top-left brand */}
-        <div className="absolute top-6 left-4 sm:left-8" style={{ zIndex: 60 }}>
-          <span style={{
-            fontSize: '11px', fontWeight: 600, textTransform: 'uppercase',
-            color: 'white', opacity: 0.9, letterSpacing: '0.18em',
-          }}>
+      {/* ══ Header ══════════════════════════════════════════════════════════ */}
+      <header className="sticky top-0 z-50 border-b border-[#ebebeb] bg-white/90 backdrop-blur-md">
+        <div className="mx-auto flex h-20 w-full max-w-[1280px] items-center justify-between px-4 md:px-6">
+          <a href="#top" className="flex min-h-11 items-center text-[12px] font-extrabold uppercase tracking-[0.24em] text-[#222]" data-testid="brand-link">
             ✦ Notes
-          </span>
-        </div>
-
-        {/* ── Top-right auth buttons ──────────────────────────────── */}
-        <div className="absolute top-5 right-4 sm:right-8" style={{ zIndex: 60, display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button
-            onClick={onSignIn}
-            style={{
-              background: 'transparent', border: '1.5px solid rgba(255,255,255,0.6)',
-              color: 'white', borderRadius: '100px',
-              padding: isMobile ? '7px 16px' : '9px 22px',
-              fontFamily: 'Inter, sans-serif', fontSize: isMobile ? '12px' : '13px',
-              fontWeight: 600, letterSpacing: '0.04em', cursor: 'pointer',
-              transition: 'background-color 150ms, border-color 150ms',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = 'white'; }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.6)'; }}>
-            Sign In
-          </button>
-          <button
-            onClick={onSignUp}
-            style={{
-              background: 'white', border: '1.5px solid white',
-              color: '#0F0F0F', borderRadius: '100px',
-              padding: isMobile ? '7px 16px' : '9px 22px',
-              fontFamily: 'Inter, sans-serif', fontSize: isMobile ? '12px' : '13px',
-              fontWeight: 600, letterSpacing: '0.04em', cursor: 'pointer',
-              transition: 'opacity 150ms',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
-            onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}>
-            Sign Up
-          </button>
-        </div>
-
-        {/* Dot indicators */}
-        <div className="absolute top-6 left-1/2"
-          style={{ zIndex: 60, transform: 'translateX(-50%)', display: 'flex', gap: 6 }}>
-          {IMAGES.map((_, i) => (
-            <div key={i} style={{
-              width: i === activeIndex ? 20 : 6, height: 6, borderRadius: 3,
-              backgroundColor: 'white',
-              opacity: i === activeIndex ? 0.95 : 0.35,
-              transition: `width ${DUR} ${EASE}, opacity ${DUR} ${EASE}`,
-            }} />
-          ))}
-        </div>
-
-        {/* Carousel */}
-        <div className="absolute inset-0" style={{ zIndex: 3 }}>
-          {IMAGES.map(({ src }, index) => (
-            <div key={index} style={{
-              position: 'absolute', aspectRatio: '0.6 / 1',
-              transition: TRANSITION, willChange: 'transform, opacity',
-              background: 'transparent', ...getRoleStyle(index),
-            }}>
-              <img src={src} alt="" draggable={false} style={{
-                width: '100%', height: '100%',
-                objectFit: 'contain', objectPosition: 'bottom center',
-                userSelect: 'none', background: 'transparent', display: 'block',
-              }} />
-            </div>
-          ))}
-        </div>
-
-        {/* Bottom-left copy + nav */}
-        <div className="absolute bottom-6 left-4 sm:bottom-20 sm:left-24"
-          style={{ zIndex: 60, maxWidth: 320 }}>
-          <p style={{
-            fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em',
-            marginBottom: isMobile ? 8 : 12,
-            fontSize: isMobile ? '16px' : '22px', color: 'white', opacity: 0.95,
-          }}>
-            Notes
-          </p>
-          {!isMobile && (
-            <p style={{
-              fontSize: '14px', color: 'white', opacity: 0.85,
-              lineHeight: 1.6, marginBottom: 20,
-            }}>
-              Real-time workforce operations and accountability for property management, concierge services, cleaning, security, and hospitality teams.
-            </p>
-          )}
-          <div style={{ display: 'flex', gap: 12 }}>
-            {[{ dir: 'prev', Icon: ArrowLeft }, { dir: 'next', Icon: ArrowRight }].map(({ dir, Icon }) => (
-              <button key={dir} className="nav-btn" onClick={() => navigate(dir)}
-                style={{
-                  width: isMobile ? 48 : 64, height: isMobile ? 48 : 64,
-                  borderRadius: '50%', background: 'transparent',
-                  border: '2px solid white', color: 'white', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                <Icon size={26} strokeWidth={2.25} />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Bottom-right EXPLORE NOW */}
-        <div className="absolute bottom-6 right-4 sm:bottom-20 sm:right-10" style={{ zIndex: 60 }}>
-          <a href="#" onClick={(e) => { e.preventDefault(); onGetStarted(UserRole.CAREGIVER); }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10,
-              fontFamily: 'Anton, sans-serif', fontSize: 'clamp(20px, 4vw, 56px)',
-              fontWeight: 400, color: 'white', opacity: 0.95,
-              letterSpacing: '-0.02em', lineHeight: 1,
-              textTransform: 'uppercase', textDecoration: 'none',
-              transition: 'opacity 200ms', cursor: 'pointer',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
-            onMouseLeave={e => { e.currentTarget.style.opacity = '0.95'; }}>
-            EXPLORE NOW
-            <ArrowRight style={{ width: isMobile ? 20 : 32, height: isMobile ? 20 : 32 }} strokeWidth={2.25} />
           </a>
-        </div>
-      </div>
-
-      {/* ════════════════════════ FEATURES ════════════════════════════════ */}
-      <section style={{ backgroundColor: '#ffffff', padding: sectionPad }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <p style={overline('#F4845F')}>✦ Platform Features</p>
-
-          <div style={{
-            display: 'flex', justifyContent: 'space-between',
-            alignItems: 'flex-end', marginBottom: '64px',
-            flexWrap: 'wrap', gap: 24,
-          }}>
-            <h2 style={{ ...bigHead('#0F0F0F'), maxWidth: 600 }}>
-              Everything your<br />team needs.
-            </h2>
-            {!isMobile && (
-              <p style={{
-                fontSize: '15px', color: '#666', lineHeight: 1.75,
-                maxWidth: 340, margin: 0,
-              }}>
-                One platform connecting caregivers, families, and administrators
-                with exactly the tools each role needs to do their best work.
-              </p>
-            )}
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
-            gap: '20px',
-          }}>
-            {FEATURES.map(({ Icon, title, desc, accent }) => (
-              <div key={title} className="feat-card" style={{
-                backgroundColor: '#F8F7F4', borderRadius: '20px',
-                padding: isMobile ? '32px 28px' : '44px 40px',
-                position: 'relative', overflow: 'hidden',
-              }}>
-                <div style={{
-                  width: '52px', height: '52px', borderRadius: '14px',
-                  backgroundColor: accent, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', marginBottom: '28px',
-                }}>
-                  <Icon size={24} color="white" strokeWidth={2} />
-                </div>
-                <h3 style={{
-                  fontFamily: 'Anton, sans-serif', fontSize: '26px',
-                  textTransform: 'uppercase', letterSpacing: '-0.01em',
-                  color: '#0F0F0F', margin: '0 0 14px',
-                }}>
-                  {title}
-                </h3>
-                <p style={{ fontSize: '15px', lineHeight: 1.75, color: '#666', margin: 0 }}>
-                  {desc}
-                </p>
-                {/* decorative blob */}
-                <div style={{
-                  position: 'absolute', bottom: '-36px', right: '-36px',
-                  width: '130px', height: '130px', borderRadius: '50%',
-                  backgroundColor: accent, opacity: 0.07,
-                }} />
-              </div>
+          <nav className="hidden items-center gap-8 lg:flex" aria-label="Primary">
+            {NAV_LINKS.map(({ label, href }) => (
+              <a key={href} href={href} className="flex min-h-11 items-center text-[13px] font-semibold text-[#717171] transition-colors hover:text-[#222]">
+                {label}
+              </a>
             ))}
+          </nav>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={onSignIn}
+              data-testid="header-signin-btn"
+              className="flex min-h-11 items-center rounded-full border border-[#ebebeb] bg-white px-5 text-[13px] font-bold text-[#222] transition-colors hover:border-[#222]">
+              Sign in
+            </button>
+            <button
+              onClick={onSignUp}
+              data-testid="header-signup-btn"
+              className="flex min-h-11 items-center rounded-full bg-[#222] px-5 text-[13px] font-bold text-white transition-opacity hover:opacity-85">
+              Sign up
+            </button>
           </div>
         </div>
-      </section>
+      </header>
 
-      {/* ════════════════════════ WHY CLOCKIT ══════════════════════════════ */}
-      <section style={{ backgroundColor: '#1C2B4A', padding: sectionPad }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <p style={overline('rgba(255,255,255,0.45)')}>✦ Why Notes</p>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-            gap: isMobile ? '48px' : '80px',
-            alignItems: 'center',
-          }}>
-            {/* Left — headline */}
-            <div>
-              <h2 style={{
-                fontFamily: 'Anton, sans-serif',
-                fontSize: 'clamp(40px, 5.5vw, 80px)',
-                lineHeight: 0.95, textTransform: 'uppercase',
-                letterSpacing: '-0.02em', color: 'white', margin: '0 0 24px',
-              }}>
-                Frontline operations,<br />reimagined.
-              </h2>
-              <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.75, margin: 0, maxWidth: 380 }}>
-                Notes replaces paper logs, group texts, and verbal handoffs with one intelligent platform — built for the front desk, accessible from everywhere.
-              </p>
-            </div>
-            {/* Right — benefit list */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-              {BENEFITS.map(({ title, desc }) => (
-                <div key={title} style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-                  <div style={{
-                    width: '28px', height: '28px', borderRadius: '50%',
-                    backgroundColor: '#F4845F', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px',
-                  }}>
-                    <Check size={14} color="white" strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <p style={{ fontFamily: 'Anton, sans-serif', fontSize: '18px', textTransform: 'uppercase', letterSpacing: '-0.01em', color: 'white', margin: '0 0 6px' }}>
-                      {title}
-                    </p>
-                    <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, margin: 0 }}>
-                      {desc}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      <main id="top">
 
-      {/* ════════════════════════ HOW IT WORKS ═════════════════════════════ */}
-      <section style={{ backgroundColor: '#F8F7F4', padding: sectionPad }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <p style={overline('#6BBF7A')}>✦ How It Works</p>
-          <h2 style={{ ...bigHead(), marginBottom: '72px' }}>
-            Simple to start.<br />Built to scale.
-          </h2>
+        {/* ══ Hero — text-led editorial opening ══════════════════════════════ */}
+        <section className="pt-16 pb-20 md:pt-24 md:pb-28" aria-labelledby="hero-heading">
+          <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6">
+            <motion.div {...reveal}>
+              <Eyebrow>Workforce operations</Eyebrow>
+              <h1
+                id="hero-heading"
+                data-testid="hero-heading"
+                className="mt-7 max-w-[1120px] text-[52px] font-extrabold leading-[0.9] tracking-[-0.055em] sm:text-[76px] md:text-[96px] lg:text-[112px]">
+                Every shift.<br />On the record.
+              </h1>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
-            gap: isMobile ? '52px' : 0,
-          }}>
-            {STEPS.map(({ num, title, desc }, i) => (
-              <div key={num} style={{
-                paddingRight: i < 2 && !isMobile ? '60px' : 0,
-                paddingLeft:  i > 0 && !isMobile ? '60px' : 0,
-                borderRight:  i < 2 && !isMobile ? '1px solid #E2E0D8' : 'none',
-              }}>
-                <p style={{
-                  fontFamily: 'Anton, sans-serif', fontSize: '80px',
-                  color: '#E4E1D8', lineHeight: 1, margin: '0 0 20px',
-                }}>
-                  {num}
+              <div className="mt-12 grid gap-10 border-t border-[#ebebeb] pt-10 md:mt-16 md:grid-cols-[1.25fr_0.75fr] md:gap-20 md:pt-12">
+                <p className="max-w-[720px] text-[20px] font-bold leading-[1.25] tracking-[-0.02em] text-[#222] sm:text-[24px] md:text-[28px]">
+                  Real-time workforce operations and accountability for property management, concierge services, cleaning, security, and hospitality teams.
                 </p>
-                <h3 style={{
-                  fontFamily: 'Anton, sans-serif', fontSize: '26px',
-                  textTransform: 'uppercase', letterSpacing: '-0.01em',
-                  color: '#0F0F0F', margin: '0 0 14px',
-                }}>
-                  {title}
-                </h3>
-                <p style={{ fontSize: '15px', lineHeight: 1.75, color: '#666', margin: 0 }}>
-                  {desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ════════════════════════ TESTIMONIALS ═════════════════════════════ */}
-      <section style={{ backgroundColor: '#6BBF7A', padding: sectionPad }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <p style={overline('rgba(255,255,255,0.75)')}>✦ What Teams Say</p>
-          <h2 style={{ ...bigHead('white'), marginBottom: '60px' }}>
-            Trusted by teams<br />who run the building.
-          </h2>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
-            gap: '20px',
-          }}>
-            {TESTIMONIALS.map(({ quote, name, role }) => (
-              <div key={name} style={{
-                backgroundColor: 'rgba(255,255,255,0.18)',
-                borderRadius: '20px',
-                padding: isMobile ? '32px 28px' : '40px 36px',
-                border: '1px solid rgba(255,255,255,0.25)',
-                borderTop: `3px solid white`,
-                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-              }}>
                 <div>
-                  <Quote size={28} color="white" strokeWidth={1.5} style={{ marginBottom: '20px', opacity: 0.7 }} />
-                  <p style={{
-                    fontSize: '15px', lineHeight: 1.8,
-                    color: 'rgba(255,255,255,0.92)', margin: '0 0 32px',
-                    fontStyle: 'italic',
-                  }}>
-                    "{quote}"
+                  <p className="max-w-[420px] text-[14px] leading-[1.7] text-[#717171]">
+                    Verbal handoffs disappear. Notes replaces them with verified tasks, structured incidents, and briefings your next shift actually reads.
                   </p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{
-                    width: '42px', height: '42px', borderRadius: '50%',
-                    backgroundColor: 'rgba(255,255,255,0.3)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <span style={{ fontFamily: 'Anton, sans-serif', fontSize: '16px', color: 'white' }}>
-                      {name.charAt(0)}
-                    </span>
-                  </div>
-                  <div>
-                    <p style={{ fontFamily: 'Anton, sans-serif', fontSize: '15px', textTransform: 'uppercase', letterSpacing: '-0.01em', color: 'white', margin: '0 0 2px' }}>
-                      {name}
-                    </p>
-                    <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', margin: 0, fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                      {role}
-                    </p>
+                  <div className="mt-7 flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => onGetStarted(UserRole.CAREGIVER)}
+                      data-testid="hero-get-started-btn"
+                      className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[#ff385c] px-6 text-[14px] font-bold text-white shadow-[0_8px_24px_rgba(255,56,92,.25)] transition-transform hover:-translate-y-px active:scale-[.97]">
+                      Get started <ArrowRight size={16} />
+                    </button>
+                    <a
+                      href="#process"
+                      className="inline-flex min-h-12 items-center gap-2 rounded-full border border-[#ebebeb] bg-[#f7f7f7] px-6 text-[14px] font-bold text-[#222] transition-colors hover:border-[#222]">
+                      See how it works
+                    </a>
                   </div>
                 </div>
               </div>
-            ))}
+            </motion.div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ════════════════════════ ROLES ════════════════════════════════════ */}
-      <section style={{ backgroundColor: '#6BBF7A', padding: sectionPad }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <p style={overline('rgba(255,255,255,0.75)')}>✦ Built For Everyone</p>
-          <h2 style={{ ...bigHead('white'), marginBottom: '60px' }}>
-              One platform.<br />Every role.
-          </h2>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
-            gap: '20px',
-          }}>
-            {ROLES.map(({ name, tagline, desc, accent, userRole }) => (
-              <div key={name} className="role-card"
-                onClick={() => onGetStarted(userRole)}
-                style={{
-                  backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: '20px',
-                  overflow: 'hidden', border: '1px solid rgba(255,255,255,0.25)',
-                }}>
-                <div style={{ height: '5px', backgroundColor: accent }} />
-                <div style={{ padding: isMobile ? '32px 28px' : '40px 36px' }}>
-                  <p style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: '11px',
-                    fontWeight: 600, textTransform: 'uppercase',
-                    letterSpacing: '0.18em', color: accent, margin: '0 0 16px',
-                  }}>
-                    {name}
-                  </p>
-                  <h3 style={{
-                    fontFamily: 'Anton, sans-serif', fontSize: '28px',
-                    textTransform: 'uppercase', letterSpacing: '-0.01em',
-                    color: 'white', lineHeight: 1.1, margin: '0 0 16px',
-                  }}>
-                    {tagline}
-                  </h3>
-                  <p style={{
-                    fontSize: '14px', lineHeight: 1.75,
-                    color: 'rgba(255,255,255,0.78)', margin: '0 0 28px',
-                  }}>
-                    {desc}
-                  </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'white' }}>
-                    <span style={{
-                      fontFamily: 'Inter', fontSize: '12px', fontWeight: 600,
-                      letterSpacing: '0.08em', textTransform: 'uppercase',
-                    }}>
-                      Enter Dashboard
-                    </span>
-                    <ArrowUpRight size={13} strokeWidth={2.5} />
-                  </div>
-                </div>
+        {/* ══ Product — numbered editorial rows ══════════════════════════════ */}
+        <section id="product" className="pb-20 md:pb-28" aria-labelledby="product-heading">
+          <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6">
+            <motion.div {...reveal}>
+              <div className="flex items-center justify-between gap-6 border-b border-[#ebebeb] pb-5">
+                <Eyebrow>What it does</Eyebrow>
+                <p className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 sm:block">Three systems, one desk</p>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ════════════════════════ PRICING ══════════════════════════════════ */}
-      <section style={{ backgroundColor: '#ffffff', padding: sectionPad }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <p style={overline('#6BBF7A')}>✦ Simple Pricing</p>
-          <div style={{
-            display: 'flex', justifyContent: 'space-between',
-            alignItems: 'flex-end', marginBottom: '60px', flexWrap: 'wrap', gap: 24,
-          }}>
-            <h2 style={{ ...bigHead(), margin: 0 }}>
-              One plan for<br />every role.
-            </h2>
-            {!isMobile && (
-              <p style={{ fontSize: '15px', color: '#666', lineHeight: 1.75, maxWidth: 320, margin: 0 }}>
-                Transparent pricing that scales with your team. No hidden fees, no long-term contracts.
-              </p>
-            )}
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
-            gap: '20px', alignItems: 'stretch',
-          }}>
-            {PLANS.map(({ name, price, period, desc, features, accent, featured, cta }) => (
-              <div key={name} style={{
-                backgroundColor: featured ? '#0F0F0F' : '#F8F7F4',
-                borderRadius: '20px',
-                padding: isMobile ? '36px 28px' : '44px 40px',
-                border: featured ? `2px solid ${accent}` : '2px solid transparent',
-                position: 'relative', overflow: 'hidden',
-                display: 'flex', flexDirection: 'column',
-              }}>
-                {featured && (
-                  <div style={{
-                    position: 'absolute', top: '20px', right: '20px',
-                    backgroundColor: accent, borderRadius: '100px',
-                    padding: '4px 12px',
-                    fontFamily: 'Inter', fontSize: '10px', fontWeight: 700,
-                    textTransform: 'uppercase', letterSpacing: '0.1em', color: 'white',
-                  }}>
-                    Most Popular
-                  </div>
-                )}
-                <p style={{
-                  fontFamily: 'Inter', fontSize: '11px', fontWeight: 600,
-                  textTransform: 'uppercase', letterSpacing: '0.18em',
-                  color: accent, margin: '0 0 20px',
-                }}>
-                  {name}
-                </p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '12px' }}>
-                  <span style={{
-                    fontFamily: 'Anton, sans-serif',
-                    fontSize: 'clamp(40px, 5vw, 60px)',
-                    color: featured ? 'white' : '#0F0F0F',
-                    lineHeight: 1,
-                  }}>
-                    {price}
-                  </span>
-                  {period && (
-                    <span style={{ fontSize: '14px', color: featured ? 'rgba(255,255,255,0.5)' : '#999' }}>
-                      {period}
-                    </span>
-                  )}
-                </div>
-                <p style={{ fontSize: '14px', color: featured ? 'rgba(255,255,255,0.55)' : '#777', lineHeight: 1.6, margin: '0 0 28px' }}>
-                  {desc}
-                </p>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '36px' }}>
-                  {features.map(f => (
-                    <div key={f} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Check size={14} color={accent} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-                      <span style={{ fontSize: '14px', color: featured ? 'rgba(255,255,255,0.75)' : '#555' }}>
-                        {f}
+              <div className="grid gap-12 pt-10 md:grid-cols-[0.9fr_1.1fr] md:gap-20 md:pt-14">
+                <h2 id="product-heading" className="max-w-[560px] text-[38px] font-extrabold leading-[0.97] tracking-[-0.04em] sm:text-[48px] md:text-[56px]">
+                  Proof, not promises.
+                </h2>
+                <ol className="border-t border-[#ebebeb]">
+                  {FEATURES.map(({ Icon, num, title, desc }) => (
+                    <li key={num} className="grid gap-4 border-b border-[#ebebeb] py-7 sm:grid-cols-[44px_0.7fr_1.3fr] sm:gap-6">
+                      <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[rgba(255,56,92,0.08)] text-[#ff385c]" aria-hidden="true">
+                        <Icon size={18} />
                       </span>
-                    </div>
+                      <div>
+                        <span className="text-[11px] font-extrabold text-[#ff385c]">{num}</span>
+                        <h3 className="mt-1 text-[18px] font-extrabold leading-tight tracking-[-0.02em]">{title}</h3>
+                      </div>
+                      <p className="text-[13px] leading-relaxed text-[#717171] md:text-[14px]">{desc}</p>
+                    </li>
                   ))}
-                </div>
-                <button
-                  onClick={() => onGetStarted(UserRole.CAREGIVER)}
-                  style={{
-                    width: '100%', padding: '16px',
-                    backgroundColor: featured ? accent : 'transparent',
-                    color: featured ? 'white' : accent,
-                    border: `2px solid ${accent}`,
-                    borderRadius: '100px',
-                    fontFamily: 'Anton, sans-serif', fontSize: '16px',
-                    textTransform: 'uppercase', letterSpacing: '-0.01em',
-                    cursor: 'pointer', transition: 'transform 150ms, opacity 150ms',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
-                  onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}>
-                  {cta}
-                </button>
+                </ol>
               </div>
-            ))}
+            </motion.div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ════════════════════════ CTA ══════════════════════════════════════ */}
-      <section style={{
-        backgroundColor: '#F4845F', padding: isMobile ? '100px 24px' : '140px 80px',
-        position: 'relative', overflow: 'hidden',
-      }}>
-        {/* Ghost text behind CTA */}
-        <div className="absolute inset-x-0 pointer-events-none select-none"
-          style={{ top: '50%', transform: 'translateY(-50%)', zIndex: 0, textAlign: 'center' }}>
-          <span style={{
-            fontFamily: 'Anton, sans-serif',
-            fontSize: 'clamp(80px, 18vw, 260px)',
-            color: 'white', opacity: 0.07, lineHeight: 1,
-            textTransform: 'uppercase', letterSpacing: '-0.02em', whiteSpace: 'nowrap',
-          }}>
-            START NOW
-          </span>
-        </div>
-
-        <div style={{ maxWidth: 1200, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          <p style={overline('rgba(255,255,255,0.7)')}>✦ Get Started Today</p>
-          <h2 style={{
-            fontFamily: 'Anton, sans-serif',
-            fontSize: 'clamp(44px, 7vw, 104px)',
-            lineHeight: 0.95, textTransform: 'uppercase',
-            letterSpacing: '-0.02em', color: 'white',
-            margin: '0 0 32px',
-          }}>
-            Ready to transform<br />care delivery?
-          </h2>
-          <p style={{
-            fontSize: '16px', color: 'rgba(255,255,255,0.8)',
-            lineHeight: 1.75, margin: '0 0 52px', maxWidth: 480,
-          }}>
-            Join hundreds of care teams already using Notes to deliver
-            better outcomes, faster — for caregivers, families, and enterprise alike.
-          </p>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <button
-              onClick={() => onGetStarted(UserRole.CAREGIVER)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                backgroundColor: 'white', color: '#F4845F',
-                border: 'none', borderRadius: '100px',
-                padding: isMobile ? '16px 28px' : '18px 36px',
-                fontFamily: 'Anton, sans-serif',
-                fontSize: isMobile ? '16px' : '19px',
-                textTransform: 'uppercase', letterSpacing: '-0.01em',
-                cursor: 'pointer', transition: 'transform 150ms, box-shadow 150ms',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.transform = 'scale(1.04)';
-                e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,0,0,0.18)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = 'none';
-              }}>
-              EXPLORE NOW <ArrowRight size={20} strokeWidth={2.5} />
-            </button>
-            <button
-              onClick={() => onGetStarted(UserRole.ENTERPRISE)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                backgroundColor: 'transparent', color: 'white',
-                border: '2px solid rgba(255,255,255,0.55)', borderRadius: '100px',
-                padding: isMobile ? '16px 28px' : '18px 36px',
-                fontFamily: 'Anton, sans-serif',
-                fontSize: isMobile ? '16px' : '19px',
-                textTransform: 'uppercase', letterSpacing: '-0.01em',
-                cursor: 'pointer', transition: 'border-color 150ms, background-color 150ms',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor     = 'white';
-                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.12)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor     = 'rgba(255,255,255,0.55)';
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}>
-              FOR ENTERPRISE <ArrowUpRight size={20} strokeWidth={2.5} />
-            </button>
+        {/* ══ Process — warm chapter ═════════════════════════════════════════ */}
+        <section id="process" className="bg-[#f2f1ee] py-20 text-[#171717] md:py-28" aria-labelledby="process-heading">
+          <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6">
+            <motion.div {...reveal}>
+              <div className="flex items-center justify-between gap-6 border-b border-black/20 pb-5">
+                <Eyebrow>The process</Eyebrow>
+                <p className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 sm:block">Set up once, run every day</p>
+              </div>
+              <div className="grid gap-12 pt-10 md:grid-cols-[0.9fr_1.1fr] md:gap-20 md:pt-14">
+                <div>
+                  <h2 id="process-heading" className="max-w-[720px] text-[42px] font-extrabold leading-[0.92] tracking-[-0.05em] sm:text-[58px] md:text-[68px]">
+                    Complex buildings.<br />A calm routine.
+                  </h2>
+                  <p className="mt-7 max-w-lg text-[15px] leading-relaxed text-black/60 md:text-[17px]">
+                    From first login to management review, one guided flow carries every task, incident, and handoff through the day.
+                  </p>
+                  <button
+                    onClick={() => onGetStarted(UserRole.CAREGIVER)}
+                    data-testid="process-cta-btn"
+                    className="mt-8 inline-flex min-h-12 items-center gap-2 rounded-full bg-black px-6 text-[13px] font-bold text-white transition-transform hover:-translate-y-px active:scale-[.97]">
+                    Start your setup <ArrowRight size={16} />
+                  </button>
+                </div>
+                <ol className="border-t border-black/20">
+                  {STEPS.map(({ num, title, desc }) => (
+                    <li key={num} className="grid gap-4 border-b border-black/20 py-7 sm:grid-cols-[48px_0.7fr_1.3fr] sm:gap-6">
+                      <span className="text-[11px] font-extrabold text-[#ff385c]">{num}</span>
+                      <h3 className="text-[18px] font-extrabold leading-tight tracking-[-0.02em]">{title}</h3>
+                      <p className="text-[13px] leading-relaxed text-black/55 md:text-[14px]">{desc}</p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ════════════════════════ FOOTER ═══════════════════════════════════ */}
-      <footer style={{
-        backgroundColor: '#0F0F0F',
-        padding: isMobile ? '48px 24px' : '56px 80px',
-        borderTop: '1px solid #1c1c1c',
-      }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div style={{
-            display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center', flexWrap: 'wrap', gap: 28,
-          }}>
-            {/* Brand */}
-            <div>
-              <p style={{
-                fontFamily: 'Anton, sans-serif', fontSize: '18px',
-                textTransform: 'uppercase', letterSpacing: '0.06em',
-                color: 'white', margin: '0 0 4px',
-              }}>
-                ✦ Notes
-              </p>
-              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', margin: 0 }}>
-                Notes — Intelligent care management
-              </p>
-            </div>
+        {/* ══ Roles — near-black chapter ═════════════════════════════════════ */}
+        <section id="roles" className="bg-[#0b0b0b] py-20 text-white md:py-28" aria-labelledby="roles-heading">
+          <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6">
+            <motion.div {...reveal}>
+              <div className="flex items-center justify-between gap-6 border-b border-white/15 pb-5">
+                <Eyebrow tone="dark">Built for every role</Eyebrow>
+                <p className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-white/35 sm:block">One record, three views</p>
+              </div>
 
-            {/* Nav links */}
-            {!isMobile && (
-              <div style={{ display: 'flex', gap: 36 }}>
-                {[
-                  { label: 'Caregiver',  role: UserRole.CAREGIVER },
-                  { label: 'Family',     role: UserRole.FAMILY },
-                  { label: 'Enterprise', role: UserRole.ENTERPRISE },
-                ].map(({ label, role }) => (
-                  <a key={label} href="#"
-                    onClick={e => { e.preventDefault(); onGetStarted(role); }}
-                    style={{
-                      fontSize: '12px', fontWeight: 500,
-                      textTransform: 'uppercase', letterSpacing: '0.1em',
-                      color: 'rgba(255,255,255,0.38)', textDecoration: 'none',
-                      transition: 'color 150ms',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'white'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.38)'; }}>
-                    {label}
-                  </a>
+              <h2 id="roles-heading" className="mt-10 max-w-[900px] text-[38px] font-extrabold leading-[0.94] tracking-[-0.04em] sm:text-[52px] md:mt-14 md:text-[64px]">
+                The same shift, seen from every side.
+              </h2>
+
+              <div className="mt-12 grid gap-5 md:mt-16 md:grid-cols-3">
+                {ROLES.map(({ name, tagline, desc, userRole }) => (
+                  <article key={name} className="flex flex-col rounded-[20px] border border-white/12 bg-[#171717] p-6 md:p-7" data-testid={`role-card-${name.toLowerCase()}`}>
+                    <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#ff385c]">{name}</p>
+                    <h3 className="mt-4 text-[24px] font-extrabold leading-[1.05] tracking-[-0.03em]">{tagline}</h3>
+                    <p className="mt-4 flex-1 text-[13px] leading-relaxed text-white/55">{desc}</p>
+                    <button
+                      onClick={() => onGetStarted(userRole)}
+                      className="mt-7 inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-full bg-white px-5 text-[13px] font-bold text-[#111] transition-transform hover:-translate-y-px active:scale-[.97]">
+                      Enter as {name} <ArrowUpRight size={15} />
+                    </button>
+                  </article>
                 ))}
               </div>
-            )}
 
-            {/* Copyright */}
-            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.22)', margin: 0 }}>
-              © 2025 Notes. All rights reserved.
-            </p>
+              {/* Benefits — numbered rows on dark */}
+              <ol className="mt-16 border-t border-white/15 md:mt-20">
+                {BENEFITS.map(({ title, desc }, index) => (
+                  <li key={title} className="grid gap-3 border-b border-white/15 py-6 sm:grid-cols-[48px_0.8fr_1.2fr] sm:gap-6">
+                    <span className="text-[11px] font-extrabold text-[#ff385c]">{String(index + 1).padStart(2, '0')}</span>
+                    <h3 className="text-[16px] font-extrabold leading-tight tracking-[-0.02em]">{title}</h3>
+                    <p className="text-[13px] leading-relaxed text-white/50">{desc}</p>
+                  </li>
+                ))}
+              </ol>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ══ Testimonials — white editorial quotes ══════════════════════════ */}
+        <section className="py-20 md:py-28" aria-labelledby="testimonials-heading">
+          <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6">
+            <motion.div {...reveal}>
+              <div className="border-b border-[#ebebeb] pb-5">
+                <Eyebrow>From the front desk</Eyebrow>
+              </div>
+              <h2 id="testimonials-heading" className="sr-only">Testimonials</h2>
+              <div className="grid gap-0 pt-4 md:grid-cols-3 md:gap-10 md:pt-10">
+                {TESTIMONIALS.map(({ quote, name, role }) => (
+                  <figure key={name} className="border-b border-[#ebebeb] py-8 md:border-b-0 md:py-0">
+                    <blockquote className="text-[15px] font-semibold leading-[1.6] tracking-[-0.01em] text-[#222]">
+                      “{quote}”
+                    </blockquote>
+                    <figcaption className="mt-6">
+                      <p className="text-[13px] font-extrabold">{name}</p>
+                      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#717171]">{role}</p>
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ══ Pricing — warm chapter ═════════════════════════════════════════ */}
+        <section id="pricing" className="bg-[#f2f1ee] py-20 text-[#171717] md:py-28" aria-labelledby="pricing-heading">
+          <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6">
+            <motion.div {...reveal}>
+              <div className="flex items-center justify-between gap-6 border-b border-black/20 pb-5">
+                <Eyebrow>Pricing</Eyebrow>
+                <p className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 sm:block">Simple, per-property plans</p>
+              </div>
+              <h2 id="pricing-heading" className="mt-10 max-w-[760px] text-[38px] font-extrabold leading-[0.94] tracking-[-0.04em] sm:text-[48px] md:mt-14 md:text-[56px]">
+                Pay for buildings,<br />not seats.
+              </h2>
+
+              <div className="mt-12 grid gap-5 md:mt-16 md:grid-cols-3">
+                {PLANS.map(({ name, price, period, desc, features, featured, cta }) => (
+                  <article
+                    key={name}
+                    data-testid={`plan-card-${name.toLowerCase()}`}
+                    className={`flex flex-col rounded-[20px] border p-6 md:p-7 ${
+                      featured
+                        ? 'border-[#0b0b0b] bg-[#0b0b0b] text-white'
+                        : 'border-black/15 bg-white text-[#171717]'
+                    }`}>
+                    <div className="flex items-center justify-between">
+                      <p className={`text-[10px] font-extrabold uppercase tracking-[0.22em] ${featured ? 'text-[#ff385c]' : 'text-black/45'}`}>{name}</p>
+                      {featured && (
+                        <span className="rounded-full border border-[#ff385c]/30 bg-[#ff385c]/10 px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#ff385c]">
+                          Most popular
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-5 flex items-baseline gap-1">
+                      <span className="text-[40px] font-extrabold leading-none tracking-[-0.04em]">{price}</span>
+                      {period && <span className={`text-[13px] font-semibold ${featured ? 'text-white/50' : 'text-black/45'}`}>{period}</span>}
+                    </p>
+                    <p className={`mt-3 text-[13px] leading-relaxed ${featured ? 'text-white/55' : 'text-black/55'}`}>{desc}</p>
+                    <ul className={`mt-6 flex-1 space-y-3 border-t pt-6 ${featured ? 'border-white/15' : 'border-black/10'}`}>
+                      {features.map((feature) => (
+                        <li key={feature} className="flex items-start gap-2.5 text-[13px] font-medium">
+                          <Check size={15} className="mt-0.5 shrink-0 text-[#34c759]" aria-hidden="true" />
+                          <span className={featured ? 'text-white/80' : 'text-black/70'}>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      onClick={() => onGetStarted(UserRole.CAREGIVER)}
+                      className={`mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 text-[14px] font-bold transition-transform hover:-translate-y-px active:scale-[.97] ${
+                        featured
+                          ? 'bg-[#ff385c] text-white shadow-[0_8px_24px_rgba(255,56,92,.25)]'
+                          : 'bg-[#171717] text-white'
+                      }`}>
+                      {cta} <ArrowRight size={16} />
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      </main>
+
+      {/* ══ Footer — conversion + compact dark footer ════════════════════════ */}
+      <footer className="bg-[#0b0b0b] pb-10 pt-20 text-white md:pt-28">
+        <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6">
+          <Eyebrow tone="dark">Get started</Eyebrow>
+          <h2 className="mt-7 max-w-[980px] text-[44px] font-extrabold leading-[0.9] tracking-[-0.05em] sm:text-[64px] md:text-[84px]">
+            Put your next shift on the record.
+          </h2>
+          <button
+            onClick={() => onGetStarted(UserRole.CAREGIVER)}
+            data-testid="footer-cta-btn"
+            className="mt-10 inline-flex min-h-12 items-center gap-2 rounded-full bg-[#ff385c] px-7 text-[14px] font-bold text-white transition-transform hover:-translate-y-px active:scale-[.97]">
+            Get started free <ArrowRight size={16} />
+          </button>
+
+          <div className="mt-16 grid gap-10 border-t border-white/15 pt-10 md:mt-20 md:grid-cols-[1fr_auto_auto] md:gap-20">
+            <div>
+              <p className="text-[12px] font-extrabold uppercase tracking-[0.24em]">✦ Notes</p>
+              <p className="mt-3 max-w-[360px] text-[13px] leading-relaxed text-white/45">
+                Workforce operations and accountability for property, concierge, cleaning, security, and hospitality teams.
+              </p>
+            </div>
+            <nav aria-label="Footer">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-white/35">Product</p>
+              <ul className="mt-4 space-y-2.5">
+                {NAV_LINKS.map(({ label, href }) => (
+                  <li key={href}>
+                    <a href={href} className="text-[13px] font-semibold text-white/60 transition-colors hover:text-white">{label}</a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-white/35">Account</p>
+              <ul className="mt-4 space-y-2.5">
+                <li><button onClick={onSignIn} className="text-[13px] font-semibold text-white/60 transition-colors hover:text-white">Sign in</button></li>
+                <li><button onClick={onSignUp} className="text-[13px] font-semibold text-white/60 transition-colors hover:text-white">Create account</button></li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-12 flex flex-col gap-3 border-t border-white/15 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/35">onepermit</p>
+            <p className="text-[11px] text-white/35">© {new Date().getFullYear()} Notes. All rights reserved.</p>
           </div>
         </div>
       </footer>
-
     </div>
   );
 };
