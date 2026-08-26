@@ -5,22 +5,22 @@ import "../styles/hero.css";
 export const HERO_IMAGES = [
   {
     src: "https://static.vecteezy.com/system/resources/thumbnails/055/330/473/large/a-cartoon-female-hotel-worker-stands-confidently-png.png",
-    bg: "#171717",
+    bg: "#FFFFFF",
     centerScale: 1.2,
   },
   {
     src: "https://static.vecteezy.com/system/resources/thumbnails/060/767/298/large/a-man-in-a-red-uniform-likely-a-concierge-or-attendant-png.png",
-    bg: "#222222",
+    bg: "#FFFFFF",
     centerScale: 1.2,
   },
   {
     src: "https://static.vecteezy.com/system/resources/thumbnails/060/815/482/large/a-friendly-cartoon-depiction-of-a-security-guard-in-uniform-png.png",
-    bg: "#0B0B0B",
+    bg: "#FFFFFF",
     centerScale: 1.6,
   },
   {
     src: "https://static.vecteezy.com/system/resources/thumbnails/060/762/064/large/a-female-employee-in-a-navy-blue-professional-uniform-png.png",
-    bg: "#2A2A2A",
+    bg: "#FFFFFF",
     centerScale: 1.2,
   },
 ];

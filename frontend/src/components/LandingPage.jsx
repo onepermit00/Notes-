@@ -202,8 +202,8 @@ const PublicHeader = ({ activeSection, onSignIn, onSignUp }) => {
   }, []);
 
   const overlay = !scrolled && !menuOpen;
-  const foreground = overlay ? '#ffffff' : '#222222';
-  const secondary = overlay ? 'rgba(255,255,255,.78)' : '#717171';
+  const foreground = '#222222';
+  const secondary = '#717171';
 
   return (
     <header
@@ -234,14 +234,14 @@ const PublicHeader = ({ activeSection, onSignIn, onSignUp }) => {
           })}
         </nav>
 
-        <div className="flex min-h-[50px] shrink-0 items-center rounded-full border p-1.5" style={{ background: overlay ? 'rgba(255,255,255,.08)' : '#ffffff', borderColor: overlay ? 'rgba(255,255,255,.44)' : '#ebebeb' }}>
+        <div className="flex min-h-[50px] shrink-0 items-center rounded-full border p-1.5 shadow-[0_2px_12px_rgba(0,0,0,.06)]" style={{ background: overlay ? 'rgba(255,255,255,.86)' : '#ffffff', borderColor: '#ebebeb' }}>
           <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-black/5" style={{ color: foreground }} onClick={() => setMenuOpen((open) => !open)} aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} data-testid="mobile-menu-btn">
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
           <button type="button" onClick={onSignIn} className="hidden min-h-11 items-center px-2 text-[15px] font-bold sm:flex" style={{ color: foreground }} data-testid="header-signin-btn">
             Sign in
           </button>
-          <button type="button" onClick={onSignIn} className="flex h-11 w-11 items-center justify-center rounded-full transition-transform active:scale-[.96]" style={{ background: overlay ? '#ffffff' : '#222222', color: overlay ? '#111111' : '#ffffff' }} aria-label="Sign in">
+          <button type="button" onClick={onSignIn} className="flex h-11 w-11 items-center justify-center rounded-full bg-[#222] text-white transition-transform active:scale-[.96]" aria-label="Sign in">
             <UserRound size={22} />
           </button>
         </div>
