@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, ArrowUpRight, Calendar, Activity, FileCheck, Check, ShieldCheck, ListChecks, Users, Quote, Building2 } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Calendar, Activity, FileCheck, Check, ShieldCheck, ListChecks, Users, Quote, Building2, Menu, UserRound, X } from 'lucide-react';
 import { UserRole } from '../types';
 import HeroSection from './HeroSection';
 
@@ -176,6 +176,94 @@ const useReveal = () => {
       };
 };
 
+const PublicHeader = ({ activeSection, onSignIn, onSignUp }) => {
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const hero = document.querySelector('.onepermit-hero');
+      const threshold = Math.max(16, (hero?.offsetHeight || window.innerHeight) - 96);
+      setScrolled(window.scrollY > threshold);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onEscape = (event) => event.key === 'Escape' && setMenuOpen(false);
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
+  }, []);
+
+  const overlay = !scrolled && !menuOpen;
+  const foreground = overlay ? '#ffffff' : '#222222';
+  const secondary = overlay ? 'rgba(255,255,255,.78)' : '#717171';
+
+  return (
+    <header
+      className="fixed inset-x-0 top-0 z-[80] transition-[background-color,border-color,backdrop-filter] duration-200"
+      style={{
+        height: 80,
+        color: foreground,
+        background: overlay ? 'transparent' : 'rgba(255,255,255,.96)',
+        borderBottom: `1px solid ${overlay ? 'transparent' : '#ebebeb'}`,
+        backdropFilter: overlay ? 'none' : 'blur(14px)',
+        WebkitBackdropFilter: overlay ? 'none' : 'blur(14px)',
+      }}
+      data-testid="site-header"
+    >
+      <div className="relative mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-5 px-4 md:px-6">
+        <a href="#top" className="flex h-14 w-[148px] shrink-0 items-center leading-none md:w-[160px]" style={{ color: foreground }} data-testid="brand-link" aria-label="Notes home">
+          <span className="whitespace-nowrap text-[19px] font-extrabold tracking-[-0.04em]">Notes</span>
+        </a>
+
+        <nav className="hidden items-center gap-7 lg:flex" aria-label="Primary navigation">
+          {NAV_LINKS.map(({ label, href }) => {
+            const isActive = activeSection === href.slice(1);
+            return (
+              <a key={href} href={href} aria-current={isActive ? 'true' : undefined} data-testid={`nav-${href.slice(1)}`} className="flex min-h-11 items-center rounded-xl px-2 text-[15px] font-bold transition-[color,background-color,transform] duration-150 hover:bg-white/10 active:scale-[.97]" style={{ color: isActive ? foreground : secondary }}>
+                {label}
+              </a>
+            );
+          })}
+        </nav>
+
+        <div className="flex min-h-[50px] shrink-0 items-center rounded-full border p-1.5" style={{ background: overlay ? 'rgba(255,255,255,.08)' : '#ffffff', borderColor: overlay ? 'rgba(255,255,255,.44)' : '#ebebeb' }}>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-black/5" style={{ color: foreground }} onClick={() => setMenuOpen((open) => !open)} aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} data-testid="mobile-menu-btn">
+            {menuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+          <button type="button" onClick={onSignIn} className="hidden min-h-11 items-center px-2 text-[15px] font-bold sm:flex" style={{ color: foreground }} data-testid="header-signin-btn">
+            Sign in
+          </button>
+          <button type="button" onClick={onSignIn} className="flex h-11 w-11 items-center justify-center rounded-full transition-transform active:scale-[.96]" style={{ background: overlay ? '#ffffff' : '#222222', color: overlay ? '#111111' : '#ffffff' }} aria-label="Sign in">
+            <UserRound size={22} />
+          </button>
+        </div>
+
+        {menuOpen && (
+          <nav className="absolute right-4 top-[calc(100%+10px)] w-[min(330px,calc(100vw-32px))] rounded-2xl border border-[#ebebeb] bg-white p-2 text-[#222] shadow-[0_8px_30px_rgba(0,0,0,.12)] md:right-6 lg:w-[320px]" aria-label="Account and mobile navigation" data-testid="mobile-nav">
+            <div className="space-y-1 lg:hidden">
+              <p className="px-3 pb-1 pt-2 text-[11px] font-extrabold uppercase tracking-[.08em] text-[#717171]">Explore</p>
+              {NAV_LINKS.map(({ label, href }) => (
+                <a key={href} href={href} onClick={() => setMenuOpen(false)} className="flex min-h-11 items-center rounded-xl px-3 text-[15px] font-semibold hover:bg-[#f7f7f7]">{label}</a>
+              ))}
+              <div className="my-2 border-t border-[#ebebeb]" />
+            </div>
+            <button type="button" onClick={onSignIn} className="flex min-h-11 w-full items-center rounded-xl px-3 text-left text-[13px] font-semibold hover:bg-[#f7f7f7]">Sign in to your account</button>
+            <button type="button" onClick={onSignUp} className="mt-2 flex min-h-12 w-full items-center justify-center rounded-full bg-[#ff385c] px-6 text-[13px] font-bold text-white transition-transform active:scale-[.98]">Create account</button>
+          </nav>
+        )}
+      </div>
+    </header>
+  );
+};
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
@@ -211,53 +299,14 @@ export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
   return (
     <div className="bg-white font-sans text-[#222222]" style={{ fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
 
+      <PublicHeader activeSection={activeSection} onSignIn={onSignIn} onSignUp={onSignUp} />
+
       {/* ══ Original onepermit hero — exact replica (above the editorial page) ══ */}
       <HeroSection
-        onSignIn={onSignIn}
-        onSignUp={onSignUp}
         onExplore={() => document.getElementById('editorial-hero')?.scrollIntoView({ behavior: 'smooth' })}
       />
 
       {/* ══ Header ══════════════════════════════════════════════════════════ */}
-      <header className="sticky top-0 z-50 border-b border-[#ebebeb] bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex h-[88px] w-full max-w-[1280px] items-center justify-between gap-6 px-4 md:px-6">
-          <a href="#top" className="flex min-h-11 items-center text-[24px] font-extrabold tracking-[-0.03em] text-[#222]" data-testid="brand-link">
-            Notes
-          </a>
-          <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
-            {NAV_LINKS.map(({ label, href }) => {
-              const isActive = activeSection === href.slice(1);
-              return (
-                <a
-                  key={href}
-                  href={href}
-                  aria-current={isActive ? 'true' : undefined}
-                  data-testid={`nav-${href.slice(1)}`}
-                  className={`flex min-h-11 items-center rounded-2xl px-5 py-3 text-[16px] font-semibold transition-colors ${
-                    isActive ? 'bg-[#f2f2f2] text-[#222]' : 'text-[#6b7280] hover:bg-[#f2f2f2] hover:text-[#222]'
-                  }`}>
-                  {label}
-                </a>
-              );
-            })}
-          </nav>
-          <div className="flex items-center gap-2 rounded-full border border-[#ebebeb] bg-white py-1.5 pl-5 pr-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-            <button
-              onClick={onSignIn}
-              data-testid="header-signin-btn"
-              className="flex min-h-10 items-center text-[15px] font-bold text-[#222] transition-opacity hover:opacity-70">
-              Sign in
-            </button>
-            <button
-              onClick={onSignUp}
-              data-testid="header-signup-btn"
-              className="ml-2 flex min-h-10 items-center rounded-full bg-[#222] px-5 text-[14px] font-bold text-white transition-opacity hover:opacity-85">
-              Sign up
-            </button>
-          </div>
-        </div>
-      </header>
-
       <main id="top">
 
         {/* ══ Hero — text-led editorial opening ══════════════════════════════ */}

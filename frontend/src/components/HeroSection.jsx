@@ -30,8 +30,6 @@ const DURATION_MS = 650;
 const TRANSITION = `transform 650ms ${EASE}, filter 650ms ${EASE}, opacity 650ms ${EASE}, left 650ms ${EASE}`;
 
 export default function HeroSection({
-  onSignIn = () => {},
-  onSignUp = () => {},
   onExplore = () => {},
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -130,13 +128,6 @@ export default function HeroSection({
       />
 
       <div className="onepermit-hero__wordmark" aria-hidden="true">ONEPERMIT</div>
-
-      <div className="onepermit-hero__brand">onepermit</div>
-
-      <div className="onepermit-hero__auth">
-        <button className="onepermit-hero__button onepermit-hero__button--ghost" onClick={onSignIn}>Sign In</button>
-        <button className="onepermit-hero__button onepermit-hero__button--solid" onClick={onSignUp}>Sign Up</button>
-      </div>
 
       <div className="onepermit-hero__dots" aria-hidden="true">
         {HERO_IMAGES.map((_, index) => (
