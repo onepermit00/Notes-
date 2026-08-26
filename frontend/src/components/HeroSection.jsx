@@ -1,25 +1,29 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import "../styles/hero.css";
+import conciergeCharacter from "../assets/hero-characters/concierge-clean.png";
+import doormanCharacter from "../assets/hero-characters/doorman-clean.png";
+import securityCharacter from "../assets/hero-characters/security-clean.png";
+import attendantCharacter from "../assets/hero-characters/attendant-clean.png";
 
 export const HERO_IMAGES = [
   {
-    src: "https://static.vecteezy.com/system/resources/thumbnails/055/330/473/large/a-cartoon-female-hotel-worker-stands-confidently-png.png",
+    src: conciergeCharacter,
     bg: "#FFFFFF",
     centerScale: 1.2,
   },
   {
-    src: "https://static.vecteezy.com/system/resources/thumbnails/060/767/298/large/a-man-in-a-red-uniform-likely-a-concierge-or-attendant-png.png",
+    src: doormanCharacter,
     bg: "#FFFFFF",
     centerScale: 1.2,
   },
   {
-    src: "https://static.vecteezy.com/system/resources/thumbnails/060/815/482/large/a-friendly-cartoon-depiction-of-a-security-guard-in-uniform-png.png",
+    src: securityCharacter,
     bg: "#FFFFFF",
     centerScale: 1.6,
   },
   {
-    src: "https://static.vecteezy.com/system/resources/thumbnails/060/762/064/large/a-female-employee-in-a-navy-blue-professional-uniform-png.png",
+    src: attendantCharacter,
     bg: "#FFFFFF",
     centerScale: 1.2,
   },

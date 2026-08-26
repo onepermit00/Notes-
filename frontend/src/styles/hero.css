@@ -130,7 +130,6 @@
   background: transparent;
   object-fit: contain;
   object-position: bottom center;
-  filter: drop-shadow(0 28px 28px rgba(34, 34, 34, 0.08));
   user-select: none;
 }
 
