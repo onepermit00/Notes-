@@ -1,0 +1,214 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+.onepermit-hero,
+.onepermit-hero *,
+.onepermit-hero *::before,
+.onepermit-hero *::after { box-sizing: border-box; }
+
+.onepermit-hero {
+  --hero-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+  width: 100%;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #fff;
+  color: #fff;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  isolation: isolate;
+}
+
+.onepermit-hero button,
+.onepermit-hero a { font: inherit; -webkit-tap-highlight-color: transparent; }
+.onepermit-hero button { margin: 0; }
+.onepermit-hero :is(button, a):focus-visible { outline: 2px solid #ff385c; outline-offset: 3px; }
+
+.onepermit-hero__field {
+  position: absolute;
+  z-index: 0;
+  inset: 0 0 auto;
+  height: 92%;
+  transition: background-color 650ms var(--hero-ease);
+}
+
+.onepermit-hero__wordmark {
+  position: absolute;
+  z-index: 2;
+  top: 18%;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: clamp(90px, 28vw, 380px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+.onepermit-hero__brand {
+  position: absolute;
+  z-index: 60;
+  top: 24px;
+  left: 16px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.onepermit-hero__auth {
+  position: absolute;
+  z-index: 60;
+  top: 20px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.onepermit-hero__button {
+  min-height: 0;
+  border-radius: 100px;
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.onepermit-hero__button--ghost {
+  border: 1.5px solid rgba(255,255,255,0.6);
+  background: transparent;
+  color: #fff;
+  transition: background-color 150ms, border-color 150ms;
+}
+.onepermit-hero__button--ghost:hover { border-color: #fff; background: rgba(255,255,255,0.12); }
+.onepermit-hero__button--solid {
+  border: 1.5px solid #fff;
+  background: #fff;
+  color: #0f0f0f;
+  transition: opacity 150ms;
+}
+.onepermit-hero__button--solid:hover { opacity: 0.85; }
+
+.onepermit-hero__dots {
+  position: absolute;
+  z-index: 60;
+  top: 24px;
+  left: 50%;
+  display: flex;
+  gap: 6px;
+  transform: translateX(-50%);
+}
+.onepermit-hero__dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: #fff;
+  transition: width 650ms var(--hero-ease), opacity 650ms var(--hero-ease);
+}
+
+.onepermit-hero__carousel { position: absolute; z-index: 3; inset: 0; }
+.onepermit-hero__figure {
+  position: absolute;
+  aspect-ratio: 0.6 / 1;
+  background: transparent;
+  will-change: transform, opacity;
+}
+.onepermit-hero__figure img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  object-fit: contain;
+  object-position: bottom center;
+  user-select: none;
+}
+
+.onepermit-hero__summary {
+  position: absolute;
+  z-index: 60;
+  bottom: 24px;
+  left: 16px;
+  max-width: 320px;
+}
+.onepermit-hero__name {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.95;
+}
+.onepermit-hero__copy {
+  margin: 0 0 20px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+.onepermit-hero__arrows { display: flex; gap: 12px; }
+.onepermit-hero__arrow {
+  display: flex;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  transition: transform 150ms ease, background-color 150ms ease;
+}
+.onepermit-hero__arrow:hover { transform: scale(1.08); background: rgba(255,255,255,0.12); }
+.onepermit-hero__arrow:active { transform: scale(0.97); }
+
+.onepermit-hero__explore {
+  position: absolute;
+  z-index: 60;
+  right: 16px;
+  bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: clamp(20px, 4vw, 56px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  text-transform: uppercase;
+  opacity: 0.95;
+  cursor: pointer;
+  transition: opacity 200ms;
+}
+.onepermit-hero__explore:hover { opacity: 1; }
+.onepermit-hero__explore-icon { width: 20px; height: 20px; }
+
+@media (min-width: 640px) {
+  .onepermit-hero__brand { left: 32px; }
+  .onepermit-hero__auth { right: 32px; }
+  .onepermit-hero__button { padding: 9px 22px; font-size: 13px; }
+  .onepermit-hero__summary { bottom: 80px; left: 96px; }
+  .onepermit-hero__name { margin-bottom: 12px; font-size: 22px; }
+  .onepermit-hero__arrow { width: 64px; height: 64px; }
+  .onepermit-hero__explore { right: 40px; bottom: 80px; gap: 10px; }
+  .onepermit-hero__explore-icon { width: 32px; height: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onepermit-hero *,
+  .onepermit-hero *::before,
+  .onepermit-hero *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, ArrowUpRight, Calendar, Activity, FileCheck, Check, ShieldCheck, ListChecks, Users, Quote, Building2 } from 'lucide-react';
 import { UserRole } from '../types';
+import HeroSection from './HeroSection';
 
 // ── Content (preserved from the original product copy) ──────────────────────
 
@@ -210,6 +211,13 @@ export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
   return (
     <div className="bg-white font-sans text-[#222222]" style={{ fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
 
+      {/* ══ Original onepermit hero — exact replica (above the editorial page) ══ */}
+      <HeroSection
+        onSignIn={onSignIn}
+        onSignUp={onSignUp}
+        onExplore={() => document.getElementById('editorial-hero')?.scrollIntoView({ behavior: 'smooth' })}
+      />
+
       {/* ══ Header ══════════════════════════════════════════════════════════ */}
       <header className="sticky top-0 z-50 border-b border-[#ebebeb] bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex h-[88px] w-full max-w-[1280px] items-center justify-between gap-6 px-4 md:px-6">
@@ -253,7 +261,7 @@ export const LandingPage = ({ onGetStarted, onSignIn, onSignUp }) => {
       <main id="top">
 
         {/* ══ Hero — text-led editorial opening ══════════════════════════════ */}
-        <section className="pt-16 pb-20 md:pt-24 md:pb-28" aria-labelledby="hero-heading">
+        <section id="editorial-hero" className="pt-16 pb-20 md:pt-24 md:pb-28" aria-labelledby="hero-heading">
           <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6">
             <motion.div {...reveal}>
               <Eyebrow>Workforce operations</Eyebrow>
