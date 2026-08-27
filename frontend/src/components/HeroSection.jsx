@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import "../styles/hero.css";
 import conciergeCharacter from "../assets/hero-characters/concierge-clean.png";
 import doormanCharacter from "../assets/hero-characters/doorman-clean.png";
-import securityCharacter from "../assets/hero-characters/security-clean.png";
+import securityCharacter from "../assets/hero-characters/security-no-shadow.png";
 import attendantCharacter from "../assets/hero-characters/attendant-clean.png";
 
 export const HERO_IMAGES = [
@@ -150,12 +150,7 @@ export default function HeroSection({
             className="onepermit-hero__figure"
             style={{ transition: TRANSITION, ...getFigureStyle(index) }}
           >
-            <img
-              src={src}
-              alt=""
-              draggable={false}
-              className={index === 2 ? "onepermit-hero__image--security" : undefined}
-            />
+            <img src={src} alt="" draggable={false} />
           </div>
         ))}
       </div>
