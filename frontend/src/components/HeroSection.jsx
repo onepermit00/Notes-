@@ -150,7 +150,12 @@ export default function HeroSection({
             className="onepermit-hero__figure"
             style={{ transition: TRANSITION, ...getFigureStyle(index) }}
           >
-            <img src={src} alt="" draggable={false} />
+            <img
+              src={src}
+              alt=""
+              draggable={false}
+              className={index === 2 ? "onepermit-hero__image--security" : undefined}
+            />
           </div>
         ))}
       </div>
