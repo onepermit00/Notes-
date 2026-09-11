@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Package, Plus, Minus, Check, Truck, RotateCcw, ChevronRight, FileText, ArrowLeft, Camera, MessageCircle, X, Mail, ShoppingBag, Globe, UtensilsCrossed, Box, User, Users, Bell, BellOff } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import MicButton from './MicButton';
@@ -43,54 +43,80 @@ const PICKUP_TYPES = [
 
 const now = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
-function Label({ children }) {
+function Label({ children, optional }) {
   const { colors } = useTheme();
   const { MUTED, INTER } = colors;
   return (
-    <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>
-      {children}
+    <div style={{ display:'flex',justifyContent:'space-between',gap:12,marginBottom:9 }}>
+      <span style={{fontFamily:INTER,fontSize:14,fontWeight:800,color:colors.TEXT}}>{children}</span>
+      {optional&&<span style={{fontFamily:INTER,fontSize:10,fontWeight:600,color:MUTED,letterSpacing:'.12em',textTransform:'uppercase'}}>Optional</span>}
     </div>
   );
 }
 
-function WizardHeader({ title, step, totalSteps, onCancel }) {
+function WizardHeader({ propertyName, title, description, step, totalSteps, onCancel, compact = false }) {
   const { colors } = useTheme();
-  const { CARD, BORDER, TEXT, MUTED, INTER } = colors;
+  const { INTER, CARD, CARD2, BORDER, TEXT, MUTED } = colors;
   return (
-    <div style={{ flexShrink: 0, background: CARD, borderBottom: `1px solid ${BORDER}` }}>
-      <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>{title}</div>
-          <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 3 }}>Step {step} of {totalSteps}</div>
+    <div style={{ flexShrink:0, background:CARD, borderBottom:`1px solid ${BORDER}` }}>
+      <div style={{ padding:compact?'20px 20px 14px':'26px 30px 18px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16 }}>
+        <div style={{minWidth:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:11}}><span style={{width:24,height:2,background:BLUE}}/><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.22em',textTransform:'uppercase'}}>{propertyName}</span></div>
+          <div style={{fontFamily:INTER,fontSize:compact?28:34,fontWeight:800,color:TEXT,letterSpacing:'-.045em',lineHeight:.98}}>{title}</div>
+          <div style={{maxWidth:470,fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.55,marginTop:9}}>{description}</div>
+          {step&&<div style={{fontFamily:INTER,fontSize:11,color:MUTED,marginTop:8}}>Step {step} of {totalSteps} · Package record</div>}
         </div>
-        <button onClick={onCancel} style={{ fontFamily: INTER, fontSize: 14, fontWeight: 600, color: MUTED, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginTop: 2 }}>
-          Cancel
-        </button>
+        <button onClick={onCancel} aria-label="Close package workflow" style={{width:44,height:44,borderRadius:999,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}><X size={19} color={TEXT}/></button>
       </div>
-      <div style={{ display: 'flex', gap: 4, padding: '0 20px 14px' }}>
+      {step&&<div style={{display:'flex',gap:5,padding:compact?'0 20px 16px':'0 30px 20px'}}>
         {Array.from({ length: totalSteps }).map((_, i) => (
-          <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i < step ? BLUE : BORDER, transition: 'background 200ms' }} />
+          <div key={i} style={{flex:1,height:3,borderRadius:2,background:i<step?BLUE:BORDER,transition:'background 200ms'}} />
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
 
-function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continueDisabled = false, isFirst = false }) {
+function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continueDisabled = false, isFirst = false, compact = false }) {
   const { colors } = useTheme();
   const { CARD, CARD2, BORDER, TEXT, MUTED, INTER } = colors;
   return (
-    <div style={{ flexShrink: 0, padding: '12px 20px 24px', background: CARD, borderTop: `1px solid ${BORDER}`, display: 'flex', gap: 10 }}>
+    <div style={{ flexShrink:0, padding:compact?'12px 20px 30px':'14px 28px 20px', background:CARD, borderTop:`1px solid ${BORDER}`, display:'flex', gap:10, boxShadow:'0 -8px 24px rgba(0,0,0,.04)' }}>
       {!isFirst && (
         <button onClick={onBack}
-          style={{ flex: 1, padding: '15px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
+          style={{ flex:1, minHeight:48, padding:'0 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, cursor:'pointer' }}>
           Back
         </button>
       )}
       <button onClick={onContinue} disabled={continueDisabled}
-        style={{ flex: 1, padding: '15px 0', background: continueDisabled ? CARD2 : BLUE, border: continueDisabled ? `1px solid ${BORDER}` : 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: continueDisabled ? MUTED : 'white', cursor: continueDisabled ? 'not-allowed' : 'pointer', boxShadow: continueDisabled ? 'none' : `0 6px 20px ${BLUE}28` }}>
+        style={{ flex:1, minHeight:48, padding:'0 20px', background:continueDisabled?CARD2:BLUE, border:continueDisabled?`1px solid ${BORDER}`:'none', borderRadius:999, fontFamily:INTER, fontSize:15, fontWeight:700, color:continueDisabled?MUTED:'white', cursor:continueDisabled?'not-allowed':'pointer', boxShadow:continueDisabled?'none':`0 7px 22px ${BLUE}28` }}>
         {continueLabel}
       </button>
+    </div>
+  );
+}
+
+function ActionRow({ Icon, title, description, onClick, compact = false }) {
+  const { colors } = useTheme();
+  const { CARD, CARD2, BORDER, TEXT, MUTED, SHADOW, INTER } = colors;
+  return (
+    <button onClick={onClick}
+      style={{ width:'100%', minHeight:compact?86:92, padding:compact?'14px':'16px', background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, display:'grid', gridTemplateColumns:'44px minmax(0,1fr) 38px', alignItems:'center', gap:13, cursor:'pointer', textAlign:'left', boxShadow:SHADOW, transition:'transform 150ms, border-color 150ms, box-shadow 150ms' }}>
+      <div style={{ width:44,height:44,borderRadius:12,background:'rgba(255,56,92,.11)',display:'flex',alignItems:'center',justifyContent:'center' }}><Icon size={20} color={BLUE}/></div>
+      <div style={{minWidth:0}}><div style={{fontFamily:INTER,fontSize:14,fontWeight:800,color:TEXT,marginBottom:4}}>{title}</div><div style={{fontFamily:INTER,fontSize:11,color:MUTED,lineHeight:1.45}}>{description}</div></div>
+      <div style={{width:38,height:38,borderRadius:999,background:BLUE,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 6px 16px ${BLUE}2b`}}><ChevronRight size={17} color="white"/></div>
+    </button>
+  );
+}
+
+function EmptyState({ Icon, title, description }) {
+  const { colors } = useTheme();
+  const { CARD, CARD2, BORDER, TEXT, MUTED, SHADOW, INTER } = colors;
+  return (
+    <div style={{ background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:'34px 20px',textAlign:'center',boxShadow:SHADOW }}>
+      <div style={{width:52,height:52,background:CARD2,borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}><Icon size={24} color={MUTED}/></div>
+      <p style={{fontFamily:INTER,fontWeight:800,color:TEXT,fontSize:15,margin:'0 0 6px'}}>{title}</p>
+      <p style={{fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.5,margin:0}}>{description}</p>
     </div>
   );
 }
@@ -113,23 +139,22 @@ function Counter({ value, onChange }) {
   );
 }
 
-function CarrierCard({ cfg, selected, onSelect, accent = BLUE }) {
+function CarrierCard({ cfg, selected, onSelect, accent = BLUE, index }) {
   const { colors } = useTheme();
   const { CARD, CARD2, BORDER, TEXT, MUTED, INTER } = colors;
   const { id, Icon, desc, isFood } = cfg;
   const cardAccent = isFood && !selected ? ORANGE : accent;
   return (
     <button onClick={onSelect}
-      style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, background: selected ? `rgba(255,56,92,0.04)` : CARD, border: `1.5px solid ${selected ? BLUE : BORDER}`, borderRadius: 16, cursor: 'pointer', textAlign: 'left', width: '100%', boxShadow: selected ? `0 0 0 3px rgba(255,56,92,0.10)` : 'none', transition: 'all 150ms' }}>
-      <div style={{ width: 52, height: 52, borderRadius: 14, background: selected ? 'rgba(255,56,92,0.12)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 150ms' }}>
-        <Icon size={24} color={selected ? BLUE : isFood ? ORANGE : MUTED} />
+      style={{minHeight:92,display:'grid',gridTemplateColumns:'36px 1fr 22px',alignItems:'center',gap:11,padding:13,background:selected?'rgba(255,56,92,.045)':CARD,border:`1.5px solid ${selected?BLUE:BORDER}`,borderRadius:14,cursor:'pointer',textAlign:'left',width:'100%',boxShadow:selected?'0 5px 18px rgba(255,56,92,.10)':colors.SHADOW,transition:'all 150ms'}}>
+      <div style={{width:36,height:36,borderRadius:10,background:selected?'rgba(255,56,92,.12)':CARD2,display:'flex',alignItems:'center',justifyContent:'center',position:'relative'}}>
+        <Icon size={18} color={selected?BLUE:isFood?ORANGE:MUTED}/>{index!==undefined&&<span style={{position:'absolute',top:-6,left:-6,fontFamily:INTER,fontSize:7,fontWeight:800,color:selected?BLUE:MUTED}}>{String(index+1).padStart(2,'0')}</span>}
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT }}>{id}</div>
-        <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 2, lineHeight: 1.4 }}>{desc}</div>
+        <div style={{fontFamily:INTER,fontSize:13,fontWeight:750,color:TEXT}}>{id}</div><div style={{fontFamily:INTER,fontSize:11,color:MUTED,marginTop:4,lineHeight:1.4}}>{desc}</div>
       </div>
       {selected && (
-        <div style={{ width: 26, height: 26, borderRadius: '50%', background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{width:22,height:22,borderRadius:'50%',background:BLUE,display:'flex',alignItems:'center',justifyContent:'center'}}>
           <Check size={13} color="white" strokeWidth={3} />
         </div>
       )}
@@ -137,16 +162,28 @@ function CarrierCard({ cfg, selected, onSelect, accent = BLUE }) {
   );
 }
 
-export const PackageDashboard = ({ onActivityLogged }) => {
+export const PackageDashboard = ({ onActivityLogged, onWorkflowChange, propertyName='The Alexen', onClose, isPhone=false }) => {
   const { colors } = useTheme();
   const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
   const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
+  const PackageHeader = props => <WizardHeader propertyName={propertyName} compact={isPhone} {...props} />;
+  const PackageFooter = props => <WizardFooter compact={isPhone} {...props} />;
   const [subTab,      setSubTab]      = useState('deliveries');
   const [view,        setView]        = useState('main');
   const [deliveries,  setDeliveries]  = useState([]);
   const [pickups,     setPickups]     = useState([]);
   const [rtsDropoffs, setRtsDropoffs] = useState([]);
   const [rtsPickups,  setRtsPickups]  = useState([]);
+
+  const changeView = (nextView) => {
+    onWorkflowChange?.(nextView !== 'main');
+    setView(nextView);
+  };
+
+  useEffect(() => {
+    onWorkflowChange?.(view !== 'main');
+    return () => onWorkflowChange?.(false);
+  }, [view, onWorkflowChange]);
 
   // Wizard step states
   const [dStep,  setDStep]  = useState(1);
@@ -191,7 +228,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
   const rtsPending = rtsDropoffs.filter(d => !d.pickedUp);
 
   const goBack = () => {
-    setView('main');
+    changeView('main');
     setDStep(1); setPStep(1); setRStep(1); setRPStep(1);
   };
 
@@ -199,13 +236,14 @@ export const PackageDashboard = ({ onActivityLogged }) => {
     if (!dForm.carrier || !dForm.unit) return;
     const newDel = { ...dForm, id: Date.now(), time: now(), isFood: dForm.carrier === 'Food Delivery', notified: dForm.notifyNow, notifiedAt: dForm.notifyNow ? now() : null };
     setDeliveries(p => [newDel, ...p]);
-    onActivityLogged?.({ title: `Package delivery · ${dForm.carrier} → Unit ${dForm.unit}`, category: 'Delivery', notes: dForm.notes, evidenceUrls: dForm.photoPreview ? [dForm.photoPreview] : [] });
+    const deliveryNotes = [`${dForm.count} package${dForm.count === 1 ? '' : 's'} ${dForm.count === 1 ? 'was' : 'were'} stored in ${dForm.storage}`, dForm.notifyNow ? 'The resident notification was sent' : 'Resident notification was not requested', dForm.notes.trim()].filter(Boolean).join('. ');
+    onActivityLogged?.({ title: `Package delivery · ${dForm.carrier} → Unit ${dForm.unit}`, category: 'Delivery', notes: deliveryNotes, evidenceUrls: dForm.photoPreview ? [dForm.photoPreview] : [] });
     if (dForm.notifyNow) {
       authApi.notifyPackage({ unit: dForm.unit, carrier: dForm.carrier, count: dForm.count, residentName: dForm.residentName || '', photoUrl: dForm.photoPreview || null });
     }
     setDF({ carrier: '', unit: '', count: 1, storage: 'Luxer Locker', overflowUnit: '', notes: '', photo: null, photoPreview: null, notifyNow: true, residentName: '' });
     setDStep(1);
-    setView('main');
+    changeView('main');
   };
 
   const submitPickup = () => {
@@ -215,7 +253,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
     setPF({ unit: '', residentName: '', count: 1, pickupType: 'resident', thirdPartyName: '', relation: '', idVerified: false, residentAuthorized: false, signature: null, signedAt: null });
     setShowPkgSig(false);
     setPStep(1);
-    setView('main');
+    changeView('main');
   };
 
   const submitRtsDrop = () => {
@@ -224,7 +262,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
     onActivityLogged?.({ title: `RTS drop-off · ${rdForm.residentName} · ${rdForm.carrier}`, category: 'Delivery', notes: rdForm.notes });
     setRDF({ residentName: '', unit: '', carrier: '', count: 1, tracking: '', notes: '' });
     setRStep(1);
-    setView('main');
+    changeView('main');
   };
 
   const submitRtsPickup = () => {
@@ -234,7 +272,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
     onActivityLogged?.({ title: `RTS carrier pickup · ${rpForm.carrier} · ${rpForm.count} pkg${rpForm.count > 1 ? 's' : ''}`, category: 'Delivery', notes: rpForm.notes });
     setRPF({ carrier: '', count: 1, notes: '' });
     setRPStep(1);
-    setView('main');
+    changeView('main');
   };
 
   // ── LOG DELIVERY WIZARD ───────────────────────────────────────────────────
@@ -243,25 +281,25 @@ export const PackageDashboard = ({ onActivityLogged }) => {
     // Step 1: Carrier selection
     if (dStep === 1) return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Log Delivery" step={1} totalSteps={3} onCancel={goBack} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px' }}>
+        <PackageHeader title="Identify the carrier" description="Start the delivery record with the service that brought the package in." step={1} totalSteps={3} onCancel={goBack} />
+        <div style={{ flex:1,minHeight:0,overflowY:'auto',padding:isPhone?18:'24px 28px' }}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: '0 0 20px' }}>
             Who is the carrier?
           </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {CARRIER_CONFIG.map(cfg => (
-              <CarrierCard key={cfg.id} cfg={cfg} selected={dForm.carrier === cfg.id} onSelect={() => setDF(p => ({ ...p, carrier: cfg.id }))} />
+          <div style={{display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:9}}>
+            {CARRIER_CONFIG.map((cfg,index) => (
+              <CarrierCard key={cfg.id} cfg={cfg} index={index} selected={dForm.carrier === cfg.id} onSelect={() => setDF(p => ({ ...p, carrier: cfg.id }))} />
             ))}
           </div>
         </div>
-        <WizardFooter isFirst onContinue={() => setDStep(2)} continueDisabled={!dForm.carrier} />
+        <PackageFooter isFirst onContinue={() => setDStep(2)} continueDisabled={!dForm.carrier} />
       </div>
     );
 
     // Step 2: Package details
     if (dStep === 2) return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Log Delivery" step={2} totalSteps={3} onCancel={goBack} />
+        <PackageHeader title="Assign the delivery" description="Link the package to its resident and document where it was secured." step={2} totalSteps={3} onCancel={goBack} />
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Package details
@@ -308,14 +346,14 @@ export const PackageDashboard = ({ onActivityLogged }) => {
             )}
           </div>
         </div>
-        <WizardFooter onBack={() => setDStep(1)} onContinue={() => setDStep(3)} continueDisabled={!dForm.unit} />
+        <PackageFooter onBack={() => setDStep(1)} onContinue={() => setDStep(3)} continueDisabled={!dForm.unit} />
       </div>
     );
 
     // Step 3: Notes & photo
     return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Log Delivery" step={3} totalSteps={3} onCancel={goBack} />
+        <PackageHeader title="Complete the record" description="Add condition evidence, notes, and resident notification preferences." step={3} totalSteps={3} onCancel={goBack} />
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Notes & photo
@@ -376,7 +414,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
             </div>
           </button>
         </div>
-        <WizardFooter onBack={() => setDStep(2)} onContinue={submitDelivery} continueLabel="Log Delivery" />
+        <PackageFooter onBack={() => setDStep(2)} onContinue={submitDelivery} continueLabel="Log Delivery" />
       </div>
     );
   }
@@ -387,7 +425,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
     // Step 1: Pickup type + unit + resident
     if (pStep === 1) return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Log Pickup" step={1} totalSteps={2} onCancel={goBack} />
+        <PackageHeader title="Identify the recipient" description="Locate the resident record and confirm who is collecting the package." step={1} totalSteps={2} onCancel={goBack} />
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Who is picking up?
@@ -428,14 +466,14 @@ export const PackageDashboard = ({ onActivityLogged }) => {
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
           </div>
         </div>
-        <WizardFooter isFirst onContinue={() => setPStep(2)} continueDisabled={!pForm.unit || !pForm.residentName} />
+        <PackageFooter isFirst onContinue={() => setPStep(2)} continueDisabled={!pForm.unit || !pForm.residentName} />
       </div>
     );
 
     // Step 2: Count + third-party details
     return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Log Pickup" step={2} totalSteps={2} onCancel={goBack} />
+        <PackageHeader title="Confirm the release" description="Record the quantity, authorization details, and recipient acknowledgment." step={2} totalSteps={2} onCancel={goBack} />
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Pickup details
@@ -502,7 +540,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
             )}
           </div>
         </div>
-        <WizardFooter onBack={() => setPStep(1)} onContinue={submitPickup} continueLabel="Log Pickup" continueDisabled={!pForm.signature} />
+        <PackageFooter onBack={() => setPStep(1)} onContinue={submitPickup} continueLabel="Log Pickup" continueDisabled={!pForm.signature} />
       </div>
     );
   }
@@ -513,28 +551,28 @@ export const PackageDashboard = ({ onActivityLogged }) => {
     // Step 1: Select carrier
     if (rStep === 1) return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="RTS Drop-Off" step={1} totalSteps={2} onCancel={goBack} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px' }}>
+        <PackageHeader title="Identify the return carrier" description="Start a resident return-to-sender record with the expected carrier." step={1} totalSteps={2} onCancel={goBack} />
+        <div style={{ flex:1,minHeight:0,overflowY:'auto',padding:isPhone?18:'24px 28px' }}>
           <div style={{ background: 'rgba(255,59,48,0.05)', border: '1px solid rgba(255,59,48,0.18)', borderRadius: 14, padding: '12px 16px', marginBottom: 20 }}>
             <span style={{ fontFamily: INTER, fontSize: 13, color: RED, fontWeight: 600 }}>Resident is returning a package for carrier pickup</span>
           </div>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: '0 0 20px' }}>
             Which carrier?
           </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {RTS_CARRIER_CONFIG.map(cfg => (
-              <CarrierCard key={cfg.id} cfg={cfg} selected={rdForm.carrier === cfg.id} onSelect={() => setRDF(p => ({ ...p, carrier: cfg.id }))} />
+          <div style={{display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:9}}>
+            {RTS_CARRIER_CONFIG.map((cfg,index) => (
+              <CarrierCard key={cfg.id} cfg={cfg} index={index} selected={rdForm.carrier === cfg.id} onSelect={() => setRDF(p => ({ ...p, carrier: cfg.id }))} />
             ))}
           </div>
         </div>
-        <WizardFooter isFirst onContinue={() => setRStep(2)} continueDisabled={!rdForm.carrier} />
+        <PackageFooter isFirst onContinue={() => setRStep(2)} continueDisabled={!rdForm.carrier} />
       </div>
     );
 
     // Step 2: Resident details
     return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="RTS Drop-Off" step={2} totalSteps={2} onCancel={goBack} />
+        <PackageHeader title="Document the return" description="Link the return to its resident, tracking details, and package count." step={2} totalSteps={2} onCancel={goBack} />
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Resident details
@@ -567,7 +605,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
             </div>
           </div>
         </div>
-        <WizardFooter onBack={() => setRStep(1)} onContinue={submitRtsDrop} continueLabel="Log RTS Drop-Off" continueDisabled={!rdForm.residentName || !rdForm.unit} />
+        <PackageFooter onBack={() => setRStep(1)} onContinue={submitRtsDrop} continueLabel="Log RTS Drop-Off" continueDisabled={!rdForm.residentName || !rdForm.unit} />
       </div>
     );
   }
@@ -578,21 +616,21 @@ export const PackageDashboard = ({ onActivityLogged }) => {
     // Step 1: Select carrier
     if (rpStep === 1) return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Carrier Pickup" step={1} totalSteps={2} onCancel={goBack} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px' }}>
+        <PackageHeader title="Identify the collecting carrier" description="Choose the service arriving to collect pending return packages." step={1} totalSteps={2} onCancel={goBack} />
+        <div style={{ flex:1,minHeight:0,overflowY:'auto',padding:isPhone?18:'24px 28px' }}>
           <div style={{ background: 'rgba(52,199,89,0.06)', border: '1px solid rgba(52,199,89,0.2)', borderRadius: 14, padding: '12px 16px', marginBottom: 20 }}>
             <span style={{ fontFamily: INTER, fontSize: 13, color: GREEN, fontWeight: 600 }}>Carrier has arrived to collect RTS packages</span>
           </div>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: '0 0 20px' }}>
             Which carrier?
           </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {RTS_CARRIER_CONFIG.map(cfg => (
-              <CarrierCard key={cfg.id} cfg={cfg} selected={rpForm.carrier === cfg.id} onSelect={() => setRPF(p => ({ ...p, carrier: cfg.id }))} />
+          <div style={{display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:9}}>
+            {RTS_CARRIER_CONFIG.map((cfg,index) => (
+              <CarrierCard key={cfg.id} cfg={cfg} index={index} selected={rpForm.carrier === cfg.id} onSelect={() => setRPF(p => ({ ...p, carrier: cfg.id }))} />
             ))}
           </div>
         </div>
-        <WizardFooter isFirst onContinue={() => setRPStep(2)} continueDisabled={!rpForm.carrier} />
+        <PackageFooter isFirst onContinue={() => setRPStep(2)} continueDisabled={!rpForm.carrier} />
       </div>
     );
 
@@ -600,7 +638,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
     const pendingForCarrier = rtsPending.filter(d => d.carrier === rpForm.carrier);
     return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Carrier Pickup" step={2} totalSteps={2} onCancel={goBack} />
+        <PackageHeader title="Confirm carrier collection" description="Reconcile the package count and record the completed handoff." step={2} totalSteps={2} onCancel={goBack} />
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Confirm collection
@@ -631,7 +669,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
             </div>
           </div>
         </div>
-        <WizardFooter onBack={() => setRPStep(1)} onContinue={submitRtsPickup} continueLabel="Confirm Pickup" />
+        <PackageFooter onBack={() => setRPStep(1)} onContinue={submitRtsPickup} continueLabel="Confirm Pickup" />
       </div>
     );
   }
@@ -645,15 +683,32 @@ export const PackageDashboard = ({ onActivityLogged }) => {
   ];
 
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 24, background: BG }}>
+    <div style={{ flex:1,minHeight:0,display:'flex',flexDirection:'column',background:BG }}>
+      <PackageHeader title="Packages" description="Receive, release, return, and reconcile property packages in one operational record." onCancel={onClose}/>
+      <div style={{ flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',paddingBottom:isPhone?32:24 }}>
+
+      {/* Desk context — mirrors the structured New Task setup panel */}
+      <div style={{ padding:isPhone?'18px 16px 0':'20px 28px 0' }}>
+        <div style={{ minHeight:82,boxSizing:'border-box',display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,overflow:'hidden',boxShadow:'0 2px 10px rgba(0,0,0,.04)' }}>
+          <div style={{ boxSizing:'border-box',padding:'13px 16px',display:'flex',alignItems:'center',gap:12 }}>
+            <div style={{ width:36,height:36,borderRadius:10,background:`${BLUE}10`,display:'flex',alignItems:'center',justifyContent:'center' }}><Package size={17} color={BLUE} /></div>
+            <div><div style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:MUTED,letterSpacing:'.14em',textTransform:'uppercase',marginBottom:4}}>On hand</div><div style={{fontFamily:INTER,fontSize:14,fontWeight:800,color:TEXT}}>{remaining} package{remaining===1?'':'s'} tracked</div></div>
+          </div>
+          <div style={{ boxSizing:'border-box',padding:'13px 16px',display:'flex',alignItems:'center',gap:12,borderLeft:isPhone?'none':`1px solid ${BORDER}`,borderTop:isPhone?`1px solid ${BORDER}`:'none' }}>
+            <div style={{width:36,height:36,borderRadius:10,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center'}}><Truck size={17} color={TEXT}/></div>
+            <div><div style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:MUTED,letterSpacing:'.14em',textTransform:'uppercase',marginBottom:4}}>This shift</div><div style={{fontFamily:INTER,fontSize:14,fontWeight:800,color:TEXT}}>{totalIn} received · {totalOut} released</div></div>
+          </div>
+        </div>
+      </div>
 
       {/* Sub-tab toggle */}
-      <div style={{ padding: '16px 16px 14px' }}>
-        <div style={{ display: 'flex', background: CARD2, borderRadius: 12, border: `1px solid ${BORDER}`, padding: 3, gap: 3 }}>
+      <div style={{ padding:isPhone?'16px 16px 14px':'18px 28px 16px' }}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}><span style={{width:24,height:2,background:BLUE}}/><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.16em',textTransform:'uppercase'}}>Package workflow</span></div>
+        <div role="tablist" aria-label="Package workflow" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', background: CARD2, borderRadius: 14, border: `1px solid ${BORDER}`, padding: 4, gap: 4 }}>
           {SUB_TABS.map(tab => (
-            <button key={tab.id} onClick={() => setSubTab(tab.id)}
-              style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: subTab === tab.id ? `1px solid ${BORDER}` : 'none', cursor: 'pointer', background: subTab === tab.id ? CARD : 'transparent', transition: 'background 150ms', boxShadow: subTab === tab.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
-              <span style={{ fontFamily: INTER, fontSize: 12, fontWeight: 700, color: subTab === tab.id ? TEXT : MUTED }}>{tab.label}</span>
+            <button key={tab.id} role="tab" aria-selected={subTab === tab.id} onClick={() => setSubTab(tab.id)}
+              style={{minHeight:44,padding:'0 6px',borderRadius:11,border:subTab===tab.id?`1px solid ${BORDER}`:'1px solid transparent',cursor:'pointer',background:subTab===tab.id?CARD:'transparent',transition:'all 160ms',boxShadow:subTab===tab.id?'0 2px 8px rgba(0,0,0,.07)':'none'}}>
+              <span style={{fontFamily:INTER,fontSize:isPhone?11:12,fontWeight:750,color:subTab===tab.id?TEXT:MUTED}}>{tab.label}</span>
             </button>
           ))}
         </div>
@@ -669,20 +724,8 @@ export const PackageDashboard = ({ onActivityLogged }) => {
 
       {/* DELIVERIES */}
       {subTab === 'deliveries' && (
-        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <button onClick={() => setView('delivery')}
-            style={{ width: '100%', padding: 20, background: BLUE, borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', boxShadow: `0 8px 28px ${BLUE}40` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ width: 56, height: 56, background: 'rgba(255,255,255,0.20)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Package size={28} color="white" />
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ fontFamily: INTER, fontSize: 17, fontWeight: 700, color: 'white', margin: '0 0 3px' }}>Log Delivery</p>
-                <p style={{ fontFamily: INTER, fontSize: 13, color: 'rgba(255,255,255,0.72)', margin: 0 }}>Record an incoming package</p>
-              </div>
-            </div>
-            <ChevronRight size={24} color="rgba(255,255,255,0.72)" />
-          </button>
+        <div style={{ padding:isPhone?'0 16px':'0 28px',display:'flex',flexDirection:'column',gap:20 }}>
+          <ActionRow Icon={Package} title="Log delivery" description="Record an incoming package and notify the resident." onClick={() => changeView('delivery')} compact={isPhone}/>
 
           {deliveries.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -695,11 +738,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
           )}
 
           {deliveries.length === 0 && (
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '40px 20px', textAlign: 'center' }}>
-              <div style={{ width: 64, height: 64, background: CARD2, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}><Package size={30} color={MUTED} /></div>
-              <p style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 16, margin: '0 0 5px' }}>No deliveries yet</p>
-              <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>Tap above to log one</p>
-            </div>
+            <EmptyState Icon={Package} title="No deliveries yet" description="Incoming packages logged this shift will appear here." />
           )}
 
           {deliveries.map(d => (
@@ -760,20 +799,8 @@ export const PackageDashboard = ({ onActivityLogged }) => {
 
       {/* PICKUPS */}
       {subTab === 'pickups' && (
-        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <button onClick={() => setView('pickup')}
-            style={{ width: '100%', padding: 20, background: GREEN, borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', boxShadow: '0 8px 28px rgba(52,199,89,0.35)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ width: 56, height: 56, background: 'rgba(255,255,255,0.20)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Check size={28} color="white" />
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ fontFamily: INTER, fontSize: 17, fontWeight: 700, color: 'white', margin: '0 0 3px' }}>Log Pickup</p>
-                <p style={{ fontFamily: INTER, fontSize: 13, color: 'rgba(255,255,255,0.72)', margin: 0 }}>Record a resident or third-party pickup</p>
-              </div>
-            </div>
-            <ChevronRight size={24} color="rgba(255,255,255,0.72)" />
-          </button>
+        <div style={{ padding:isPhone?'0 16px':'0 28px',display:'flex',flexDirection:'column',gap:20 }}>
+          <ActionRow Icon={Check} title="Log pickup" description="Record a resident or authorized third-party release." onClick={() => changeView('pickup')} compact={isPhone}/>
 
           {pickups.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -786,11 +813,7 @@ export const PackageDashboard = ({ onActivityLogged }) => {
           )}
 
           {pickups.length === 0 && (
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '40px 20px', textAlign: 'center' }}>
-              <div style={{ width: 64, height: 64, background: CARD2, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}><Check size={30} color={MUTED} /></div>
-              <p style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 16, margin: '0 0 5px' }}>No pickups yet</p>
-              <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>Tap above to log one</p>
-            </div>
+            <EmptyState Icon={Check} title="No pickups yet" description="Resident and authorized releases will appear here." />
           )}
 
           {pickups.map(p => {
@@ -827,24 +850,10 @@ export const PackageDashboard = ({ onActivityLogged }) => {
 
       {/* RTS */}
       {subTab === 'rts' && (
-        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <button onClick={() => setView('rtsDrop')}
-              style={{ padding: 18, background: RED, borderRadius: 18, border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 10, cursor: 'pointer', boxShadow: 'rgba(255,59,48,0.35) 0 8px 24px' }}>
-              <div style={{ width: 48, height: 48, background: 'rgba(255,255,255,0.20)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={24} color="white" /></div>
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: 'white', margin: '0 0 2px' }}>Resident Drop-Off</p>
-                <p style={{ fontFamily: INTER, fontSize: 11, color: 'rgba(255,255,255,0.72)', margin: 0 }}>Log a return</p>
-              </div>
-            </button>
-            <button onClick={() => setView('rtsPickup')}
-              style={{ padding: 18, background: BLUE, borderRadius: 18, border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 10, cursor: 'pointer', boxShadow: `${BLUE}40 0 8px 24px` }}>
-              <div style={{ width: 48, height: 48, background: 'rgba(255,255,255,0.20)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Truck size={24} color="white" /></div>
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: 'white', margin: '0 0 2px' }}>Carrier Pickup</p>
-                <p style={{ fontFamily: INTER, fontSize: 11, color: 'rgba(255,255,255,0.72)', margin: 0 }}>Mark collected</p>
-              </div>
-            </button>
+        <div style={{ padding:isPhone?'0 16px':'0 28px',display:'flex',flexDirection:'column',gap:20 }}>
+          <div style={{ display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:10 }}>
+            <ActionRow Icon={Plus} title="Resident drop-off" description="Create a return-to-sender record." onClick={() => changeView('rtsDrop')} compact />
+            <ActionRow Icon={Truck} title="Carrier pickup" description="Mark awaiting returns as collected." onClick={() => changeView('rtsPickup')} compact />
           </div>
 
           {rtsPending.length > 0 && (
@@ -906,18 +915,14 @@ export const PackageDashboard = ({ onActivityLogged }) => {
           )}
 
           {rtsDropoffs.length === 0 && rtsPickups.length === 0 && (
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '40px 20px', textAlign: 'center' }}>
-              <div style={{ width: 64, height: 64, background: CARD2, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}><RotateCcw size={30} color={MUTED} /></div>
-              <p style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 16, margin: '0 0 5px' }}>No RTS activity yet</p>
-              <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>Tap above to log one</p>
-            </div>
+            <EmptyState Icon={RotateCcw} title="No RTS activity yet" description="Return drop-offs and carrier collections will appear here." />
           )}
         </div>
       )}
 
       {/* AUDIT */}
       {subTab === 'audit' && (
-        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ padding:isPhone?'0 16px':'0 28px',display:'flex',flexDirection:'column',gap:16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
             {[
               { label: 'Received',  value: totalIn,   color: BLUE,                           Icon: Package },
@@ -974,14 +979,11 @@ export const PackageDashboard = ({ onActivityLogged }) => {
               </div>
             </>
           ) : (
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '40px 20px', textAlign: 'center' }}>
-              <div style={{ width: 64, height: 64, background: CARD2, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}><FileText size={30} color={MUTED} /></div>
-              <p style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 16, margin: '0 0 5px' }}>No deliveries logged yet</p>
-              <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>Deliveries will appear here for your shift audit</p>
-            </div>
+            <EmptyState Icon={FileText} title="No deliveries logged yet" description="Delivery records will populate this shift audit automatically." />
           )}
         </div>
       )}
+      </div>
     </div>
   );
 };

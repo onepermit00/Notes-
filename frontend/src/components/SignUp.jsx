@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowRight, ArrowLeft, Eye, EyeOff, Check } from 'lucide-react';
-import { authApi } from '../services/authApi';
+import { authApi, classifyAuthError } from '../services/authApi';
 
 const STEPS = [
   { num: 1, title: 'Your Details', desc: 'Tell us about yourself' },
@@ -11,10 +11,11 @@ const STEPS = [
 const inputClass =
   'min-h-12 w-full rounded-xl border border-[#ebebeb] bg-[#f7f7f7] px-4 text-base text-[#222] placeholder:text-[#9b9b9b] focus:border-[#ff385c] focus:outline-none';
 
-const Field = ({ label, htmlFor, children }) => (
+const Field = ({ label, htmlFor, error, children }) => (
   <div>
     <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-semibold">{label}</label>
     {children}
+    {error && <p id={`${htmlFor}-error`} className="mt-1.5 text-[12px] font-semibold text-[#c22a20]">{error}</p>}
   </div>
 );
 
@@ -24,6 +25,7 @@ export const SignUp = ({ onSignUp, onGoToSignIn, onBack }) => {
   const [showConf, setShowConf] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '', phone: '', jobTitle: '',
@@ -31,40 +33,44 @@ export const SignUp = ({ onSignUp, onGoToSignIn, onBack }) => {
     password: '', confirm: '',
   });
 
-  const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setError(''); };
+  const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setError(''); setFieldErrors((p) => ({ ...p, [k]: '' })); };
 
   const validateStep = () => {
+    const errors = {};
     if (step === 1) {
-      if (!form.firstName || !form.lastName) return 'Please enter your full name.';
-      if (!form.email) return 'Please enter your email address.';
-      if (!form.phone) return 'Please enter your phone number.';
-      if (!form.jobTitle) return 'Please enter your job title.';
+      if (!form.firstName.trim()) errors.firstName = 'Enter your first name.';
+      if (!form.lastName.trim()) errors.lastName = 'Enter your last name.';
+      if (!/^\S+@\S+\.\S+$/.test(form.email)) errors.email = 'Enter a valid email address.';
+      if (!form.phone.trim()) errors.phone = 'Enter your phone number.';
+      if (!form.jobTitle.trim()) errors.jobTitle = 'Enter your job title.';
     }
     if (step === 2) {
-      if (!form.propertyName) return 'Please enter the property name.';
-      if (!form.address) return 'Please enter the property address.';
-      if (!form.city || !form.state) return 'Please enter city and state.';
-      if (!form.units) return 'Please enter the number of units.';
+      if (!form.propertyName.trim()) errors.propertyName = 'Enter the property name.';
+      if (!form.address.trim()) errors.address = 'Enter the street address.';
+      if (!form.city.trim()) errors.city = 'Enter the city.';
+      if (!/^[A-Z]{2}$/.test(form.state)) errors.state = 'Use a 2-letter state code.';
+      if (!form.units || Number(form.units) < 1) errors.units = 'Enter at least 1 unit.';
     }
     if (step === 3) {
-      if (!form.password) return 'Please enter a password.';
-      if (form.password.length < 8) return 'Password must be at least 8 characters.';
-      if (form.password !== form.confirm) return 'Passwords do not match.';
+      if (form.password.length < 8) errors.password = 'Use at least 8 characters.';
+      if (!form.confirm) errors.confirm = 'Confirm your password.';
+      else if (form.password !== form.confirm) errors.confirm = 'Passwords do not match.';
     }
-    return null;
+    return errors;
   };
 
   const handleNext = async (e) => {
     e.preventDefault();
-    const err = validateStep();
-    if (err) { setError(err); return; }
+    const errors = validateStep();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) { setError('Check the highlighted fields.'); return; }
     if (step < 3) { setStep((s) => s + 1); setError(''); return; }
     setLoading(true);
     try {
       const user = await authApi.signUpManager(form);
       onSignUp(user);
     } catch (err2) {
-      setError(err2?.response?.data?.detail || err2.message || 'Sign up failed. Please try again.');
+      setError(classifyAuthError(err2).message);
     } finally {
       setLoading(false);
     }
@@ -80,7 +86,7 @@ export const SignUp = ({ onSignUp, onGoToSignIn, onBack }) => {
       {/* ── Left — editorial narrative + step progress (desktop) ──────────── */}
       <aside className="hidden w-[40%] shrink-0 flex-col justify-between bg-[#0b0b0b] p-12 text-white lg:flex">
         <button onClick={onBack} className="self-start text-left text-[12px] font-extrabold uppercase tracking-[0.24em] text-white" data-testid="signup-brand-back">
-          ✦ Notes
+          ✦ Noted
         </button>
 
         <div>
@@ -129,7 +135,7 @@ export const SignUp = ({ onSignUp, onGoToSignIn, onBack }) => {
           {/* Mobile: brand + progress */}
           <div className="mb-8 lg:hidden">
             <button onClick={onBack} className="mb-6 flex min-h-11 items-center text-[12px] font-extrabold uppercase tracking-[0.24em] text-[#222]" data-testid="signup-mobile-back">
-              ✦ Notes
+              ✦ Noted
             </button>
             <div className="flex items-center gap-2" role="progressbar" aria-valuemin={1} aria-valuemax={3} aria-valuenow={step} aria-label={`Step ${step} of 3`}>
               {STEPS.map(({ num }) => (
@@ -168,20 +174,20 @@ export const SignUp = ({ onSignUp, onGoToSignIn, onBack }) => {
             {step === 1 && (
               <>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="First name" htmlFor="su-first">
-                    <input id="su-first" type="text" autoComplete="given-name" placeholder="George" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} className={inputClass} data-testid="signup-firstname-input" />
+                  <Field label="First name" htmlFor="su-first" error={fieldErrors.firstName}>
+                    <input id="su-first" type="text" autoComplete="given-name" placeholder="George" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} aria-invalid={Boolean(fieldErrors.firstName)} aria-describedby={fieldErrors.firstName ? 'su-first-error' : undefined} className={inputClass} data-testid="signup-firstname-input" />
                   </Field>
-                  <Field label="Last name" htmlFor="su-last">
-                    <input id="su-last" type="text" autoComplete="family-name" placeholder="Smith" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} className={inputClass} data-testid="signup-lastname-input" />
+                  <Field label="Last name" htmlFor="su-last" error={fieldErrors.lastName}>
+                    <input id="su-last" type="text" autoComplete="family-name" placeholder="Smith" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} aria-invalid={Boolean(fieldErrors.lastName)} className={inputClass} data-testid="signup-lastname-input" />
                   </Field>
                 </div>
-                <Field label="Email address" htmlFor="su-email">
+                <Field label="Email address" htmlFor="su-email" error={fieldErrors.email}>
                   <input id="su-email" type="email" autoComplete="email" placeholder="you@property.com" value={form.email} onChange={(e) => set('email', e.target.value)} className={inputClass} data-testid="signup-email-input" />
                 </Field>
-                <Field label="Phone number" htmlFor="su-phone">
+                <Field label="Phone number" htmlFor="su-phone" error={fieldErrors.phone}>
                   <input id="su-phone" type="tel" autoComplete="tel" placeholder="(555) 000-0000" value={form.phone} onChange={(e) => set('phone', e.target.value)} className={inputClass} data-testid="signup-phone-input" />
                 </Field>
-                <Field label="Job title" htmlFor="su-job">
+                <Field label="Job title" htmlFor="su-job" error={fieldErrors.jobTitle}>
                   <input id="su-job" type="text" placeholder="e.g. Property Manager" value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} className={inputClass} data-testid="signup-jobtitle-input" />
                 </Field>
               </>
@@ -190,21 +196,21 @@ export const SignUp = ({ onSignUp, onGoToSignIn, onBack }) => {
             {/* ── Step 2: Property ── */}
             {step === 2 && (
               <>
-                <Field label="Property name" htmlFor="su-property">
+                <Field label="Property name" htmlFor="su-property" error={fieldErrors.propertyName}>
                   <input id="su-property" type="text" placeholder="e.g. The Hannah" value={form.propertyName} onChange={(e) => set('propertyName', e.target.value)} className={inputClass} data-testid="signup-property-input" />
                 </Field>
-                <Field label="Street address" htmlFor="su-address">
+                <Field label="Street address" htmlFor="su-address" error={fieldErrors.address}>
                   <input id="su-address" type="text" autoComplete="street-address" placeholder="123 Main St" value={form.address} onChange={(e) => set('address', e.target.value)} className={inputClass} data-testid="signup-address-input" />
                 </Field>
                 <div className="grid grid-cols-[1fr_88px] gap-4">
-                  <Field label="City" htmlFor="su-city">
+                  <Field label="City" htmlFor="su-city" error={fieldErrors.city}>
                     <input id="su-city" type="text" placeholder="Philadelphia" value={form.city} onChange={(e) => set('city', e.target.value)} className={inputClass} data-testid="signup-city-input" />
                   </Field>
-                  <Field label="State" htmlFor="su-state">
+                  <Field label="State" htmlFor="su-state" error={fieldErrors.state}>
                     <input id="su-state" type="text" maxLength={2} placeholder="PA" value={form.state} onChange={(e) => set('state', e.target.value.toUpperCase())} className={`${inputClass} uppercase`} data-testid="signup-state-input" />
                   </Field>
                 </div>
-                <Field label="Number of units" htmlFor="su-units">
+                <Field label="Number of units" htmlFor="su-units" error={fieldErrors.units}>
                   <input id="su-units" type="number" min="1" placeholder="e.g. 120" value={form.units} onChange={(e) => set('units', e.target.value)} className={inputClass} data-testid="signup-units-input" />
                 </Field>
               </>
@@ -213,7 +219,7 @@ export const SignUp = ({ onSignUp, onGoToSignIn, onBack }) => {
             {/* ── Step 3: Security ── */}
             {step === 3 && (
               <>
-                <Field label="Password" htmlFor="su-pass">
+                <Field label="Password" htmlFor="su-pass" error={fieldErrors.password}>
                   <div className="relative">
                     <input
                       id="su-pass"
@@ -244,7 +250,7 @@ export const SignUp = ({ onSignUp, onGoToSignIn, onBack }) => {
                     </div>
                   )}
                 </Field>
-                <Field label="Confirm password" htmlFor="su-confirm">
+                <Field label="Confirm password" htmlFor="su-confirm" error={fieldErrors.confirm}>
                   <div className="relative">
                     <input
                       id="su-confirm"

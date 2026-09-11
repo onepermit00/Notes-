@@ -44,12 +44,12 @@ const SHARED = {
 
 export const ThemeProvider = ({ children }) => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('adltrack-theme');
+    const saved = localStorage.getItem('noted-theme') || localStorage.getItem('adltrack-theme');
     return saved ? saved === 'dark' : false; // default light
   });
 
   useEffect(() => {
-    localStorage.setItem('adltrack-theme', isDarkMode ? 'dark' : 'light');
+    localStorage.setItem('noted-theme', isDarkMode ? 'dark' : 'light');
     const palette = isDarkMode ? DARK : LIGHT;
     document.body.style.background = palette.BG;
     document.body.style.color      = palette.TEXT;

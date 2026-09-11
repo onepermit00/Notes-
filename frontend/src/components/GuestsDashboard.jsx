@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { UserCheck, MessageCircle, Clock, Check, LogOut, User, UtensilsCrossed, Package, Wrench, Truck, HelpCircle, Camera, Plus, X, Calendar, Bell } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import ResidentSearchInput from './ResidentSearchInput';
@@ -23,61 +23,63 @@ const PURPOSE_CONFIG = [
   { id: 'Other',                 Icon: HelpCircle,      desc: 'Other reason not listed above'            },
 ];
 
-function Label({ children }) {
+function Label({ children, optional = false }) {
   const { colors } = useTheme();
   const { MUTED, INTER } = colors;
   return (
-    <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>
-      {children}
+    <div style={{ display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12,fontFamily:INTER,fontSize:14,fontWeight:800,color:colors.TEXT,marginBottom:9 }}>
+      <span>{children}</span>{optional&&<span style={{fontSize:10,fontWeight:600,color:MUTED,letterSpacing:'.12em',textTransform:'uppercase'}}>Optional</span>}
     </div>
   );
 }
 
-function WizardHeader({ title, step, totalSteps, onCancel }) {
+function WizardHeader({ propertyName, title, description, step, totalSteps, onCancel, compact = false }) {
   const { colors } = useTheme();
-  const { CARD, BORDER, TEXT, MUTED, INTER } = colors;
+  const { INTER, CARD, CARD2, BORDER, TEXT, MUTED } = colors;
   return (
-    <div style={{ flexShrink: 0, background: CARD, borderBottom: `1px solid ${BORDER}` }}>
-      <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>{title}</div>
-          <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 3 }}>Step {step} of {totalSteps}</div>
+    <div style={{ flexShrink:0, background:CARD, borderBottom:`1px solid ${BORDER}` }}>
+      <div style={{ padding:compact?'20px 20px 14px':'26px 30px 18px', display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16 }}>
+        <div style={{minWidth:0}}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:11 }}><span style={{ width:24, height:2, background:BLUE }} /><span style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.22em', textTransform:'uppercase' }}>{propertyName}</span></div>
+          <div style={{ fontFamily:INTER, fontSize:compact?28:34, fontWeight:800, color:TEXT, letterSpacing:'-.045em', lineHeight:.98 }}>{title}</div>
+          {description&&<div style={{maxWidth:470,fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.55,marginTop:9}}>{description}</div>}
+          <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:8 }}>Step {step} of {totalSteps} · Visitor record</div>
         </div>
-        <button onClick={onCancel} style={{ fontFamily: INTER, fontSize: 14, fontWeight: 600, color: MUTED, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginTop: 2 }}>
-          Cancel
-        </button>
+        <button onClick={onCancel} aria-label="Close visitor workflow" style={{ width:44, height:44, borderRadius:999, border:`1px solid ${BORDER}`, color:TEXT, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}><X size={19} /></button>
       </div>
-      <div style={{ display: 'flex', gap: 4, padding: '0 20px 14px' }}>
+      <div style={{ display:'flex', gap:5, padding:compact?'0 20px 16px':'0 30px 20px' }}>
         {Array.from({ length: totalSteps }).map((_, i) => (
-          <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i < step ? BLUE : BORDER, transition: 'background 200ms' }} />
+          <div key={i} style={{ flex:1, height:3, borderRadius:2, background:i < step ? BLUE : BORDER, transition:'background 200ms' }} />
         ))}
       </div>
     </div>
   );
 }
 
-function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continueDisabled = false, isFirst = false }) {
+function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continueDisabled = false, isFirst = false, compact = false }) {
   const { colors } = useTheme();
   const { CARD, CARD2, BORDER, TEXT, MUTED, INTER } = colors;
   return (
-    <div style={{ flexShrink: 0, padding: '12px 20px 24px', background: CARD, borderTop: `1px solid ${BORDER}`, display: 'flex', gap: 10 }}>
+    <div style={{ flexShrink:0, padding:compact?'12px 20px 30px':'14px 28px 20px', background:CARD, borderTop:`1px solid ${BORDER}`, display:'flex', gap:10, boxShadow:'0 -8px 24px rgba(0,0,0,.04)' }}>
       {!isFirst && (
         <button onClick={onBack}
-          style={{ flex: 1, padding: '15px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
+          style={{ flex:1, minHeight:48, padding:'0 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, cursor:'pointer' }}>
           Back
         </button>
       )}
       <button onClick={onContinue} disabled={continueDisabled}
-        style={{ flex: 1, padding: '15px 0', background: continueDisabled ? CARD2 : BLUE, border: continueDisabled ? `1px solid ${BORDER}` : 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: continueDisabled ? MUTED : 'white', cursor: continueDisabled ? 'not-allowed' : 'pointer', boxShadow: continueDisabled ? 'none' : `0 6px 20px ${BLUE}28` }}>
+        style={{ flex:1, minHeight:48, padding:'0 20px', background:continueDisabled?CARD2:BLUE, border:continueDisabled?`1px solid ${BORDER}`:'none', borderRadius:999, fontFamily:INTER, fontSize:15, fontWeight:700, color:continueDisabled?MUTED:'white', cursor:continueDisabled?'not-allowed':'pointer', boxShadow:continueDisabled?'none':`0 7px 22px ${BLUE}28` }}>
         {continueLabel}
       </button>
     </div>
   );
 }
 
-export const GuestsDashboard = ({ onActivityLogged }) => {
+export const GuestsDashboard = ({ onActivityLogged, onWorkflowChange, propertyName='The Alexen', isPhone=false }) => {
   const { colors } = useTheme();
   const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
+  const GuestHeader = props => <WizardHeader propertyName={propertyName} compact={isPhone} {...props}/>;
+  const GuestFooter = props => <WizardFooter compact={isPhone} {...props}/>;
   const STATUS_STYLES = {
     waiting:  { bg: 'rgba(255,149,0,0.10)',   color: ORANGE, label: 'Waiting'  },
     notified: { bg: 'rgba(255,56,92,0.10)',   color: BLUE,   label: 'Notified' },
@@ -85,11 +87,25 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   };
   const [guests,   setGuests]   = useState([]);
   const [view,     setView]     = useState('list');
+  const [guestQueueTab, setGuestQueueTab] = useState('lobby');
   const [gStep,    setGStep]    = useState(1);
   const [form,     setForm]     = useState({ guestName: '', residentName: '', unit: '', purpose: '', notes: '', photo: null, photoPreview: null });
   const [toastId,  setToastId]  = useState(null);
   const [toastMsg, setToastMsg] = useState('');
   const [notesInterim, setNotesInterim] = useState('');
+
+  // Keep the drawer chrome in sync with the guest screen immediately.  Relying
+  // only on an effect here briefly rendered both drawer headers, and could
+  // leave the list view without its header during a fast close/reopen.
+  const changeView = (nextView) => {
+    onWorkflowChange?.(nextView !== 'list');
+    setView(nextView);
+  };
+
+  useEffect(() => {
+    onWorkflowChange?.(view !== 'list');
+    return () => onWorkflowChange?.(false);
+  }, [view, onWorkflowChange]);
 
   // Pre-registration state
   const [preRegs,  setPreRegs]  = useState(loadPreRegs);
@@ -103,13 +119,13 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   };
 
   const goBack = () => {
-    setView('list');
+    changeView('list');
     setGStep(1);
     setForm({ guestName: '', residentName: '', unit: '', purpose: '', notes: '', photo: null, photoPreview: null });
   };
 
   const goBackPr = () => {
-    setView('list');
+    changeView('list');
     setPrStep(1);
     setPrForm({ guestName: '', residentName: '', unit: '', purpose: '', notes: '', expectedTime: '' });
   };
@@ -128,7 +144,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
       departedAt:   null,
     };
     setGuests(prev => [entry, ...prev]);
-    const arrivalNotes = [entry.purpose, form.notes.trim()].filter(Boolean).join('. ');
+    const arrivalNotes = [entry.purpose ? `The visit was for ${entry.purpose.toLowerCase()}` : '', form.notes.trim()].filter(Boolean).join('. ');
     onActivityLogged?.({ title: `Guest arrival · ${entry.guestName} → ${entry.residentName} · Unit ${entry.unit}`, category: 'Resident Assist', notes: arrivalNotes, evidenceUrls: form.photoPreview ? [form.photoPreview] : [] });
     goBack();
     showToast(`Guest logged · Notify ${entry.residentName} now`, entry.id);
@@ -140,6 +156,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
     const next = [entry, ...preRegs];
     setPreRegs(next);
     savePreRegs(next);
+    onActivityLogged?.({ title: `Guest pre-registration · ${entry.guestName} → ${entry.residentName} · Unit ${entry.unit}`, category: 'Administrative', notes: [entry.purpose, entry.expectedTime ? `Expected ${entry.expectedTime}` : '', entry.notes].filter(Boolean).join('. ') });
     goBackPr();
     showToast(`${prForm.guestName} pre-registered for ${prForm.expectedTime || 'today'}`, entry.id);
   };
@@ -177,6 +194,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
     const guest = guests.find(g => g.id === id);
     if (!guest) return;
     setGuests(prev => prev.map(g => g.id === id ? { ...g, status: 'notified', notifiedAt: now() } : g));
+    onActivityLogged?.({ title: `Resident notified · ${guest.guestName} waiting for ${guest.residentName} · Unit ${guest.unit}`, category: 'Resident Assist', notes: guest.purpose || '' });
     showToast(`Text sent to ${guest.residentName} · Unit ${guest.unit}`, id);
   };
 
@@ -198,8 +216,8 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   if (view === 'prereg') {
     if (prStep === 1) return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Pre-register Visitor" step={1} totalSteps={2} onCancel={goBackPr} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+        <GuestHeader title="Identify the visitor" description="Start the expected-visitor record with their arrival details." step={1} totalSteps={2} onCancel={goBackPr} />
+        <div style={{ flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',padding:isPhone?'18px':'24px 28px',display:'flex',flexDirection:'column',gap:22 }}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Who is expected?
           </h2>
@@ -209,13 +227,13 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <Label>Expected Arrival Time <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
+            <Label optional>Expected Arrival Time</Label>
             <input type="time" value={prForm.expectedTime} onChange={e => setPrForm(p => ({ ...p, expectedTime: e.target.value }))}
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <Label>Purpose <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Label optional>Purpose</Label>
+            <div style={{display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:9}}>
               {PURPOSE_CONFIG.map(({ id, Icon, desc }) => {
                 const sel = prForm.purpose === id;
                 return (
@@ -235,14 +253,14 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
             </div>
           </div>
         </div>
-        <WizardFooter isFirst onContinue={() => setPrStep(2)} continueDisabled={!prForm.guestName.trim()} />
+        <GuestFooter isFirst onContinue={() => setPrStep(2)} continueDisabled={!prForm.guestName.trim()} />
       </div>
     );
 
     return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Pre-register Visitor" step={2} totalSteps={2} onCancel={goBackPr} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+        <GuestHeader title="Assign the visit" description="Connect the expected visitor to the resident and unit." step={2} totalSteps={2} onCancel={goBackPr} />
+        <div style={{ flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',padding:isPhone?'18px':'24px 28px',display:'flex',flexDirection:'column',gap:22 }}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Which resident are they visiting?
           </h2>
@@ -276,7 +294,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
             </span>
           </div>
         </div>
-        <WizardFooter onBack={() => setPrStep(1)} onContinue={submitPreReg} continueLabel="Save Pre-registration" continueDisabled={!prForm.residentName.trim() || !prForm.unit.trim()} />
+        <GuestFooter onBack={() => setPrStep(1)} onContinue={submitPreReg} continueLabel="Save Pre-registration" continueDisabled={!prForm.residentName.trim() || !prForm.unit.trim()} />
       </div>
     );
   }
@@ -285,8 +303,8 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   if (view === 'form') {
     if (gStep === 1) return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Log Guest Arrival" step={1} totalSteps={2} onCancel={goBack} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+        <GuestHeader title="Identify the visitor" description="Start the arrival record with who is at the desk and why." step={1} totalSteps={2} onCancel={goBack} />
+        <div style={{ flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',padding:isPhone?'18px':'24px 28px',display:'flex',flexDirection:'column',gap:22 }}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Who is visiting?
           </h2>
@@ -296,8 +314,8 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <Label>Purpose of Visit <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Label optional>Purpose of Visit</Label>
+            <div style={{display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:9}}>
               {PURPOSE_CONFIG.map(({ id, Icon, desc }) => {
                 const sel = form.purpose === id;
                 return (
@@ -317,14 +335,14 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
             </div>
           </div>
         </div>
-        <WizardFooter isFirst onContinue={() => setGStep(2)} continueDisabled={!form.guestName.trim()} />
+        <GuestFooter isFirst onContinue={() => setGStep(2)} continueDisabled={!form.guestName.trim()} />
       </div>
     );
 
     return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Log Guest Arrival" step={2} totalSteps={2} onCancel={goBack} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+        <GuestHeader title="Assign the visit" description="Connect the guest to the resident, unit, and operational notes." step={2} totalSteps={2} onCancel={goBack} />
+        <div style={{ flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',padding:isPhone?'18px':'24px 28px',display:'flex',flexDirection:'column',gap:22 }}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Who are they here to see?
           </h2>
@@ -352,7 +370,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
           </div>
           <div style={{ position: 'relative' }}>
-            <Label>Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
+            <Label optional>Notes</Label>
             <textarea
               value={form.notes + (notesInterim ? (form.notes ? ' ' : '') + notesInterim : '')}
               onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
@@ -363,7 +381,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
             <MicButton onTranscript={t => setForm(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} onInterim={setNotesInterim} />
           </div>
           <div>
-            <Label>Photo <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
+            <Label optional>Photo</Label>
             {form.photoPreview ? (
               <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
                 <img src={form.photoPreview} alt="Guest" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
@@ -393,7 +411,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
             </span>
           </div>
         </div>
-        <WizardFooter onBack={() => setGStep(1)} onContinue={logGuest} continueLabel="Log Guest & Notify" continueDisabled={!form.residentName.trim() || !form.unit.trim()} />
+        <GuestFooter onBack={() => setGStep(1)} onContinue={logGuest} continueLabel="Log Guest & Notify" continueDisabled={!form.residentName.trim() || !form.unit.trim()} />
       </div>
     );
   }
@@ -403,6 +421,9 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
   const departedGuests = guests.filter(g => g.status === 'departed');
   const waitingCount   = guests.filter(g => g.status === 'waiting').length;
   const pendingPreRegs = preRegs.filter(p => p.status === 'pending');
+  const isQueueEmpty = (guestQueueTab === 'lobby' && activeGuests.length === 0)
+    || (guestQueueTab === 'expected' && pendingPreRegs.length === 0)
+    || (guestQueueTab === 'history' && departedGuests.length === 0);
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
@@ -416,10 +437,31 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
       )}
 
       {/* Scrollable content */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',padding:isPhone?'18px 16px 28px':'20px 28px 28px',display:'flex',flexDirection:'column',gap:20 }}>
+
+        {/* Desk context */}
+        <div style={{ flexShrink:0,minHeight:82,boxSizing:'border-box',display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,overflow:'hidden',boxShadow:SHADOW }}>
+          <div style={{ height:'100%', boxSizing:'border-box', padding:'16px 18px', display:'flex', alignItems:'center', gap:13 }}>
+            <div style={{ width:40, height:40, borderRadius:12, background:`${BLUE}10`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><UserCheck size={19} color={BLUE} /></div>
+            <div><div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, letterSpacing:'.14em', textTransform:'uppercase', marginBottom:5 }}>Lobby now</div><div style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT }}>{activeGuests.length} active visitor{activeGuests.length === 1 ? '' : 's'}</div></div>
+          </div>
+          <div style={{ height:'100%',boxSizing:'border-box',padding:'16px 18px',display:'flex',alignItems:'center',gap:13,borderLeft:isPhone?'none':`1px solid ${BORDER}`,borderTop:isPhone?`1px solid ${BORDER}`:'none' }}>
+            <div style={{ width:40, height:40, borderRadius:12, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Calendar size={19} color={TEXT} /></div>
+            <div><div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, letterSpacing:'.14em', textTransform:'uppercase', marginBottom:5 }}>Expected</div><div style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT }}>{pendingPreRegs.length} scheduled today</div></div>
+          </div>
+        </div>
+
+        <div style={{ flexShrink:0, display:'flex', alignItems:'center', gap:8, marginTop:2 }}><span style={{ width:24, height:2, background:BLUE }} /><span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, letterSpacing:'.18em', textTransform:'uppercase' }}>Visitor activity</span></div>
+
+        <div role="tablist" aria-label="Visitor activity" style={{ flexShrink:0, display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:4, padding:4, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14 }}>
+          {[['lobby', 'Lobby', activeGuests.length], ['expected', 'Expected', pendingPreRegs.length], ['history', 'History', departedGuests.length]].map(([id, label, count]) => {
+            const selected = guestQueueTab === id;
+            return <button key={id} role="tab" aria-selected={selected} onClick={() => setGuestQueueTab(id)} style={{ minHeight:44, padding:'0 5px', border:'none', borderRadius:10, background:selected?CARD:'transparent', boxShadow:selected?'0 2px 6px rgba(0,0,0,.08)':'none', color:selected?TEXT:MUTED, cursor:'pointer', fontFamily:INTER, fontSize:13, fontWeight:700, transition:'all 160ms' }}>{label}<span style={{ marginLeft:5, color:selected?BLUE:MUTED }}>{count}</span></button>;
+          })}
+        </div>
 
         {/* Pre-registered visitors */}
-        {pendingPreRegs.length > 0 && (
+        {guestQueueTab === 'expected' && pendingPreRegs.length > 0 && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -470,18 +512,18 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
         )}
 
         {/* Empty state */}
-        {guests.length === 0 && pendingPreRegs.length === 0 && (
-          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '48px 24px', textAlign: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: 18, background: 'rgba(255,56,92,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-              <UserCheck size={28} color={BLUE} strokeWidth={1.5} />
+        {isQueueEmpty && (
+        <div style={{ flexShrink:0,minHeight:isPhone?220:260,background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:'34px 20px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',boxShadow:SHADOW }}>
+            <div style={{ width:52,height:52,borderRadius:14,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px' }}>
+              {guestQueueTab === 'expected' ? <Calendar size={24} color={MUTED} /> : guestQueueTab === 'history' ? <Check size={24} color={MUTED} /> : <UserCheck size={24} color={MUTED} />}
             </div>
-            <p style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, margin: '0 0 5px' }}>No guests logged</p>
-            <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>Tap "Log Guest" below or pre-register an expected visitor</p>
+            <p style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, margin: '0 0 5px' }}>{guestQueueTab === 'expected' ? 'No visitors expected' : guestQueueTab === 'history' ? 'No visitor history yet' : 'No guests in the lobby'}</p>
+            <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>{guestQueueTab === 'expected' ? 'Pre-register an expected visitor below.' : guestQueueTab === 'history' ? 'Completed visits will appear here.' : 'Log a guest arrival or review expected visitors.'}</p>
           </div>
         )}
 
         {/* In Lobby section */}
-        {activeGuests.length > 0 && (
+        {guestQueueTab === 'lobby' && activeGuests.length > 0 && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -548,7 +590,7 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
         )}
 
         {/* Departed section */}
-        {departedGuests.length > 0 && (
+        {guestQueueTab === 'history' && departedGuests.length > 0 && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -582,14 +624,14 @@ export const GuestsDashboard = ({ onActivityLogged }) => {
       </div>
 
       {/* Fixed CTA */}
-      <div style={{ flexShrink: 0, padding: '12px 16px 20px', background: CARD, borderTop: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button onClick={() => setView('form')}
-          style={{ width: '100%', padding: '16px 0', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 16, fontWeight: 700, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 6px 20px rgba(255,56,92,0.32)' }}>
+      <div style={{ flexShrink:0,padding:isPhone?'12px 20px 30px':'14px 28px 20px',background:CARD,borderTop:`1px solid ${BORDER}`,boxShadow:'0 -8px 24px rgba(0,0,0,.04)',display:'flex',flexDirection:'column',gap:8 }}>
+        <button onClick={() => changeView('form')}
+          style={{ width:'100%', minHeight:52, padding:'0 20px', background:BLUE, border:'none', borderRadius:999, fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, boxShadow:'0 7px 22px rgba(255,56,92,.28)' }}>
           <UserCheck size={20} />
           Log Guest Arrival
         </button>
-        <button onClick={() => setView('prereg')}
-          style={{ width: '100%', padding: '13px 0', background: 'rgba(255,149,0,0.08)', border: `1.5px solid rgba(255,149,0,0.3)`, borderRadius: 14, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: ORANGE, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <button onClick={() => changeView('prereg')}
+          style={{ width:'100%', minHeight:46, padding:'0 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
           <Calendar size={17} />
           Pre-register Expected Visitor
         </button>

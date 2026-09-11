@@ -1,5 +1,5 @@
-/* Editorial Operations Design System — tokens + foundations
-   Adapted from MY-DESIGN-SYSTEM v1.0.0 for this project. */
+/* Noted Design System — tokens + foundations
+   Editorial clarity for workforce operations. */
 
 :root {
   color-scheme: light;
@@ -52,6 +52,36 @@
   --ed-ease-editorial: cubic-bezier(0.16, 1, 0.3, 1);
   --ed-container: 1280px;
   --ed-header-height: 80px;
+
+  /* Canonical product aliases. New work should use these names; the ed-prefixed
+     tokens remain as compatibility aliases for the existing application. */
+  --noted-font-sans: var(--ed-font-sans);
+  --noted-color-brand: var(--ed-accent);
+  --noted-color-brand-soft: var(--ed-accent-soft);
+  --noted-color-brand-glow: var(--ed-accent-glow);
+  --noted-color-info: var(--ed-accent-cool);
+  --noted-color-success: var(--ed-success);
+  --noted-color-danger: var(--ed-danger);
+  --noted-color-warning: var(--ed-warning);
+  --noted-color-canvas: var(--ed-bg);
+  --noted-color-surface: var(--ed-surface);
+  --noted-color-surface-muted: var(--ed-surface-raised);
+  --noted-color-warm: var(--ed-warm);
+  --noted-color-text: var(--ed-text);
+  --noted-color-text-muted: var(--ed-muted);
+  --noted-color-border: var(--ed-border);
+  --noted-color-ink: var(--ed-editorial-dark);
+  --noted-radius-control: var(--ed-radius-control);
+  --noted-radius-card: var(--ed-radius-card);
+  --noted-radius-panel: var(--ed-radius-panel);
+  --noted-radius-pill: var(--ed-radius-pill);
+  --noted-shadow-card: var(--ed-shadow-card);
+  --noted-shadow-raised: var(--ed-shadow-raised);
+  --noted-shadow-floating: var(--ed-shadow-floating);
+  --noted-ease: var(--ed-ease);
+  --noted-ease-emphasized: var(--ed-ease-editorial);
+  --noted-container: var(--ed-container);
+  --noted-header-height: var(--ed-header-height);
 }
 
 [data-theme="dark"],

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-import os, logging, uuid, asyncio, base64
+import os, logging, uuid, asyncio, base64, secrets, hashlib
 import urllib.request, urllib.error, json as _json
 
 ROOT_DIR = Path(__file__).parent
@@ -54,6 +54,13 @@ async def _ensure_indexes():
     await db.residents.create_index([('manager_id', 1), ('unit', 1)],       background=True)
     await db.audit_logs.create_index([('manager_id', 1), ('created_at', -1)], background=True)
     await db.scheduled_tasks.create_index([('manager_id', 1), ('active', 1)], background=True)
+    await db.password_resets.create_index('token_hash', unique=True, background=True)
+    await db.password_resets.create_index('expires_at', expireAfterSeconds=0, background=True)
+    await db.invitations.create_index('token_hash', unique=True, background=True)
+    await db.invitations.create_index('email',                          background=True)
+    await db.invitations.create_index([('manager_id', 1), ('status', 1)], background=True)
+    await db.rate_limit_events.create_index('key',                      background=True)
+    await db.rate_limit_events.create_index('created_at', expireAfterSeconds=900, background=True)
     logger.info('MongoDB indexes ensured.')
 
 
@@ -73,6 +80,11 @@ app = FastAPI(lifespan=lifespan)
 api = APIRouter(prefix='/api')
 
 SESSION_DAYS = 30
+
+RESET_TOKEN_MINUTES  = 45   # password-reset link lifetime
+INVITE_TOKEN_DAYS    = 7    # concierge invitation link lifetime
+FORGOT_PW_RATE_LIMIT  = 5   # max /auth/password/forgot requests
+FORGOT_PW_RATE_WINDOW = 15  # ...per this many minutes, per email
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -105,6 +117,23 @@ class AddConciergeRequest(BaseModel):
     title:      str
     password:   str
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token:    str
+    password: str
+
+class CreateInvitationRequest(BaseModel):
+    first_name: str
+    last_name:  str
+    email:      str
+    phone:      str = ''
+    title:      str = 'Concierge'
+
+class AcceptInvitationRequest(BaseModel):
+    password: str
+
 class TaskCreate(BaseModel):
     title:          str
     description:    Optional[str] = None
@@ -118,6 +147,7 @@ class TaskCreate(BaseModel):
     requires_photo: bool = False
     assigned_to:    Optional[str] = None
     assigned_to_id: Optional[str] = None
+    source_section: Optional[str] = None
 
 class TaskUpdate(BaseModel):
     status:          Optional[str] = None
@@ -196,6 +226,34 @@ def set_cookie(response: Response, token: str):
     )
 
 
+# ── Password / invitation tokens ────────────────────────────────────────────────
+# Raw tokens are shown to the user exactly once (in the email link) and are never
+# persisted or logged. Only a sha256 hash of the token is stored, so a database
+# read alone can never be used to reset a password or accept an invitation.
+
+def _generate_raw_token() -> str:
+    return secrets.token_urlsafe(32)
+
+def _hash_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode()).hexdigest()
+
+def validate_password_policy(password: str):
+    """Same minimum bar enforced at manager signup — kept in one place so every
+    entry point (signup, reset, invitation-accept) stays consistent."""
+    if len(password) < 8:
+        raise HTTPException(400, 'Password must be at least 8 characters.')
+
+
+async def _check_rate_limit(key: str, limit: int, window_minutes: int):
+    """Lightweight Mongo-backed sliding-window limiter. The events collection has
+    a TTL index matching the window, so it self-cleans without a background job."""
+    window_start = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+    count = await db.rate_limit_events.count_documents({'key': key, 'created_at': {'$gte': window_start}})
+    if count >= limit:
+        raise HTTPException(429, 'Too many requests. Please try again later.')
+    await db.rate_limit_events.insert_one({'key': key, 'created_at': datetime.now(timezone.utc)})
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # EMAIL HELPER
 # ══════════════════════════════════════════════════════════════════════════════
@@ -234,8 +292,7 @@ async def send_email(to_email: str, subject: str, html: str):
 
 @api.post('/auth/manager/signup')
 async def manager_signup(data: ManagerSignupRequest, response: Response):
-    if len(data.password) < 8:
-        raise HTTPException(400, 'Password must be at least 8 characters.')
+    validate_password_policy(data.password)
     if await db.managers.find_one({'email': data.email.lower()}):
         raise HTTPException(400, 'An account with this email already exists.')
 
@@ -385,6 +442,153 @@ async def change_password(data: ChangePasswordRequest, request: Request, session
         raise HTTPException(400, 'Current password is incorrect.')
     await collection.update_one({id_field: session['user_id']}, {'$set': {'password_hash': hash_pw(data.new_password)}})
     return {'message': 'Password updated successfully.'}
+
+
+# ── Password recovery ────────────────────────────────────────────────────────
+
+FORGOT_PASSWORD_NEUTRAL_RESPONSE = {
+    'message': 'If an account exists for that email, password reset instructions will be sent.'
+}
+
+@api.post('/auth/password/forgot')
+async def forgot_password(data: ForgotPasswordRequest):
+    email = data.email.lower().strip()
+    if not email:
+        return FORGOT_PASSWORD_NEUTRAL_RESPONSE
+
+    # Rate-limited by normalized email, independent of whether the account
+    # exists, so the limiter itself can't be used to test for an account.
+    await _check_rate_limit(f'forgot-password:{email}', FORGOT_PW_RATE_LIMIT, FORGOT_PW_RATE_WINDOW)
+
+    user_type = 'manager'
+    user = await db.managers.find_one({'email': email})
+    if not user:
+        user_type = 'concierge'
+        user = await db.concierges.find_one({'email': email, 'is_active': True})
+
+    if user:
+        user_id   = user['manager_id'] if user_type == 'manager' else user['concierge_id']
+        raw_token = _generate_raw_token()
+        now       = datetime.now(timezone.utc)
+        await db.password_resets.insert_one({
+            'token_hash': _hash_token(raw_token),
+            'user_id':    user_id,
+            'user_type':  user_type,
+            'created_at': now,
+            'expires_at': now + timedelta(minutes=RESET_TOKEN_MINUTES),
+            'used_at':    None,
+        })
+
+        frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+        reset_link   = f'{frontend_url}/reset-password?token={raw_token}'
+        html = f"""
+        <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
+          <div style="background:#0F0F0F;border-radius:16px 16px 0 0;padding:32px;text-align:center">
+            <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin:0 0 8px">onepermit</p>
+            <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Reset your password</h1>
+          </div>
+          <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
+            <p style="color:#444;font-size:15px;line-height:1.7">Hi {user.get('first_name', '')},</p>
+            <p style="color:#444;font-size:15px;line-height:1.7">We received a request to reset your onepermit password. This link expires in {RESET_TOKEN_MINUTES} minutes.</p>
+            <a href="{reset_link}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Reset password</a>
+            <p style="color:#aaa;font-size:13px">If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        </div>"""
+        asyncio.create_task(send_email(user['email'], 'Reset your onepermit password', html))
+        logger.info(f'Password reset requested for {user_type} {user_id}')  # never log the raw token
+    else:
+        logger.info(f'Password reset requested for unregistered email — no email sent')
+
+    return FORGOT_PASSWORD_NEUTRAL_RESPONSE
+
+
+@api.post('/auth/password/reset')
+async def reset_password(data: ResetPasswordRequest):
+    validate_password_policy(data.password)
+
+    now = datetime.now(timezone.utc)
+    record = await db.password_resets.find_one_and_update(
+        {'token_hash': _hash_token(data.token), 'used_at': None, 'expires_at': {'$gt': now}},
+        {'$set': {'used_at': now}},
+    )
+    if not record:
+        raise HTTPException(400, 'This reset link is invalid or has expired.')
+
+    collection = db.managers if record['user_type'] == 'manager' else db.concierges
+    id_field   = 'manager_id'  if record['user_type'] == 'manager' else 'concierge_id'
+    user = await collection.find_one({id_field: record['user_id']})
+    if not user:
+        raise HTTPException(400, 'This reset link is invalid or has expired.')
+
+    await collection.update_one({id_field: record['user_id']}, {'$set': {'password_hash': hash_pw(data.password)}})
+    await db.sessions.delete_many({'user_id': record['user_id']})
+    return {'message': 'Password reset successfully. You can now sign in.'}
+
+
+# ── Concierge invitations ────────────────────────────────────────────────────
+
+@api.get('/auth/invitations/{token}')
+async def get_invitation(token: str):
+    inv = await db.invitations.find_one({'token_hash': _hash_token(token)})
+    if not inv:
+        raise HTTPException(404, detail={'status': 'invalid', 'message': 'This invitation link is not valid.'})
+
+    expires_at = inv['expires_at']
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if inv['status'] == 'accepted':
+        raise HTTPException(410, detail={'status': 'used', 'message': 'This invitation has already been used.'})
+    if inv['status'] == 'revoked':
+        raise HTTPException(404, detail={'status': 'invalid', 'message': 'This invitation link is not valid.'})
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(410, detail={'status': 'expired', 'message': 'This invitation has expired.'})
+
+    return {
+        'status':        'valid',
+        'email':         inv['email'],
+        'name':          f"{inv['first_name']} {inv['last_name']}".strip(),
+        'property_name': inv['property_name'],
+        'role':          'concierge',
+        'expires_at':    expires_at.isoformat(),
+    }
+
+
+@api.post('/auth/invitations/{token}/accept')
+async def accept_invitation(token: str, data: AcceptInvitationRequest):
+    validate_password_policy(data.password)
+
+    now = datetime.now(timezone.utc)
+    inv = await db.invitations.find_one_and_update(
+        {'token_hash': _hash_token(token), 'status': 'pending', 'expires_at': {'$gt': now}},
+        {'$set': {'status': 'accepted', 'used_at': now}},
+    )
+    if not inv:
+        raise HTTPException(400, 'This invitation link is invalid, expired, or already used.')
+
+    manager = await db.managers.find_one({'manager_id': inv['manager_id']})
+    if not manager:
+        raise HTTPException(400, 'This invitation is no longer valid.')
+
+    if await db.concierges.find_one({'email': inv['email']}):
+        raise HTTPException(409, 'An account with this email already exists.')
+
+    con_id = f'con_{uuid.uuid4().hex[:12]}'
+    await db.concierges.insert_one({
+        'concierge_id':  con_id,
+        'email':         inv['email'],
+        'password_hash': hash_pw(data.password),
+        'first_name':    inv['first_name'],
+        'last_name':     inv['last_name'],
+        'phone':         inv.get('phone', ''),
+        'title':         inv.get('title', 'Concierge'),
+        'manager_id':    inv['manager_id'],
+        'property_name': manager['property_name'],
+        'is_active':     True,
+        'created_at':    datetime.now(timezone.utc),
+    })
+
+    return {'message': 'Account activated. You can now sign in.'}
 
 
 @api.put('/auth/me')
@@ -571,6 +775,79 @@ async def remove_concierge(concierge_id: str, request: Request, session_token: O
         raise HTTPException(404, 'Concierge not found.')
 
     return {'message': 'Concierge removed.'}
+
+
+@api.post('/manager/concierge/invitations')
+async def create_concierge_invitation(data: CreateInvitationRequest, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    """Alternative to POST /manager/concierge — invites a concierge to set their own
+    password instead of the manager generating one. The direct-create endpoint above
+    is unchanged and still supported."""
+    session = await get_session(request, session_token)
+    if not session or session['user_type'] != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+
+    manager = await db.managers.find_one({'manager_id': session['user_id']})
+    if not manager:
+        raise HTTPException(404, 'Manager not found.')
+
+    email = data.email.lower().strip()
+    if await db.concierges.find_one({'email': email}):
+        raise HTTPException(409, 'A concierge with this email already exists.')
+
+    now = datetime.now(timezone.utc)
+    if await db.invitations.find_one({'email': email, 'status': 'pending', 'expires_at': {'$gt': now}}):
+        raise HTTPException(409, 'An active invitation already exists for this email.')
+
+    inv_id    = f'inv_{uuid.uuid4().hex[:12]}'
+    raw_token = _generate_raw_token()
+    expires_at = now + timedelta(days=INVITE_TOKEN_DAYS)
+    await db.invitations.insert_one({
+        'invitation_id': inv_id,
+        'token_hash':    _hash_token(raw_token),
+        'manager_id':    session['user_id'],       # scopes this invitation to the issuing manager only
+        'property_name': manager['property_name'],
+        'first_name':    data.first_name,
+        'last_name':     data.last_name,
+        'email':         email,
+        'phone':         data.phone or '',
+        'title':         data.title or 'Concierge',
+        'status':        'pending',
+        'created_at':    now,
+        'expires_at':    expires_at,
+        'used_at':       None,
+    })
+
+    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+    invite_link  = f'{frontend_url}/invite/{raw_token}'
+    manager_name = f"{manager['first_name']} {manager['last_name']}"
+    property_name = manager['property_name']
+    html = f"""
+    <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
+      <div style="background:#FF385C;border-radius:16px 16px 0 0;padding:32px;text-align:center">
+        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 8px">onepermit</p>
+        <h1 style="color:white;font-size:22px;font-weight:800;margin:0">You've been invited to {property_name}</h1>
+      </div>
+      <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
+        <p style="color:#444;font-size:15px;line-height:1.7">Hi {data.first_name},</p>
+        <p style="color:#444;font-size:15px;line-height:1.7">
+          <strong>{manager_name}</strong> has invited you to join <strong>{property_name}</strong> as a <strong>{data.title or 'Concierge'}</strong> on the onepermit platform.
+        </p>
+        <a href="{invite_link}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Accept invitation</a>
+        <p style="color:#aaa;font-size:13px">This link expires in {INVITE_TOKEN_DAYS} days and lets you set your own password.</p>
+      </div>
+    </div>"""
+    asyncio.create_task(send_email(email, f"You've been invited to {property_name} on onepermit", html))
+
+    return {
+        'invitation_id': inv_id,
+        'email':         email,
+        'first_name':    data.first_name,
+        'last_name':     data.last_name,
+        'title':         data.title or 'Concierge',
+        'property_name': property_name,
+        'expires_at':    expires_at.isoformat(),
+        'message':       'Invitation sent.',
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -794,6 +1071,7 @@ async def create_task(task: TaskCreate, request: Request, session_token: Optiona
         'requires_photo':  task.requires_photo,
         'assigned_to':     task.assigned_to,
         'assigned_to_id':  task.assigned_to_id,
+        'source_section':   task.source_section or ('requests' if user_type == 'manager' else 'new-task'),
         'due_time':        task.due_time or task.scheduled_time or 'ASAP',
         'completion_note': None,
         'evidence_url':    None,
@@ -1485,4 +1763,3 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
-

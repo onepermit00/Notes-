@@ -5,6 +5,8 @@ build/
 .env.production
 *.log
 .DS_Store
+.localdev/
+.playwright-mcp/
 
 # Python
 __pycache__/

@@ -1,0 +1,63 @@
+:root {
+  --noted-color-ink: #111714;
+  --noted-color-text: #1c2420;
+  --noted-color-muted: #66706a;
+  --noted-color-subtle: #8b948f;
+  --noted-color-canvas: #fbfcfa;
+  --noted-color-surface: #ffffff;
+  --noted-color-surface-muted: #f1f4f1;
+  --noted-color-border: #dfe5e0;
+  --noted-color-border-strong: #c7d0c9;
+  --noted-color-accent: #be4a34;
+  --noted-color-accent-hover: #a73d2a;
+  --noted-color-accent-soft: #f9ebe7;
+  --noted-color-success: #276749;
+  --noted-color-success-soft: #e7f4ec;
+  --noted-color-warning: #8a5a12;
+  --noted-color-warning-soft: #fbf2df;
+  --noted-color-danger: #a5362a;
+  --noted-color-danger-soft: #fae9e6;
+  --noted-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --noted-font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --noted-space-1: .25rem;
+  --noted-space-2: .5rem;
+  --noted-space-3: .75rem;
+  --noted-space-4: 1rem;
+  --noted-space-5: 1.5rem;
+  --noted-space-6: 2rem;
+  --noted-space-8: 3rem;
+  --noted-space-10: 4rem;
+  --noted-space-12: 6rem;
+  --noted-container-sm: 42rem;
+  --noted-container-md: 64rem;
+  --noted-container-lg: 80rem;
+  --noted-border: 1px solid var(--noted-color-border);
+  --noted-radius-sm: .5rem;
+  --noted-radius-md: .75rem;
+  --noted-radius-lg: 1rem;
+  --noted-radius-xl: 1.5rem;
+  --noted-radius-pill: 999px;
+  --noted-shadow-sm: 0 1px 2px rgb(17 23 20 / .05);
+  --noted-shadow-md: 0 16px 40px -24px rgb(17 23 20 / .22);
+  --noted-shadow-lg: 0 28px 80px -36px rgb(17 23 20 / .28);
+  --noted-duration-fast: 140ms;
+  --noted-duration-base: 220ms;
+  --noted-ease: cubic-bezier(.2, .8, .2, 1);
+  --noted-breakpoint-sm: 40rem;
+  --noted-breakpoint-md: 48rem;
+  --noted-breakpoint-lg: 64rem;
+  --noted-breakpoint-xl: 80rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+button, input, textarea, select { font: inherit; }
+img, svg { max-width: 100%; }
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--noted-color-accent) 72%, white);
+  outline-offset: 3px;
+}
+::selection { background: var(--noted-color-accent-soft); color: var(--noted-color-ink); }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

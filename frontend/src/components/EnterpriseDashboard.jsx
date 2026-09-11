@@ -243,7 +243,7 @@ export const EnterpriseDashboard = ({ onRoleSwitch }) => {
           </button>
           {!collapsed && (
             <div style={{ padding: '0 18px 16px' }}>
-              <span style={{ fontFamily: INTER, fontSize: 11, fontWeight: 600, color: MUTED, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Notes</span>
+              <span style={{ fontFamily: INTER, fontSize: 11, fontWeight: 600, color: MUTED, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Noted</span>
               <span style={{ fontFamily: INTER, fontSize: 11, color: MUTED, marginLeft: 6 }}>v1.0.0</span>
             </div>
           )}

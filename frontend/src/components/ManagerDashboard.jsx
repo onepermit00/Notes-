@@ -634,9 +634,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     );
   };
 
-  const DARSect = ({ title, accent='#6597FF' }) => (
-    <div style={{ background:'transparent', borderTop:`2px solid ${accent}`, padding: isPhone ? '7px 12px 2px' : '7px 16px 2px', marginTop:10 }}>
-      <span style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:accent, letterSpacing:'0.18em', textTransform:'uppercase' }}>{title}</span>
+  const DARSect = ({ title, accent=BLUE }) => (
+    <div style={{ background:'transparent', borderTop:`1px solid ${BORDER}`, padding: isPhone ? '11px 12px 3px' : '12px 16px 3px', marginTop:8, display:'flex', alignItems:'center', gap:7 }}>
+      <span style={{ width:5, height:5, borderRadius:'50%', background:accent, flexShrink:0 }} />
+      <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:accent === RED ? RED : MUTED, letterSpacing:'0.16em', textTransform:'uppercase' }}>{title}</span>
     </div>
   );
   const DARSectionRow = ({ activities, strings, last }) => {
@@ -651,14 +652,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       <div style={{ borderBottom: last ? 'none' : `1px solid ${BORDER}`, padding: isPhone ? '4px 4px' : '5px 6px', display:'flex', flexDirection:'column', gap:4 }}>
         {hasActs ? activities.map((a, i) => (
           <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
-            <span style={{ color:'#6597FF', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+            <span style={{ color:BLUE, fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
             <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(toNarrative(a))}</span>
           </div>
         )) : hasStrs ? strings.map((item, i) => {
           const text = typeof item === 'string' ? item : item.text;
           return (
             <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
-              <span style={{ color:'#6597FF', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+            <span style={{ color:BLUE, fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
               <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(text)}</span>
             </div>
           );
@@ -2062,8 +2063,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   }
                   .dar-onduty-dot { animation: dar-onduty-pulse 2.6s ease-in-out infinite; }
                 `}</style>
-                <div style={{ background:'#0b0b0b', padding: isMobile ? '14px 20px' : '20px 32px 18px' }}>
+                <div style={{ background:'#0b0b0b', padding: isMobile ? '18px 20px' : '24px 28px 20px' }}>
                   {isMobile ? (
+                    <>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                       <div>
                         <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:7 }}>
@@ -2097,18 +2099,18 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                         )}
                       </div>
                     </div>
+                    </>
                   ) : (
                     /* Desktop */
+                    <>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                       <div>
                         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
                           <span style={{ width:28, height:2, background:BLUE, display:'inline-block' }} />
                           <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.55)', letterSpacing:'0.24em', textTransform:'uppercase' }}>Daily Activity Report</span>
                         </div>
-                        <div style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:'white', letterSpacing:'-0.02em', marginBottom:5 }}>{todayShift.concierge.name}</div>
-                        <div style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.55)' }}>
-                          {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {todayShift.clockIn}{todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Present'}
-                        </div>
+                        <div style={{ fontFamily:INTER, fontSize:24, fontWeight:800, color:'white', letterSpacing:'-0.035em', marginBottom:6 }}>{todayShift.concierge.name}</div>
+                        <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.55)' }}>{propertyName} · {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
                         <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'5px 12px' }}>
@@ -2120,6 +2122,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                         </button>
                       </div>
                     </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:0, borderTop:'1px solid rgba(255,255,255,.13)', marginTop:20, paddingTop:13 }}>
+                      {[
+                        ['Shift window', `${todayShift.clockIn}${todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Present'}`],
+                        ['Activity logged', `${todayShift.activities.length} entr${todayShift.activities.length === 1 ? 'y' : 'ies'}`],
+                        ['Report state', todayShift.clockOut ? 'Completed' : 'Live report'],
+                      ].map(([label, value], index) => <div key={label} style={{ paddingLeft:index ? 18 : 0, borderLeft:index ? '1px solid rgba(255,255,255,.13)' : 'none' }}><div style={{ fontFamily:INTER, fontSize:9, color:'rgba(255,255,255,.42)', fontWeight:800, letterSpacing:'.14em', textTransform:'uppercase', marginBottom:5 }}>{label}</div><div style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:'rgba(255,255,255,.88)' }}>{value}</div></div>)}
+                    </div>
+                    </>
                   )}
                 </div>
 
@@ -2150,7 +2160,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                                 const d = text.indexOf(' — ');
                                 return (
                                   <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
-                                    <span style={{ color:'#6597FF', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
+                                    <span style={{ color:BLUE, fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
                                     <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>
                                       {d !== -1
                                         ? <><span style={{ color:TEXT, fontWeight:600 }}>{text.slice(0,d)} – </span><span style={{ color:TEXT }}>{text.slice(d+3)}</span></>
@@ -3582,17 +3592,19 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
       {/* ── Full-width desktop header ─────────────────────────────────────────── */}
       {!isMobile && (
-        <div style={{ height:56, background:'#0b0b0b', display:'flex', alignItems:'center', padding:'0 20px', flexShrink:0, gap:14, zIndex:20 }}>
-          {/* Left: branding — compact */}
-          <div style={{ display:'flex', alignItems:'center', gap:9, flexShrink:0 }}>
-            <div style={{ width:28, height:28, borderRadius:8, background:'rgba(255,255,255,0.10)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <Building2 size={15} color="white" />
+        <header style={{ height:72, background:CARD, borderBottom:`1px solid ${BORDER}`, display:'flex', alignItems:'center', padding:'0 24px', flexShrink:0, gap:16, zIndex:20, boxShadow:'0 2px 10px rgba(0,0,0,0.03)' }}>
+          <button onClick={() => setSidebarCollapsed(c => !c)} aria-label={sidebarCollapsed ? 'Expand workspace navigation' : 'Collapse workspace navigation'} style={{ width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+            <Menu size={18} color={TEXT} />
+          </button>
+          <button onClick={() => setTab('home')} style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, border:'none', padding:0, background:'transparent', cursor:'pointer', textAlign:'left', flexShrink:0 }}>
+            <div style={{ width:36, height:36, borderRadius:11, background:'#222222', display:'flex', alignItems:'center', justifyContent:'center' }}><Building2 size={17} color="white" /></div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:2 }}>Noted workspace</div>
+              <div style={{ fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:210 }}>{propertyName}</div>
             </div>
-            <span style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:'white', letterSpacing:'0.14em', textTransform:'uppercase', whiteSpace:'nowrap' }}>{propertyName}</span>
-          </div>
+          </button>
 
-          {/* Search — fills all remaining space */}
-          <div style={{ flex:1, position:'relative', marginRight:520, marginLeft:220 }}>
+          <div style={{ flex:1, maxWidth:640, position:'relative', margin:'0 auto' }}>
             <Search size={14} color="#717171" style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
             <input
               ref={searchInputRef}
@@ -3601,7 +3613,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               value={gsQuery}
               onChange={e => { setGsQuery(e.target.value); if (!gsOpen) openGlobalSearch(); }}
               onFocus={openGlobalSearch}
-              style={{ width:'100%', height:38, background:'#FFFFFF', border:'none', borderRadius:12, paddingLeft:36, paddingRight: gsQuery ? 30 : 14, fontFamily:INTER, fontSize:13, color:'#222222', outline:'none', boxSizing:'border-box' }}
+              style={{ width:'100%', height:44, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, paddingLeft:38, paddingRight: gsQuery ? 30 : 14, fontFamily:INTER, fontSize:13, color:TEXT, outline:'none', boxSizing:'border-box' }}
             />
             {gsQuery && (
               <button onClick={() => setGsQuery('')}
@@ -3611,19 +3623,25 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             )}
           </div>
 
-          {/* Dark/light toggle */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:7, border:`1px solid ${BORDER}`, background:CARD2, borderRadius:999, padding:'7px 11px' }}>
+              <span style={{ width:7, height:7, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 3px rgba(52,199,89,.12)' }} />
+              <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:TEXT }}>Operations live</span>
+            </div>
+            <button aria-label="View notifications" title="Notifications" style={{ position:'relative', width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><Bell size={17} color={TEXT} />{incidents.length > 0 && <span aria-label={`${incidents.length} open incidents`} style={{ position:'absolute', top:7, right:7, width:7, height:7, borderRadius:'50%', background:RED }} />}</button>
           <button
             onClick={toggleTheme}
             title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            style={{ flexShrink:0, width:32, height:32, borderRadius:8, background:'rgba(255,255,255,0.10)', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'background 150ms' }}
-            onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.18)'}
-            onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.10)'}
+            style={{ flexShrink:0, width:40, height:40, borderRadius:12, background:CARD, border:`1px solid ${BORDER}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'background 150ms' }}
+            onMouseEnter={e => e.currentTarget.style.background=CARD2}
+            onMouseLeave={e => e.currentTarget.style.background=CARD}
           >
             {isDarkMode
-              ? <Sun size={15} color="#FFD60A" />
-              : <Moon size={15} color="rgba(255,255,255,0.80)" />}
+              ? <Sun size={17} color="#D18A00" />
+              : <Moon size={17} color={MUTED} />}
           </button>
-        </div>
+          </div>
+        </header>
       )}
 
       {/* ── Global Search DAR Overlay ──────────────────────────────────────────── */}
@@ -3748,8 +3766,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
       {/* ── DESKTOP SIDEBAR — persistent, always visible ≥768px ──────────────── */}
       {!isMobile && (
-        <div style={{ width: sidebarCollapsed ? 64 : 248, minWidth: sidebarCollapsed ? 64 : 248, flexShrink:0, background:CARD, borderRight:`1px solid ${BORDER}`, display:'flex', flexDirection:'column', overflow:'hidden', zIndex:10, height:'100%', transition:'width 220ms ease, min-width 220ms ease' }}>
-          <nav style={{ padding: sidebarCollapsed ? '16px 8px 4px' : '12px 8px 4px', overflowY:'auto', overflowX:'hidden', flex:1, minHeight:0 }}>
+        <aside aria-label="Workspace navigation" style={{ width: sidebarCollapsed ? 80 : 272, minWidth: sidebarCollapsed ? 80 : 272, flexShrink:0, background:BG, borderRight:`1px solid ${BORDER}`, padding:12, display:'flex', flexDirection:'column', overflow:'hidden', zIndex:10, height:'100%', transition:'width 220ms ease, min-width 220ms ease' }}>
+          <nav style={{ padding: sidebarCollapsed ? '8px 6px' : '12px 8px', overflowY:'auto', overflowX:'hidden', flex:1, minHeight:0, background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, boxShadow:'0 2px 8px rgba(0,0,0,.035)' }}>
+            {!sidebarCollapsed && <div style={{ padding:'4px 10px 13px' }}><div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, letterSpacing:'.2em', textTransform:'uppercase' }}>Workspace</div><div style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:TEXT, letterSpacing:'-.03em', marginTop:5 }}>Operations</div></div>}
             {NAV.map(({ id, Icon:NavIcon, label, action }) => {
               const active = !action && tab === id;
               const handleClick = () => {
@@ -3762,8 +3781,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               return (
                 <button key={id} onClick={handleClick} title={sidebarCollapsed ? label : undefined}
                   className={`nav-btn touch-target${active ? ' nav-btn--active' : ''}`}
-                  style={{ display:'flex', alignItems:'center', gap: sidebarCollapsed ? 0 : 12, justifyContent: sidebarCollapsed ? 'center' : 'flex-start', padding:'11px 12px', marginBottom:2, border:'none', cursor:'pointer', textAlign:'left', background:active?(isDarkMode?'rgba(255,255,255,0.10)':'#222222'):'transparent', borderRadius:12, width:'100%', position:'relative', transition:'background 120ms', minHeight:44 }}>
-                  <div style={{ width:36, height:36, borderRadius:10, flexShrink:0, background:active?'rgba(255,255,255,0.14)':CARD2, display:'flex', alignItems:'center', justifyContent:'center', transition:'background 120ms', position:'relative' }}>
+                  style={{ display:'flex', alignItems:'center', gap: sidebarCollapsed ? 0 : 12, justifyContent: sidebarCollapsed ? 'center' : 'flex-start', padding: sidebarCollapsed ? '9px 0' : '9px 10px', marginBottom:3, border:'none', cursor:'pointer', textAlign:'left', background:active?(isDarkMode?'rgba(255,255,255,0.10)':'#222222'):'transparent', borderRadius:12, width:'100%', position:'relative', transition:'background 150ms, transform 150ms', minHeight:44 }}>
+                  <div style={{ width:36, height:36, borderRadius:10, flexShrink:0, background:active?'rgba(255,255,255,0.14)':CARD2, display:'flex', alignItems:'center', justifyContent:'center', transition:'background 150ms', position:'relative' }}>
                     <NavIcon size={18} color={active?'#FFFFFF':MUTED} strokeWidth={active?2.2:1.6} />
                     {id==='home' && incidents.length>0 && sidebarCollapsed && (
                       <div style={{ position:'absolute', top:2, right:2, width:14, height:14, borderRadius:'50%', background:RED, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -3789,10 +3808,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               );
             })}
           </nav>
-          <div style={{ flexShrink:0, padding: sidebarCollapsed ? '12px 0' : '20px 20px 32px', display:'flex', alignItems:'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
-            {!sidebarCollapsed && <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, letterSpacing:'0.24em', textTransform:'uppercase' }}>onepermit</span>}
+          <div style={{ flexShrink:0, padding: sidebarCollapsed ? '12px 0 0' : '12px 8px 0', display:'flex', alignItems:'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
+            {!sidebarCollapsed && <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, letterSpacing:'0.18em', textTransform:'uppercase' }}>Noted · Operations desk</span>}
           </div>
-        </div>
+        </aside>
       )}
 
       {/* ── MOBILE DRAWER — overlay, <768px ──────────────────────────────────── */}
@@ -3864,7 +3883,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   </nav>
                   {/* Bottom branding */}
                   <div style={{ flexShrink:0, padding:'20px 20px 0', paddingBottom:'max(24px, env(safe-area-inset-bottom))', display:'flex', alignItems:'center' }}>
-                    <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, letterSpacing:'0.24em', textTransform:'uppercase' }}>onepermit</span>
+                    <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, letterSpacing:'0.24em', textTransform:'uppercase' }}>Noted</span>
                   </div>
                 </motion.div>
               </>

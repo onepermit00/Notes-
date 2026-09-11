@@ -173,7 +173,7 @@ export const ShiftCalendarPage = ({ property, onBeginShift, onBack, hideSidebar 
           <ArrowLeft size={15} color='rgba(255,255,255,0.35)' />
           <span style={{ fontFamily: INTER, fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>Back</span>
         </button>
-        <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: BLUE }}>✦ Notes</span>
+        <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: BLUE }}>✦ Noted</span>
       </div>
 
       {/* ── Profile photo – large & prominent ── */}

@@ -13,12 +13,12 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    console.error('[ADLTrack] Uncaught error:', error, info.componentStack);
+    console.error('[Noted] Uncaught error:', error, info.componentStack);
   }
 
   render() {
     if (this.state.hasError) {
-      const isDark = localStorage.getItem('adltrack-theme') === 'dark';
+      const isDark = (localStorage.getItem('noted-theme') || localStorage.getItem('adltrack-theme')) === 'dark';
       return (
         <div style={{
           display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center',

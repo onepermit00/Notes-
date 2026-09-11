@@ -11,7 +11,7 @@ export const SignInPage = ({ onSelectRole }) => {
         <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center shadow-lg">
           <Activity className="w-6 h-6 text-white" />
         </div>
-        <span className="text-xl font-bold tracking-tight text-stone-900">ADLTrack</span>
+        <span className="text-xl font-bold tracking-tight text-stone-900">Noted</span>
       </header>
 
       {/* Main Content */}
@@ -95,7 +95,7 @@ export const SignInPage = ({ onSelectRole }) => {
       {/* Footer */}
       <footer className="p-6 text-center">
         <p className="text-sm text-[#ababab] font-medium">
-          © {new Date().getFullYear()} ADLTrack. All rights reserved.
+          © {new Date().getFullYear()} Noted. All rights reserved.
         </p>
       </footer>
     </div>

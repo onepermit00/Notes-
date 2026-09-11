@@ -137,8 +137,8 @@ export const SettingsPage = ({ onBack }) => {
 
         {/* App info */}
         <div style={{ textAlign: 'center', paddingTop: 24 }}>
-          <p style={{ fontSize: 14, color: MUTED, fontFamily: INTER }}>ADLTrack v1.0.0</p>
-          <p style={{ fontSize: 13, color: isDarkMode ? '#3A3A3A' : 'rgba(0,0,0,0.25)', marginTop: 4, fontFamily: INTER }}>© 2026 ADLTrack Inc.</p>
+          <p style={{ fontSize: 14, color: MUTED, fontFamily: INTER }}>Noted v1.0.0</p>
+          <p style={{ fontSize: 13, color: isDarkMode ? '#3A3A3A' : 'rgba(0,0,0,0.25)', marginTop: 4, fontFamily: INTER }}>© 2026 Noted Inc.</p>
         </div>
       </div>
     </div>

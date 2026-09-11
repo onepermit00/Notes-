@@ -28,7 +28,7 @@ export const SupportPage = ({ onBack, role = 'caregiver' }) => {
   const contactOptions = [
     { icon: MessageCircle, label: 'Live Chat',     desc: 'Chat with our support team', action: 'Start Chat'  },
     { icon: Phone,         label: 'Call Support',  desc: '1-888-555-0123',             action: 'Call Now'    },
-    { icon: Mail,          label: 'Email Support', desc: 'support@clockit.io',       action: 'Send Email'  },
+    { icon: Mail,          label: 'Email Support', desc: 'support@noted.app',        action: 'Send Email'  },
   ];
 
   const caregiverFaqs = [

@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Home, MessageSquare, Clock, Settings, User, MapPin, ChevronRight,
   Bell, CheckCircle, Sparkles, AlertTriangle, X, ChevronDown,
@@ -19,7 +20,6 @@ import { TaskCard } from './TaskCard';
 import { TaskRequestCard }  from './TaskRequestCard';
 import { TaskCompletionModal } from './TaskCompletionModal';
 import { AICopilot } from './AICopilot';
-import { CareAssistantIcon } from './CareAssistantIcon';
 import { IncidentReportPage } from './IncidentReportPage';
 import { LoanersDashboard } from './LoanersDashboard';
 import { LockoutPage } from './LockoutPage';
@@ -112,6 +112,22 @@ const TASK_CATEGORY_CONFIG = [
   { id: 'Delivery',            Icon: Package,        desc: 'Package or courier delivery'              },
   { id: 'Other',               Icon: HelpCircle,     desc: 'Task not listed above'                    },
 ];
+
+const inferDarSource = ({ source_section, sourceSection, title = '', category = '', created_by_type, createdByType } = {}) => {
+  const persisted = source_section || sourceSection;
+  if (persisted) return persisted;
+  if ((created_by_type || createdByType) === 'manager') return 'requests';
+  const value = title.toLowerCase();
+  if (/package|delivery|rts|carrier pickup/.test(value) || category === 'Delivery') return 'packages';
+  if (/guest|visitor|resident notified/.test(value)) return 'guests';
+  if (/lockout/.test(value)) return 'lockout';
+  if (/vendor/.test(value) || category === 'Vendor / Contractor') return 'vendors';
+  if (/tour|move-in|move-out/.test(value)) return 'tours';
+  if (/loaner|luggage cart|key fob|umbrella/.test(value)) return 'loaners';
+  if (/incident/.test(value)) return 'incident';
+  if (/rounds|security check|patrol/.test(value)) return 'security';
+  return 'new-task';
+};
 
 const MODEL_UNITS_INIT = [
   { id: 'm1', unit: '101',  type: 'Studio',         sqft: 520,  floor: 1,  open: true,  openedAt: '8:15 AM', openedBy: 'George N.' },
@@ -247,6 +263,8 @@ export const CaregiverDashboard = ({
   onViewCalendar,
   authUser,
 }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
   // ── Theme ──────────────────────────────────────────────────────────────────
   const { isDarkMode, toggleTheme, colors } = useTheme();
   const { uploadedSOPs, trainingItems } = useSharedData();
@@ -258,7 +276,9 @@ export const CaregiverDashboard = ({
   const MUTED  = colors.MUTED;
   const SHADOW = colors.SHADOW;
   const SIDEBAR = colors.SIDEBAR;
-  const propertyName = authUser?.property_name || propertyName;
+  const NAV_SURFACE = isDarkMode ? '#21171A' : '#FFF8FA';
+  const HEADER_SURFACE = isDarkMode ? '#1C1718' : colors.WARM;
+  const propertyName = authUser?.property_name || BUILDING_PROFILE.name;
   const glass     = () => ({ background: CARD, boxShadow: SHADOW });
   const glassCard = () => ({ background: CARD, boxShadow: SHADOW, borderRadius: 24, overflow: 'hidden' });
   const glassRow  = { background: CARD, boxShadow: SHADOW, borderRadius: 20 };
@@ -274,7 +294,9 @@ export const CaregiverDashboard = ({
   const [incidents, setIncidents] = useState([]);
   const [fullscreenItem, setFullscreenItem] = useState(null);
   const [activeTab, setActiveTab]             = useState('home');
+  const [sectionWorkflow, setSectionWorkflow] = useState(false);
   const [activeTaskTab, setActiveTaskTab]     = useState('today');
+  const [requestQueueTab, setRequestQueueTab] = useState('inbox');
   const [expandedTaskId, setExpandedTaskId]   = useState(null);
   const [selectedTask, setSelectedTask]       = useState(null);
   const [showCopilot, setShowCopilot]         = useState(false);
@@ -292,12 +314,22 @@ export const CaregiverDashboard = ({
   const [showContacts,  setShowContacts]  = useState(false);
   const [successTaskId, setSuccessTaskId] = useState(null);
   const [ntError,       setNtError]       = useState('');
+  const [ntSaving,      setNtSaving]      = useState(false);
   const [tasksLoading,  setTasksLoading]  = useState(true);
   const [tasksError,    setTasksError]    = useState(false);
   const [srAnnounce,    setSrAnnounce]    = useState('');
+  const [darReceipt,    setDarReceipt]    = useState(null);
   const [showSOPs, setShowSOPs]                 = useState(false);
   const [expandedSOP, setExpandedSOP]           = useState(null);
   const [expandedSOPId, setExpandedSOPId]       = useState(null);
+  const [sopSearch, setSopSearch]                 = useState('');
+  const [sopFilter, setSopFilter]                 = useState('All');
+  const [trainingSearch, setTrainingSearch]       = useState('');
+  const [trainingFilter, setTrainingFilter]       = useState('All');
+  const [completedTraining, setCompletedTraining] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('_notedTrainingComplete') || '[]')); } catch { return new Set(); }
+  });
+  const [lastTrainingId, setLastTrainingId]       = useState(() => localStorage.getItem('_notedLastTraining') || '');
   const [showAmenities, setShowAmenities] = useState(false);
   const [amenities,     setAmenities]     = useState(AMENITIES_INIT);
   const [showPkgAudit,  setShowPkgAudit]  = useState(false);
@@ -327,6 +359,7 @@ export const CaregiverDashboard = ({
   const [showSearch,       setShowSearch]       = useState(false);
   const [showSummary,      setShowSummary]      = useState(false);
   const [showHandover,      setShowHandover]      = useState(false);
+  const [showPreviousDar,    setShowPreviousDar]    = useState(false);
   const [handoverNotes,     setHandoverNotes]     = useState('');
   const [handoverItems,     setHandoverItems]     = useState('');
   const [handoverSaving,    setHandoverSaving]    = useState(false);
@@ -354,6 +387,7 @@ export const CaregiverDashboard = ({
       if (showSearch) return; // search input manages its own Escape
       if (showSummary) { setShowSummary(false); return; }
       if (showHandover) { setShowHandover(false); return; }
+      if (showPreviousDar) { setShowPreviousDar(false); return; }
       if (selectedTask) { setSelectedTask(null); return; }
       if (showNewTask) { setShowNewTask(false); setNtStep(1); setNTF({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '' }); return; }
       if (showContacts) { setShowContacts(false); return; }
@@ -364,7 +398,7 @@ export const CaregiverDashboard = ({
     };
     window.addEventListener('keydown', onEsc);
     return () => window.removeEventListener('keydown', onEsc);
-  }, [showSearch, showSummary, showHandover, selectedTask, showNewTask, showContacts, showPkgAudit, showAmenities, showModels, activeTab]);
+  }, [showSearch, showSummary, showHandover, showPreviousDar, selectedTask, showNewTask, showContacts, showPkgAudit, showAmenities, showModels, activeTab]);
 
 
   // Load real data + shift state on mount
@@ -400,6 +434,7 @@ export const CaregiverDashboard = ({
             completedAt: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
             startedAt:   t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
             status: 'completed',
+            _source: inferDarSource(t),
           }));
           setSelfTasks(prevActivities);
         }
@@ -415,6 +450,7 @@ export const CaregiverDashboard = ({
         const mins  = Math.floor((msElapsed % 3600000) / 60000);
         setPreviousShiftData({
           concierge: { name: s.concierge_name },
+          dateLabel: new Date(s.clock_in).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
           clockIn,
           clockOut,
           duration: hours > 0 ? `${hours}h ${mins}m` : `${mins}m`,
@@ -427,6 +463,7 @@ export const CaregiverDashboard = ({
             title: t.title,
             notes: t.notes || '',
             category: t.category || 'Other',
+            sourceSection: inferDarSource(t),
           })),
         });
       } else {
@@ -580,16 +617,8 @@ export const CaregiverDashboard = ({
 
   const submitNewTask = async () => {
     if (!ntForm.title) return;
-    const t = nowStr();
-    const localTask = { ...ntForm, id: Date.now(), startedAt: t, completedAt: t, status: 'completed', _source: 'task' };
-    setSelfTasks(p => [localTask, ...p]);
-    if (ntForm.flagFollowUp) {
-      followUps.add({ text: ntForm.title + (ntForm.notes ? ` — ${ntForm.notes}` : ''), source: ntForm.category || 'task' });
-    }
-    setNTF({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '', flagFollowUp: false });
-    setNtStep(1);
-    setShowNewTask(false);
-    // Save to backend so manager can see it
+    setNtSaving(true);
+    setNtError('');
     try {
       const saved = await authApi.createTask({
         title:      ntForm.title,
@@ -599,9 +628,25 @@ export const CaregiverDashboard = ({
         assignedTo: authUser?.name || '',
         toId:       authUser?.user_id || '',
         dueTime:    ntForm.dueDate || 'ASAP',
+        sourceSection: 'new-task',
       });
       setTasks(p => [saved, ...p]);
-    } catch { /* already shown locally — ignore API error silently */ }
+      const t = nowStr();
+      const localTask = { ...ntForm, id: saved.id || saved.task_id || Date.now(), startedAt: t, completedAt: t, status: 'completed', _source: 'new-task' };
+      setSelfTasks(p => p.some(item => item.id === localTask.id) ? p : [localTask, ...p]);
+      if (ntForm.flagFollowUp) followUps.add({ text: ntForm.title + (ntForm.notes ? ` — ${ntForm.notes}` : ''), source: ntForm.category || 'task' });
+      const receiptTitle = ntForm.title;
+      setNTF({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '', flagFollowUp: false });
+      setNtStep(1);
+      setShowNewTask(false);
+      handleTabChange('home');
+      setDarReceipt({ title: receiptTitle, detail: 'New task documented' });
+      setTimeout(() => setDarReceipt(null), 4200);
+    } catch {
+      setNtError('Could not add this entry to the DAR. Your information is still here—check the connection and try again.');
+    } finally {
+      setNtSaving(false);
+    }
   };
   const activeElevMove   = elevatorMoves.find(m => m.elevStatus === 'in_progress');
   const reservedElevMove = elevatorMoves.find(m => m.elevStatus === 'reserved');
@@ -631,7 +676,29 @@ export const CaregiverDashboard = ({
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const dayLabel = today.toDateString() === new Date().toDateString() ? 'Today' : `${monthNames[today.getMonth()]} ${today.getDate()}`;
 
-  const handleTabChange  = (id) => { setActiveTab(id); };
+  const ROUTE_TO_TAB = {
+    today: 'home', handoff: 'home', knowledge: 'sops', tasks: 'requests',
+    incidents: 'incident', visitors: 'guests', vendors: 'vendors', packages: 'packages',
+    history: 'shift-history', profile: 'profile', settings: 'settings',
+  };
+  const TAB_TO_ROUTE = {
+    home: 'today', sops: 'knowledge', requests: 'tasks',
+    incident: 'incidents', guests: 'visitors', vendors: 'vendors', packages: 'packages',
+    'shift-history': 'history', profile: 'profile', settings: 'settings',
+  };
+  const handleTabChange = useCallback((id) => {
+    if (id !== 'home') setShowHandover(false);
+    setSectionWorkflow(false);
+    setActiveTab(id);
+    const route = TAB_TO_ROUTE[id];
+    if (route && location.pathname !== `/app/${route}`) navigate(`/app/${route}`);
+  }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    const route = location.pathname.split('/').filter(Boolean)[1] || 'today';
+    setSectionWorkflow(false);
+    setActiveTab(ROUTE_TO_TAB[route] || 'home');
+  }, [location.pathname]);
   const handlePageChange = (page) => { window.scrollTo(0, 0); setActivePage(page); };
   const handleStartTask     = useCallback((task) => setSelectedTask(task), []);
   const handleCompleteTask  = (updated) => {
@@ -646,6 +713,9 @@ export const CaregiverDashboard = ({
     setTimeout(() => { setSuccessTaskId(null); setSrAnnounce(''); }, 1000);
     setSelectedTask(null);
     setExpandedTaskId(null);
+    handleTabChange('home');
+    setDarReceipt({ title: updated.title, detail: 'Task completion documented' });
+    setTimeout(() => setDarReceipt(null), 4200);
   };
   const handleClockIn = async () => {
     try {
@@ -698,9 +768,10 @@ export const CaregiverDashboard = ({
     setShowSummary(true);
   };
 
-  const handleActivityLogged = ({ title, category = '', notes = '', evidenceUrls = [] }) => {
+  const handleActivityLogged = ({ title, category = '', notes = '', evidenceUrls = [], sourceSection = '' }) => {
     const t = nowStr();
-    const local = { id: Date.now(), title, category, notes, evidenceUrls, location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed', _source: 'dashboard' };
+    const resolvedSource = sourceSection || inferDarSource({ title, category });
+    const local = { id: Date.now(), title, category, notes, evidenceUrls, location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed', _source: resolvedSource };
     setSelfTasks(p => [...p, local]);
     // Save activity to backend so manager sees it
     authApi.createTask({
@@ -709,7 +780,16 @@ export const CaregiverDashboard = ({
       assignedTo: authUser?.name || '',
       toId: authUser?.user_id || '',
       dueTime: t,
+      sourceSection: resolvedSource,
     }).then(saved => setTasks(p => [saved, ...p])).catch(() => {});
+  };
+
+  const handleSectionActivityLogged = (entry) => {
+    handleActivityLogged(entry);
+    handleTabChange('home');
+    setDarReceipt({ title: entry.title, detail: `${entry.category || 'Activity'} added to the DAR` });
+    setSrAnnounce(`${entry.title} added to the Daily Activity Report.`);
+    setTimeout(() => { setDarReceipt(null); setSrAnnounce(''); }, 4200);
   };
 
   const handleUpdateTask = async (updated) => {
@@ -725,15 +805,24 @@ export const CaregiverDashboard = ({
 
   const handleAcceptRequest = useCallback(async (task) => {
     try {
-      await authApi.updateTask(task.id, { status: 'in_progress' });
-      setTasks(p => p.map(t => t.id === task.id ? { ...t, status: 'in_progress' } : t));
+      const taskId = task.id || task.task_id;
+      await authApi.updateTask(taskId, { status: 'in_progress' });
+      setTasks(p => p.map(t => (t.id || t.task_id) === taskId ? { ...t, status: 'in_progress' } : t));
+      handleActivityLogged({ title: `Request accepted · ${task.title}`, category: 'Administrative', notes: `Work started${task.dueTime ? ` · Due ${task.dueTime}` : ''}`, sourceSection: 'requests' });
+      handleTabChange('home');
+      setDarReceipt({ title: task.title, detail: 'Request accepted · now in progress' });
+      setTimeout(() => setDarReceipt(null), 4200);
     } catch {}
   }, []);
 
-  const handleDeclineRequest = useCallback(async (taskId) => {
+  const handleDeclineRequest = useCallback(async (taskId, reason = '') => {
     try {
       await authApi.updateTask(taskId, { status: 'completed' });
       setTasks(p => p.map(t => t.id === taskId ? { ...t, status: 'completed' } : t));
+      handleActivityLogged({ title: 'Request declined', category: 'Administrative', notes: `Request ${taskId} was reviewed and closed.${reason ? ` Reason: ${reason}.` : ''}`, sourceSection: 'requests' });
+      handleTabChange('home');
+      setDarReceipt({ title: 'Request updated', detail: 'Decision recorded in the operational record' });
+      setTimeout(() => setDarReceipt(null), 4200);
     } catch {}
   }, []);
 
@@ -742,7 +831,9 @@ export const CaregiverDashboard = ({
   const filteredTasks   = searchQuery
     ? pendingTasks.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : pendingTasks;
-  const pendingRequests = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed');
+  const managerRequests = tasks.filter(t => (t.createdByType || t.created_by_type) === 'manager');
+  const pendingRequests = managerRequests.filter(t => t.status !== 'completed' && t.status !== TaskStatus.COMPLETED && t.status !== 'in_progress');
+  const handledRequests = managerRequests.filter(t => !pendingRequests.some(p => (p.id || p.task_id) === (t.id || t.task_id)));
   const completedCount  = displayTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
   const totalCount      = displayTasks.length;
   const progressPct     = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
@@ -773,6 +864,7 @@ export const CaregiverDashboard = ({
 
     // On mobile: full-width bar. On desktop: centered pill button.
     const StartBtn = () => (
+      isShiftActive ? null :
       <motion.button
         onClick={doStart}
         disabled={shiftStarting}
@@ -877,7 +969,7 @@ export const CaregiverDashboard = ({
 
     return (
       <div style={{ flex:1, minHeight:0, overflowY:'auto', padding: isMobile ? '64px 16px 80px' : '28px 28px 80px' }}>
-        <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr 460px', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
+        <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
           <div style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
             {/* Header */}
             <div style={{ background: '#0b0b0b', padding: isPhone ? '16px 18px' : isMobile ? '18px 20px 16px' : '20px 32px 18px' }}>
@@ -960,7 +1052,7 @@ export const CaregiverDashboard = ({
           </div>
 
           {/* Right column */}
-          <div style={{ display:'flex', flexDirection:'column', gap:20, order: isMobile ? 2 : 0 }}>
+          <div hidden>
 
             {/* Assigned by Management */}
             <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:20, boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
@@ -1055,10 +1147,12 @@ export const CaregiverDashboard = ({
 
   // ── HOME tab ───────────────────────────────────────────────────────────────
   const renderHomeContent = () => {
-    // Build activeShift from real state (not mock data)
-    const activeShift = isShiftActive ? {
+    const viewingPreviousDar = showPreviousDar;
+    const viewingHandoff = showHandover;
+    const currentDar = isShiftActive ? {
       concierge: { name: authUser?.name || 'Concierge' },
       clockIn:   shiftStartTime,
+      clockOut:  null,
       note:      '',
       incidents: incidents.filter(i => i.status === 'new').map(i => {
         const tod = i.filedAt ? ((i.filedAt.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i) || [])[0] || '').replace(/\s*(AM|PM)$/i, (_, m) => m.toLowerCase()) : '';
@@ -1076,6 +1170,9 @@ export const CaregiverDashboard = ({
       }),
       activities: selfTasks,
     } : null;
+    const activeShift = viewingPreviousDar && previousShiftData
+      ? { ...previousShiftData, incidents: previousShiftData.incidents || [], activities: previousShiftData.activities || [] }
+      : currentDar;
     const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed');
     const sevColor    = (sev) => sev === 'critical' || sev === 'high' ? RED : sev === 'medium' ? ORANGE : BLUE;
 
@@ -1083,16 +1180,19 @@ export const CaregiverDashboard = ({
     const todayLabel = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
     const isToday = ts => ts && ts.startsWith(todayLabel + ',');
     const completedTaskActs = isShiftActive ? displayTasks.filter(t=>t.status===TaskStatus.COMPLETED&&isToday(t.completedAt)).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:t.title, notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] })) : [];
-    const selfTaskActs = selfTasks.filter(t=>isToday(t.completedAt)).map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t._source||'task' }));
+    const selfTaskActs = viewingPreviousDar
+      ? (activeShift?.activities || []).map(t=>({ id:`previous-${t.id}`, time:t.time||t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t.sourceSection || inferDarSource(t) }))
+      : selfTasks.filter(t=>isToday(t.completedAt)).map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t._source || inferDarSource(t) }));
     // dashboardActs = sub-dashboard inputs (Guests, Vendors, Loaners, Lockout, etc.)
     // wizardActs = Log New Task wizard entries — always go to Tasks Completed
-    const dashboardActs = selfTaskActs.filter(a => a._source === 'dashboard');
-    const wizardActs    = selfTaskActs.filter(a => a._source !== 'dashboard');
-    const delivery = dashboardActs.filter(a=>a.category==='Delivery');
-    const security = dashboardActs.filter(a=>a.category==='Safety / Security');
-    const resident = dashboardActs.filter(a=>a.category==='Resident Assist');
-    const vends    = dashboardActs.filter(a=>a.category==='Vendor / Contractor');
-    const amenity  = dashboardActs.filter(a=>a.category==='Amenity');
+    const dashboardActs = selfTaskActs.filter(a => !['new-task', 'requests'].includes(a._source));
+    const wizardActs    = selfTaskActs.filter(a => a._source === 'new-task');
+    const requestActs   = selfTaskActs.filter(a => a._source === 'requests');
+    const delivery = dashboardActs.filter(a=>a._source==='packages');
+    const security = dashboardActs.filter(a=>a._source==='lockout'||a._source==='security');
+    const resident = dashboardActs.filter(a=>a._source==='guests'||a._source==='tours');
+    const vends    = dashboardActs.filter(a=>a._source==='vendors');
+    const amenity  = dashboardActs.filter(a=>a._source==='loaners');
     const audit    = dashboardActs.find(a=>a.category==='Administrative'&&a.title.toLowerCase().includes('audit'));
     const loaners  = amenity.filter(a=>a.title.toLowerCase().includes('loaner'));
     const guests   = resident.filter(a=>a.title.toLowerCase().includes('guest')||a.title.toLowerCase().includes('arrival'));
@@ -1102,7 +1202,11 @@ export const CaregiverDashboard = ({
     const lockouts = security.filter(a=>a.title.toLowerCase().includes('lockout'));
     const rounds   = security.filter(a=>!a.title.toLowerCase().includes('lockout'));
     // Tasks Completed: all wizard tasks + all manager-assigned completed tasks
-    const taskEntries = [...wizardActs, ...completedTaskActs].sort((a,b) => a.time.localeCompare(b.time));
+    const claimedIds = new Set([...incoming, ...pickups, ...guests, ...loaners, ...lockouts, ...vends, ...tours, ...rounds, ...(audit ? [audit] : [])].map(item => item.id));
+    const taskEntries = (viewingPreviousDar
+      ? selfTaskActs.filter(item => !claimedIds.has(item.id))
+      : [...wizardActs, ...requestActs, ...completedTaskActs]
+    ).sort((a,b) => (a.time || '').localeCompare(b.time || ''));
 
     const Sect = ({ title, accent='#6597FF' }) => (
       <div className="dar-print-sect-bar" style={{ background:'transparent', borderTop:`2px solid ${accent}`, padding: isPhone ? '7px 12px 2px' : isMobile ? '7px 16px 2px' : '8px 32px 2px', marginTop:10 }}>
@@ -1112,11 +1216,7 @@ export const CaregiverDashboard = ({
     const SectionRow = ({ label, activities, strings, last }) => {
       const hasActs = activities && activities.length > 0;
       const hasStrs = strings && strings.length > 0;
-      const coloredEntry = (text) => {
-        const d = text.indexOf(' — ');
-        if (d === -1) return <span style={{ color:TEXT }}>{text}</span>;
-        return <><span style={{ color:TEXT, fontWeight:600 }}>{text.slice(0, d)} – </span><span style={{ color:TEXT }}>{text.slice(d + 3)}</span></>;
-      };
+      const entryDivider = isDarkMode ? 'rgba(101,151,255,.30)' : 'rgba(101,151,255,.22)';
       const thumb = (urls, node) => urls.length > 0 ? (
         <button onClick={() => setGallery({ urls, idx:0 })}
           style={{ flexShrink:0, width:20, height:20, borderRadius:3, overflow:'hidden', border:`1px solid ${BORDER}`, padding:0, cursor:'pointer', background:CARD2, marginLeft:5, alignSelf:'center' }}>
@@ -1127,39 +1227,109 @@ export const CaregiverDashboard = ({
         <div style={{ borderBottom: last ? 'none' : `1px solid ${BORDER}`, padding: isPhone ? '4px 4px' : '5px 6px', display:'flex', flexDirection:'column', gap:4 }}>
           {hasActs ? activities.map((a,i) => {
             const urls = Array.isArray(a.evidenceUrls) ? a.evidenceUrls : [];
+            const narrative = toNarrative(a);
+            const divider = narrative.indexOf(' — ');
+            const timeText = divider > -1 ? narrative.slice(0, divider) : '';
+            const noteText = divider > -1 ? narrative.slice(divider + 3) : narrative;
             return (
-              <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
-                <span className="dar-entry-bullet" style={{ color:'#6597FF', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
-                <span className="dar-print-entry" style={{ flex:1, fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(toNarrative(a))}</span>
+              <div key={a.id||i} style={{ display:'grid', gridTemplateColumns:timeText?(isPhone?'58px minmax(0,1fr) auto':'68px minmax(0,1fr) auto'):'minmax(0,1fr) auto', alignItems:'start', gap:10, padding:'7px 0', borderTop:i?`1px solid ${entryDivider}`:0 }}>
+                {timeText && <time style={{ paddingTop:2, fontFamily:INTER, fontSize:10, fontWeight:750, color:MUTED, letterSpacing:'.02em', whiteSpace:'nowrap', textTransform:'uppercase' }}>{timeText}</time>}
+                <span className="dar-print-entry" style={{ minWidth:0, fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.65 }}>{noteText}</span>
                 {thumb(urls)}
               </div>
             );
           }) : hasStrs ? strings.map((item,i) => {
             const text = typeof item === 'string' ? item : item.text;
             const urls = typeof item === 'string' ? [] : (item.evidenceUrls || []);
+            const divider = text.indexOf(' — ');
+            const timeText = divider > -1 ? text.slice(0, divider) : '';
+            const rawNote = (divider > -1 ? text.slice(divider + 3) : text).replace(/\s+/g, ' ').trim();
+            const incidentParts = rawNote.match(/^([^:]{2,40}):\s*(.+)$/);
+            const narrativeNote = incidentParts ? `${incidentParts[1]} incident reported. ${incidentParts[2]}` : rawNote;
+            const noteText = narrativeNote ? `${narrativeNote.charAt(0).toUpperCase()}${narrativeNote.slice(1)}${/[.!?]$/.test(narrativeNote) ? '' : '.'}` : '';
             return (
-              <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
-                <span className="dar-entry-bullet" style={{ color:'#6597FF', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
-                <span className="dar-print-entry" style={{ flex:1, fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>{coloredEntry(text)}</span>
+              <div key={i} style={{ display:'grid', gridTemplateColumns:timeText?(isPhone?'58px minmax(0,1fr) auto':'68px minmax(0,1fr) auto'):'minmax(0,1fr) auto', alignItems:'start', gap:10, padding:'7px 0', borderTop:i?`1px solid ${entryDivider}`:0 }}>
+                {timeText && <time style={{ paddingTop:2, fontFamily:INTER, fontSize:10, fontWeight:750, color:MUTED, letterSpacing:'.02em', whiteSpace:'nowrap', textTransform:'uppercase' }}>{timeText}</time>}
+                <span className="dar-print-entry" style={{ minWidth:0, fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.65 }}>{noteText}</span>
                 {thumb(urls)}
               </div>
             );
           }) : (
-            <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>N/A</span>
+            <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED }}>No activity recorded</span>
           )}
         </div>
       );
     };
+    const DarBlock = ({ index, title, activities, strings, children, emptyLabel = 'No activity recorded', populated, critical = false, wide = false, rightColumn = false }) => {
+      const count = activities?.length || strings?.length || 0;
+      const hasContent = populated ?? (count > 0 || !!children);
+      const accent = critical ? RED : BLUE;
+      const divider = BORDER;
+      return (
+        <section className="dar-category-block" style={{ gridColumn: wide && !isMobile ? '1 / -1' : 'auto', background: CARD, minWidth: 0, padding: isPhone ? '16px 14px' : '18px 20px', borderTop: `1px solid ${divider}`, borderLeft: !isMobile && rightColumn ? `1px solid ${divider}` : 0 }}>
+          <div style={{ minHeight: 28, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 26, height:26, borderRadius:8, background:hasContent?`${accent}12`:CARD2, display:'inline-flex', alignItems:'center', justifyContent:'center', fontFamily: INTER, fontSize: 8, fontWeight: 800, color: hasContent ? accent : MUTED, letterSpacing: '.08em', flexShrink: 0 }}>{String(index).padStart(2, '0')}</span>
+            <h3 style={{ flex: 1, fontFamily: INTER, fontSize: 13, fontWeight: 750, color: TEXT, letterSpacing: '-.01em', margin: 0 }}>{title}</h3>
+            {count > 0 && <span style={{ minWidth:24, height:24, padding:'0 7px', borderRadius:999, background:CARD2, display:'inline-flex', alignItems:'center', justifyContent:'center', fontFamily:INTER, fontSize:9, fontWeight:800, color:MUTED }}>{count}</span>}
+          </div>
+          <div style={{ padding: '8px 0 0 38px', minHeight: 30 }}>
+            {children || (count > 0
+              ? <SectionRow label={title} activities={activities} strings={strings} last />
+              : <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{emptyLabel}</span>)}
+          </div>
+        </section>
+      );
+    };
 
     return (
-    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding: isMobile ? '64px 16px 48px' : '28px 28px 48px' }}>
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding: isMobile ? '64px 14px 32px' : '24px 28px 40px', overscrollBehavior:'contain' }}>
 
+      <AnimatePresence>
+        {darReceipt && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            role="status" aria-live="polite" data-testid="dar-return-receipt"
+            style={{ maxWidth: 1280, margin: '0 auto 16px', padding: isPhone ? '12px 14px' : '14px 18px', borderRadius: 14, border: `1px solid ${BLUE}35`, background: isDarkMode ? 'rgba(255,56,92,.10)' : 'rgba(255,56,92,.055)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Check size={17} color="white" strokeWidth={3} /></div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: BLUE, letterSpacing: '.16em', textTransform: 'uppercase', marginBottom: 3 }}>Added to DAR</div>
+              <div style={{ fontFamily: INTER, fontSize: 14, fontWeight: 750, color: TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{darReceipt.title}</div>
+              <div style={{ fontFamily: INTER, fontSize: 11, color: MUTED, marginTop: 2 }}>{darReceipt.detail}</div>
+            </div>
+            <span style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, flexShrink: 0 }}>Live record</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* 2-column Overview layout: DAR left, right col for tasks/incidents/actions */}
-      <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr 460px', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
+      {isShiftActive && <section aria-label="DAR shift continuity" style={{ maxWidth: 1280, margin: '0 auto 18px', border:`1px solid ${BORDER}`, borderRadius: 20, background: '#fff', overflow: 'hidden', boxShadow: SHADOW }}>
+        <div style={{ padding: isPhone ? '20px 20px 15px' : '26px 30px 19px', display: 'flex', alignItems:'flex-start', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{minWidth:0}}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}><span style={{ width: 24, height: 2, background: BLUE }} /><span style={{ fontFamily: INTER, fontSize: 9, fontWeight: 800, color: BLUE, letterSpacing: '.22em', textTransform: 'uppercase' }}>{propertyName}</span></div>
+            <h1 style={{ fontFamily: INTER, fontSize: isPhone ? 28 : 34, fontWeight: 800, color: '#222', letterSpacing: '-.045em', lineHeight: .98, margin: 0 }}>{viewingHandoff?'Prepare the handoff':viewingPreviousDar?'Previous shift':'Today’s shift'}</h1>
+            <p style={{fontFamily:INTER,fontSize:12,color:'#717171',margin:'9px 0 0',lineHeight:1.5}}>{viewingHandoff?'Leave clear context for the next concierge.':viewingPreviousDar?'Review the completed record from the prior shift.':`Live Daily Activity Report · ${authUser?.name || 'Concierge'}`}</p>
+          </div>
+          <div style={{display:'flex',gap:8,flexShrink:0}}>
+            {!viewingHandoff && <button onClick={() => window.print()} aria-label="Export DAR" className="touch-target" style={{ width:44, height:44, padding:0, borderRadius:999, border:`1px solid ${BORDER}`, background:CARD2, color:'#222', display:'inline-flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><Printer size={17}/></button>}
+            {(viewingHandoff || viewingPreviousDar) && <button type="button" onClick={() => {setShowHandover(false);setShowPreviousDar(false);}} aria-label="Close workflow" className="touch-target" style={{width:44,height:44,borderRadius:999,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><X size={19} color="#222"/></button>}
+          </div>
+        </div>
+        <nav aria-label="Daily activity report views" style={{padding:isPhone?'0 14px 16px':'0 24px 20px'}}><div style={{display:'flex',padding:4,background:'#f7f7f7',border:`1px solid ${BORDER}`,borderRadius:14}}>
+          {[
+            { n: '01', label: 'Previous DAR', detail: previousShiftData ? 'Completed shift record' : 'No previous shift', done: !!previousShiftData, current: viewingPreviousDar, disabled: !previousShiftData, action: () => { if (previousShiftData) { setShowHandover(false); setShowPreviousDar(true); } }, aria: 'Show the previous shift DAR' },
+            { n: '02', label: 'Current DAR', detail: `Recording since ${shiftStartTime || 'clock-in'}`, current: !viewingPreviousDar && !viewingHandoff, action: () => { setShowHandover(false); setShowPreviousDar(false); }, aria: 'Show the current shift DAR' },
+            { n: '03', label: 'Next handoff', detail: 'Prepared at shift end', current: viewingHandoff, action: () => { setShowPreviousDar(false); setShowHandover(true); }, aria: 'Prepare the next shift handoff' },
+          ].map((step) => <button type="button" key={step.n} onClick={step.action} disabled={step.disabled} aria-label={step.aria} aria-current={step.current ? 'page' : undefined} className="touch-target" style={{flex:1,minHeight:46,padding:isPhone?'8px 6px':'8px 12px',borderRadius:11,border:step.current?`1px solid ${BORDER}`:'1px solid transparent',background:step.current?'rgba(255,56,92,.055)':'transparent',boxShadow:step.current?'0 2px 8px rgba(0,0,0,.07)':'none',minWidth:0,textAlign:'center',cursor:step.disabled?'not-allowed':'pointer',opacity:step.disabled ? .46 : 1,font:'inherit',transition:'all 160ms'}}>
+            <div style={{fontFamily:INTER,fontSize:isPhone?10:11,fontWeight:750,color:'#222',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{step.label}<span style={{fontSize:8,color:step.current?BLUE:'#8a8a8a',marginLeft:6}}>{step.done?'✓':step.n}</span></div>
+            {!isPhone&&<div style={{fontFamily:INTER,fontSize:9,color:'#717171',marginTop:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{step.detail}</div>}
+          </button>)}
+        </div></nav>
+      </section>}
+
+      {/* DAR overview */}
+      <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
 
         {/* Left: Daily Activity Report */}
-        <div className="dar-print-target" style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
+        <div className="dar-print-target" style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0, boxShadow:SHADOW }}>
           {!activeShift ? (
             <div style={{ padding:40, textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
               <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0 }}>No active shift today</p>
@@ -1217,7 +1387,6 @@ export const CaregiverDashboard = ({
                     font-size: 11pt !important; font-weight: 400 !important;
                     line-height: 1.7 !important; color: #1a1a1a !important;
                   }
-                  .dar-entry-bullet { color: #6597FF !important; font-size: 12pt !important; }
                   .dar-print-sect-bar {
                     background: transparent !important;
                     border-top: 1.5pt solid #0d1117 !important;
@@ -1235,79 +1404,42 @@ export const CaregiverDashboard = ({
                     margin-top: 18pt !important;
                     page-break-inside: avoid !important;
                   }
+                  .dar-screen-grid { display: block !important; background: white !important; padding: 0 32px !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; }
+                  .dar-screen-grid > header { display: none !important; }
+                  .dar-category-block { border: 0 !important; border-radius: 0 !important; border-top: 1.5pt solid #0d1117 !important; margin-top: 10pt !important; padding: 0 !important; break-inside: avoid; background: white !important; }
+                  .dar-category-block > div:first-child { background: white !important; border-bottom: 0 !important; padding: 4pt 0 3pt !important; min-height: 0 !important; }
+                  .dar-category-block > div:last-child { padding: 2pt 0 5pt !important; min-height: 0 !important; }
                   @page { margin: 0.75in; }
                 }
               `}</style>
-              <div className="dar-screen-only" style={{ background:'#0b0b0b', padding: isMobile ? '10px 16px' : '14px 32px 12px' }}>
-                {isMobile ? (
-                  /* Mobile: 2-col matching Manager */
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                    <div>
-                      <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:6 }}>
-                        <span style={{ width:18, height:2, background:BLUE, display:'inline-block' }} />
-                        <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.55)', letterSpacing:'0.24em', textTransform:'uppercase' }}>DAR</span>
-                      </div>
-                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:17, fontWeight:800, color:'white', marginBottom:2, letterSpacing:'-0.03em' }}>{activeShift.concierge.name}</div>
-                      <div style={{ fontFamily:INTER, fontSize:11, fontWeight:400, color:'rgba(255,255,255,0.50)' }}>
-                        {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {activeShift.clockIn} – Now
-                      </div>
-                    </div>
-                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
-                      {isPhone ? (
-                        <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'9px' }}>
-                          <div className="dar-onduty-dot" style={{ width:10, height:10, borderRadius:'50%', background:GREEN }} />
-                        </div>
-                      ) : (
-                        <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'4px 10px' }}>
-                          <div className="dar-onduty-dot" style={{ width:6, height:6, borderRadius:'50%', background:GREEN }} />
-                          <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:GREEN }}>On Duty</span>
-                        </div>
-                      )}
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <button onClick={openAiSummary} aria-label="AI shift summary" data-testid="dar-ai-summary-btn"
-                          style={{ height:34, width:38, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.16)', borderRadius:999, cursor:'pointer', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
-                          <Sparkles size={14} color={BLUE} />
-                        </button>
-                        <button onClick={handleClockOut} data-testid="dar-end-shift-btn"
-                          style={{ height:34, padding:'0 12px', background:BLUE, border:'none', borderRadius:999, fontFamily:INTER, fontSize:11, fontWeight:700, color:'white', cursor:'pointer', display:'inline-flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
-                          <LogOut size={12} /> End Shift
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  /* Desktop: 2-column matching Manager */
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                    <div>
-                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:7 }}>
-                        <span style={{ width:24, height:2, background:BLUE, display:'inline-block' }} />
-                        <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.55)', letterSpacing:'0.24em', textTransform:'uppercase' }}>Daily Activity Report</span>
-                      </div>
-                      <div className="dar-print-name" style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:'white', marginBottom:3, letterSpacing:'-0.03em' }}>{activeShift.concierge.name}</div>
-                      <div style={{ fontFamily:INTER, fontSize:12, fontWeight:400, color:'rgba(255,255,255,0.55)' }}>
-                        {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · {activeShift.clockIn} – Present
-                      </div>
-                    </div>
-                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10 }}>
-                      <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'4px 10px' }}>
-                        <div className="dar-onduty-dot" style={{ width:6, height:6, borderRadius:'50%', background:GREEN }} />
-                        <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:GREEN }}>On Duty</span>
-                      </div>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <button onClick={openAiSummary} data-testid="dar-ai-summary-btn"
-                          style={{ height:34, padding:'0 14px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.16)', borderRadius:999, fontFamily:INTER, fontSize:12, fontWeight:700, color:'white', cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, whiteSpace:'nowrap' }}>
-                          <Sparkles size={13} color={BLUE} /> AI Summary
-                        </button>
-                        <button onClick={handleClockOut} data-testid="dar-end-shift-btn"
-                          style={{ height:34, padding:'0 14px', background:BLUE, border:'none', borderRadius:999, fontFamily:INTER, fontSize:12, fontWeight:700, color:'white', cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, whiteSpace:'nowrap', boxShadow:`0 6px 18px ${BLUE}45` }}>
-                          <LogOut size={13} /> End Shift
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
 
+              {viewingHandoff && (
+                <section className="dar-screen-only" aria-label="Next shift handoff" style={{ minHeight: isMobile ? 'auto' : 560, padding: isMobile ? '18px 16px 24px' : '28px 32px 32px', background: BG, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ width: '100%', maxWidth: 820, margin: '0 auto' }}>
+                    <div style={{ padding: isMobile ? '18px 16px' : '22px', border: `1px solid ${BORDER}`, borderRadius: 16, background: CARD, boxShadow:SHADOW }}>
+                      <div style={{ marginBottom: 22 }}>
+                        <div style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.16em',textTransform:'uppercase',marginBottom:6}}>01 · Shift context</div>
+                        <label htmlFor="inline-handoff-notes" style={{ display: 'block', marginBottom: 6, color: TEXT, fontFamily: INTER, fontSize: 17, fontWeight: 800, letterSpacing:'-.02em' }}>Handoff notes</label>
+                        <p style={{ margin: '0 0 10px', color: MUTED, fontFamily: INTER, fontSize: 12, lineHeight: 1.5 }}>Building status, expected arrivals, resident follow-ups, or anything requiring attention.</p>
+                        <textarea id="inline-handoff-notes" data-testid="handover-notes-input" value={handoverNotes} onChange={e => setHandoverNotes(e.target.value)} rows={5} placeholder="Example: HVAC vendor is expected at 8 PM. Unit 402 is waiting for an oversized delivery." style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', borderRadius: 12, border: `1.5px solid ${handoverNotes?BLUE:BORDER}`, background: handoverNotes?'rgba(255,56,92,.025)':CARD2, color: TEXT, fontFamily: INTER, fontSize: 16, lineHeight: 1.6, resize: 'vertical', outline: 'none', transition:'border-color 150ms' }} onFocus={e => { e.currentTarget.style.borderColor = BLUE; }} onBlur={e => { e.currentTarget.style.borderColor = handoverNotes?BLUE:BORDER; }} />
+                      </div>
+                      <div>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12,marginBottom:8}}><label htmlFor="inline-handoff-items" style={{ color: TEXT, fontFamily: INTER, fontSize: 14, fontWeight: 800 }}>Open items</label><span style={{color:MUTED,fontFamily:INTER,fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'.12em'}}>Optional · one per line</span></div>
+                        <textarea id="inline-handoff-items" data-testid="handover-items-input" value={handoverItems} onChange={e => setHandoverItems(e.target.value)} rows={3} placeholder={'Follow up on Unit 233 noise complaint\nRelease package #4412 to Unit 108'} style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', borderRadius: 12, border: `1.5px solid ${handoverItems?BLUE:BORDER}`, background: handoverItems?'rgba(255,56,92,.025)':CARD2, color: TEXT, fontFamily: INTER, fontSize: 16, lineHeight: 1.6, resize: 'vertical', outline: 'none', transition:'border-color 150ms' }} onFocus={e => { e.currentTarget.style.borderColor = BLUE; }} onBlur={e => { e.currentTarget.style.borderColor = handoverItems?BLUE:BORDER; }} />
+                      </div>
+                    </div>
+
+                    <div style={{ position:'sticky', bottom:-1, margin:'20px -1px -1px', padding:isPhone?'12px 0 0':'14px 0 0', background:BG, display: 'flex', flexDirection: isPhone ? 'column-reverse' : 'row', alignItems: isPhone ? 'stretch' : 'center', justifyContent: 'space-between', gap: 10 }}>
+                      <button type="button" onClick={() => submitHandover(true)} disabled={handoverSaving} data-testid="handover-skip-btn" className="touch-target" style={{ minHeight: 48, padding: '0 16px', border: `1px solid ${BORDER}`, borderRadius:999, background: CARD, color: TEXT, fontFamily: INTER, fontSize: 12, fontWeight: 700, cursor: handoverSaving ? 'not-allowed' : 'pointer' }}>End without notes</button>
+                      <div style={{ display: 'flex', flexDirection: isPhone ? 'column-reverse' : 'row', gap: 10 }}>
+                        <button type="button" onClick={() => submitHandover(false)} disabled={handoverSaving} data-testid="handover-submit-btn" className="touch-target" style={{ minHeight: 48, padding: '0 22px', borderRadius: 999, border: 0, background: handoverSaving ? MUTED : BLUE, color: 'white', fontFamily: INTER, fontSize: 14, fontWeight: 750, cursor: handoverSaving ? 'wait' : 'pointer', boxShadow: handoverSaving ? 'none' : `0 7px 22px ${BLUE}28`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><LogOut size={16} />{handoverSaving ? 'Sending…' : 'End shift & send handoff'}</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {!viewingHandoff && <>
               {/* ── Print-only: premium document header ─────────────────────────── */}
               <div className="dar-print-only" style={{ padding:'28px 32px 0' }}>
                 {/* Masthead: property name + document title */}
@@ -1334,13 +1466,13 @@ export const CaregiverDashboard = ({
                   <div>
                     <div style={{ fontFamily:INTER, fontSize:8, fontWeight:600, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.4)', marginBottom:4 }}>Date</div>
                     <div className="dar-print-date" style={{ fontFamily:"'Playfair Display',Georgia,serif", fontSize:12, fontStyle:'italic', color:'#0d1117' }}>
-                      {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}
+                      {activeShift.dateLabel || new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}
                     </div>
                   </div>
                   <div>
                     <div style={{ fontFamily:INTER, fontSize:8, fontWeight:600, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.4)', marginBottom:4 }}>Shift</div>
                     <div className="dar-print-date" style={{ fontFamily:"'Playfair Display',Georgia,serif", fontSize:12, fontStyle:'italic', color:'#0d1117' }}>
-                      {activeShift.clockIn} – Present
+                      {activeShift.clockIn} – {activeShift.clockOut || 'Present'}
                     </div>
                   </div>
                   <div>
@@ -1353,68 +1485,37 @@ export const CaregiverDashboard = ({
               </div>
               {/* ── End print header ─────────────────────────────────────────────── */}
 
-              <div style={{ background:CARD }}>
+              <div className="dar-screen-grid" style={{ background:CARD, margin:isMobile?'12px':'16px', border:`1px solid ${isDarkMode ? 'rgba(255,56,92,.30)' : 'rgba(180,35,60,.20)'}`, borderRadius:16, overflow:'hidden', display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,minmax(0,1fr))' }}>
 
-                <Sect title="Packages" accent='#6597FF' />
-                <SectionRow label="Packages" activities={[...incoming, ...pickups]} last />
+                <DarBlock index={1} title="Packages" activities={[...incoming, ...pickups]} />
 
-                <Sect title="Guests" accent='#6597FF' />
-                <SectionRow label="Guest Arrivals / Check-ins" activities={guests} last />
+                <DarBlock index={2} title="Guests" activities={guests} rightColumn />
 
-                <Sect title="Today's Tasks" accent='#6597FF' />
-                <div style={{ padding: isPhone ? '4px 4px' : '5px 6px', display:'flex', flexDirection:'column', gap:4 }}>
+                <DarBlock index={3} title="Today's Tasks" activities={taskEntries} populated={!!activeShift.note || taskEntries.length > 0} wide>
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                   {activeShift.note && (
-                    <p style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.55, margin:0 }}>
+                    <p style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.65, margin:0 }}>
                       {activeShift.note}
                     </p>
                   )}
-                  {taskEntries.length > 0 && taskEntries.map((a, i) => {
-                    const text = toNarrative(a);
-                    const d = text.indexOf(' — ');
-                    return (
-                      <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
-                        <span style={{ color:'#6597FF', fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
-                        <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>
-                          {d !== -1
-                            ? <><span style={{ color:TEXT, fontWeight:600 }}>{text.slice(0,d)} – </span><span style={{ color:TEXT }}>{text.slice(d+3)}</span></>
-                            : <span style={{ color:TEXT }}>{text}</span>}
-                        </span>
-                      </div>
-                    );
-                  })}
+                  {taskEntries.length > 0 && <SectionRow activities={taskEntries} last />}
                   {!activeShift.note && taskEntries.length === 0 && (
-                    <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>N/A</span>
+                    <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED }}>No activity recorded</span>
                   )}
                 </div>
+                </DarBlock>
 
-                <Sect title="Loaners" accent='#6597FF' />
-                <SectionRow label="Checkouts & Returns" activities={loaners} last />
+                <DarBlock index={4} title="Loaners" activities={loaners} />
 
-                <Sect title="Lockouts" accent='#6597FF' />
-                <SectionRow label="Keys & Access Requests" activities={lockouts} last />
+                <DarBlock index={5} title="Lockouts" activities={lockouts} rightColumn />
 
-                <Sect title="Vendors" accent='#6597FF' />
-                <SectionRow label="Vendor Activity" activities={vends} last />
+                <DarBlock index={6} title="Vendors" activities={vends} />
 
-                {rounds.length > 0 && (
-                  <>
-                    <Sect title="Security & Rounds" accent='#6597FF' />
-                    <SectionRow label="Patrol Rounds" activities={rounds} last />
-                  </>
-                )}
+                <DarBlock index={7} title="Tours" activities={tours} rightColumn />
 
-                <Sect title="Incidents Filed" accent={RED} />
-                {activeShift.incidents.length > 0
-                  ? activeShift.incidents.map((inc, i) => (
-                      <SectionRow key={i} label={`Incident ${i+1}`} strings={[inc]} last />
-                    ))
-                  : <div style={{ padding: isPhone ? '10px 12px' : '11px 18px' }}>
-                      <span style={{ fontFamily:INTER, fontSize:13, color:MUTED, fontStyle:'italic' }}>No incidents this shift.</span>
-                    </div>
-                }
+                <DarBlock index={8} title="Security & Rounds" activities={rounds} wide />
 
-                <Sect title="Tours" accent='#6597FF' />
-                <SectionRow label="Scheduled & Walk-in Tours" activities={tours} last />
+                <DarBlock index={9} title="Incidents Filed" strings={activeShift.incidents} emptyLabel="No incidents this shift." critical wide />
 
               </div>
 
@@ -1453,12 +1554,13 @@ export const CaregiverDashboard = ({
                   </div>
                 </div>
               </div>
+              </>}
             </>
           )}
         </div>
 
         {/* Right column */}
-        <div style={{ display:'flex', flexDirection:'column', gap:20, order: isMobile ? 2 : 0 }}>
+        <div hidden>
 
           {/* Active Tasks */}
           <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:20, boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
@@ -1566,40 +1668,43 @@ export const CaregiverDashboard = ({
 
   // ── REQUESTS tab ───────────────────────────────────────────────────────────
   const renderRequestsContent = () => (
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 24, background: BG }}>
-      <div style={{ padding: '16px 16px 14px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-        {/* Section header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Bell size={20} color={BLUE} />
-            <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Requests from Management</h2>
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', background:BG }}>
+      <div style={{ padding:isMobile?'18px 16px 28px':'20px 28px 32px', display:'flex', flexDirection:'column', gap:18 }}>
+        <div style={{ flexShrink:0, display:'grid', gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))', background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, overflow:'hidden', boxShadow:'0 2px 10px rgba(0,0,0,.04)' }}>
+          <div style={{ minHeight:82, boxSizing:'border-box', padding:'13px 16px', display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:36,height:36,borderRadius:10,background:`${BLUE}10`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}><Bell size={17} color={BLUE} /></div>
+            <div><div style={{ fontFamily:INTER,fontSize:9,fontWeight:800,color:MUTED,letterSpacing:'.14em',textTransform:'uppercase',marginBottom:4 }}>Awaiting action</div><div style={{ fontFamily:INTER,fontSize:14,fontWeight:800,color:TEXT }}>{pendingRequests.length} open request{pendingRequests.length === 1 ? '' : 's'}</div></div>
           </div>
-          {pendingRequests.length > 0 && (
-            <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,56,92,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: BLUE, flexShrink: 0 }}>{pendingRequests.length}</span>
-          )}
+          <div style={{ minHeight:82,boxSizing:'border-box',padding:'13px 16px',display:'flex',alignItems:'center',gap:12,borderLeft:isPhone?'none':`1px solid ${BORDER}`,borderTop:isPhone?`1px solid ${BORDER}`:'none' }}>
+            <div style={{ width:36,height:36,borderRadius:10,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}><UserCheck size={17} color={TEXT} /></div>
+            <div><div style={{ fontFamily:INTER,fontSize:9,fontWeight:800,color:MUTED,letterSpacing:'.14em',textTransform:'uppercase',marginBottom:4 }}>Source</div><div style={{ fontFamily:INTER,fontSize:14,fontWeight:800,color:TEXT }}>Property management</div></div>
+          </div>
         </div>
-        {pendingRequests.length > 0 ? pendingRequests.map(task => (
-          <TaskRequestCard
-            key={task.id}
-            task={{
-              ...task,
-              scheduledTime: task.dueTime,
-              proposedBy:    task.createdBy,
-              description:   task.notes,
-            }}
-            onAccept={() => handleAcceptRequest(task)}
-            onDecline={(id) => handleDeclineRequest(task.id)}
-          />
-        )) : (
-          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '40px 20px', textAlign: 'center' }}>
-            <div style={{ width: 64, height: 64, background: `${GREEN}12`, border: `1.5px solid ${GREEN}25`, borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-              <Sparkles size={28} color={GREEN} strokeWidth={1.5} />
-            </div>
-            <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, marginBottom: 6, letterSpacing: '-0.01em' }}>Inbox zero</div>
-            <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>No pending requests — management hasn't sent anything new</div>
+
+        <div role="tablist" aria-label="Request queue" style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:4, padding:4, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14 }}>
+          {[['inbox', 'Inbox', pendingRequests.length], ['handled', 'Handled', handledRequests.length]].map(([id, label, count]) => {
+            const selected = requestQueueTab === id;
+            return <button key={id} role="tab" aria-selected={selected} onClick={() => setRequestQueueTab(id)} style={{ minHeight:42,border:selected?`1px solid ${BORDER}`:'1px solid transparent',borderRadius:11,background:selected?CARD:'transparent',boxShadow:selected?'0 2px 8px rgba(0,0,0,.07)':'none',color:selected?TEXT:MUTED,cursor:'pointer',fontFamily:INTER,fontSize:12,fontWeight:750,transition:'all 160ms' }}>{label}<span style={{ marginLeft:7,color:selected?BLUE:MUTED,fontSize:9 }}>{count}</span></button>;
+          })}
+        </div>
+
+        {requestQueueTab === 'inbox' && (pendingRequests.length > 0 ? (
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {pendingRequests.map(task => <TaskRequestCard key={task.id || task.task_id} task={{ ...task, scheduledTime:task.dueTime || task.due_time || 'Today', proposedBy:task.createdBy || task.created_by || 'Management', description:task.notes }} onAccept={() => handleAcceptRequest(task)} onDecline={(_, reason) => handleDeclineRequest(task.id || task.task_id, reason)} />)}
           </div>
-        )}
+        ) : (
+          <div style={{ minHeight:240,background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:'34px 20px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',boxShadow:SHADOW }}>
+            <div style={{ width:50,height:50,background:`${GREEN}10`,border:`1px solid ${GREEN}25`,borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',marginBottom:12 }}><Sparkles size={22} color={GREEN} strokeWidth={1.6} /></div>
+            <div style={{ fontFamily:INTER,fontSize:15,fontWeight:800,color:TEXT,marginBottom:5,letterSpacing:'-.02em' }}>Inbox zero</div>
+            <div style={{ maxWidth:310,fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.55 }}>New requests from management will appear here when they need the desk’s attention.</div>
+          </div>
+        ))}
+
+        {requestQueueTab === 'handled' && (handledRequests.length ? (
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {handledRequests.map(task => <div key={task.id || task.task_id} style={{ padding:'13px 15px',background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,display:'grid',gridTemplateColumns:'40px 1fr auto',alignItems:'center',gap:12,boxShadow:SHADOW }}><div style={{width:40,height:40,borderRadius:11,background:`${GREEN}10`,display:'flex',alignItems:'center',justifyContent:'center'}}><Check size={18} color={GREEN}/></div><div style={{minWidth:0}}><div style={{fontFamily:INTER,fontSize:13,fontWeight:750,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{task.title}</div><div style={{marginTop:4,fontFamily:INTER,fontSize:10,color:MUTED}}>{task.createdBy || task.created_by || 'Property management'}</div></div><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:task.status==='in_progress'?BLUE:GREEN,background:task.status==='in_progress'?`${BLUE}10`:`${GREEN}10`,borderRadius:999,padding:'5px 8px',textTransform:'uppercase',letterSpacing:'.06em'}}>{task.status==='in_progress'?'In progress':'Closed'}</span></div>)}
+          </div>
+        ) : <div style={{ minHeight:180, background:CARD, border:`1px solid ${BORDER}`, borderRadius:18, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:24 }}><CheckCircle size={26} color={GREEN} /><div style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT, marginTop:12 }}>No handled requests yet</div><div style={{ fontFamily:INTER, fontSize:13, color:MUTED, marginTop:5 }}>Accepted and closed requests will appear here.</div></div>)}
       </div>
     </div>
   );
@@ -2047,66 +2152,81 @@ export const CaregiverDashboard = ({
       'Noise & Quiet Hours': ORANGE, 'Package Management': GREEN,
     };
 
-    const AICopilotCTA = () => (
-      <button onClick={() => setShowCopilot(true)} data-testid="copilot-btn"
-        style={{ width:'100%', padding:20, background:BLUE, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:`0 8px 24px ${BLUE}35`, fontFamily:INTER }}>
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          <div style={{ width:56, height:56, background:'rgba(255,255,255,0.20)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
-            <CareAssistantIcon size={56} />
-          </div>
-          <div style={{ textAlign:'left' }}>
-            <p style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:'0 0 3px' }}>AI Copilot</p>
-            <p style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.75)', margin:0 }}>Ask anything about building procedures</p>
-          </div>
-        </div>
-        <ChevronRight size={24} color="rgba(255,255,255,0.72)" />
-      </button>
-    );
-
-    if (uploadedSOPs.length === 0) {
-      return (
-        <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', gap:16, padding:'24px 20px 0', textAlign:'center' }}>
-          <AICopilotCTA />
-          <div style={{ width:72, height:72, borderRadius:22, background:'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center', marginTop:8 }}>
-            <BookOpen size={36} color={BLUE} />
-          </div>
-          <div>
-            <p style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, margin:'0 0 8px', letterSpacing:'-0.01em' }}>No SOPs uploaded yet</p>
-            <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0, lineHeight:1.6 }}>Your manager will upload building procedures here for you to reference.</p>
-          </div>
-        </div>
-      );
-    }
+    const categories = ['All', ...Array.from(new Set(uploadedSOPs.map(s => s.category).filter(Boolean)))];
+    const q = sopSearch.trim().toLowerCase();
+    const results = uploadedSOPs.filter(sop => (sopFilter === 'All' || sop.category === sopFilter) && (!q || `${sop.title || ''} ${sop.category || ''} ${sop.fileName || ''}`.toLowerCase().includes(q)));
+    const prompts = ['How does this work?', 'Where is this located?', 'What do I do if this happens?', 'Who should I contact?'];
+    const closeSOPs = () => handleTabChange('home');
 
     return (
-      <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
-        <AICopilotCTA />
-        {uploadedSOPs.map((sop) => {
+      <div style={{ height:'100%', minHeight:0, display:'flex', flexDirection:'column', background:BG }}>
+        <section style={{ flexShrink:0, background:CARD, borderBottom:`1px solid ${BORDER}` }}>
+          <div style={{ padding:isMobile?'20px 20px 16px':'26px 30px 20px', display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16 }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:11 }}><span style={{ width:24, height:2, background:BLUE }} /><span style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.22em', textTransform:'uppercase' }}>{propertyName}</span></div>
+              <h2 style={{ fontFamily:INTER, fontSize:isMobile?28:34, fontWeight:800, color:TEXT, letterSpacing:'-.045em', lineHeight:.98, margin:0 }}>Property procedures</h2>
+              <p style={{ maxWidth:520, fontFamily:INTER, fontSize:12, color:MUTED, lineHeight:1.5, margin:'9px 0 0' }}>Approved instructions and references for the front desk.</p>
+            </div>
+            <button onClick={closeSOPs} aria-label="Close property procedures" data-testid="sops-close-btn" style={{ width:44, height:44, borderRadius:999, border:`1px solid ${BORDER}`, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}><X size={19} color={TEXT} /></button>
+          </div>
+          <div style={{ height:3, background:BLUE }} />
+        </section>
+
+        <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:isMobile?'18px':'24px 28px 32px', display:'flex', flexDirection:'column', gap:18, background:BG }}>
+          <section style={{ border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:isMobile?16:20, boxShadow:SHADOW }}>
+            <div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>Search the playbook</div>
+            <h3 style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:TEXT, letterSpacing:'-.025em', margin:'0 0 13px' }}>What do you need to know?</h3>
+            <div style={{ position:'relative' }}>
+              <Search size={18} color={MUTED} style={{ position:'absolute', left:15, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
+              <input value={sopSearch} onChange={e=>setSopSearch(e.target.value)} placeholder='Search “elevator keys”, “lockout”, or “package room”…' aria-label="Search property procedures" style={{ width:'100%', minHeight:52, boxSizing:'border-box', border:`1.5px solid ${sopSearch?BLUE:BORDER}`, borderRadius:12, background:sopSearch?'rgba(255,56,92,.025)':CARD2, color:TEXT, padding:'13px 46px', fontFamily:INTER, fontSize:16, outline:'none', transition:'border-color 150ms' }} />
+              {sopSearch && <button onClick={()=>setSopSearch('')} aria-label="Clear search" style={{ position:'absolute', right:8, top:8, width:36, height:36, borderRadius:9, border:0, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><X size={15} color={MUTED} /></button>}
+            </div>
+            <div aria-label="Common property questions" style={{ display:'flex', gap:7, overflowX:'auto', paddingTop:11, scrollbarWidth:'none' }}>{prompts.map(prompt=><button key={prompt} onClick={()=>setSopSearch(prompt)} style={{ minHeight:36, padding:'0 12px', borderRadius:999, border:`1px solid ${BORDER}`, background:CARD, color:TEXT, fontFamily:INTER, fontSize:10, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>{prompt}</button>)}</div>
+          </section>
+
+          <section>
+            <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:12, marginBottom:12 }}><div><div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>Property playbook</div><h3 style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT, letterSpacing:'-.03em', margin:0 }}>Procedures and references</h3></div><span aria-label={`${results.length} of ${uploadedSOPs.length} procedures shown`} style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:MUTED, whiteSpace:'nowrap' }}>{results.length} / {uploadedSOPs.length}</span></div>
+            <div role="tablist" aria-label="Procedure categories" style={{ display:'flex', gap:4, padding:4, overflowX:'auto', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, scrollbarWidth:'none' }}>{categories.map(category=>{const selected=sopFilter===category;return <button key={category} role="tab" aria-selected={selected} onClick={()=>setSopFilter(category)} style={{ minHeight:42, padding:'0 14px', border:selected?`1px solid ${BORDER}`:'1px solid transparent', borderRadius:11, background:selected?CARD:'transparent', boxShadow:selected?'0 2px 8px rgba(0,0,0,.07)':'none', color:selected?TEXT:MUTED, fontFamily:INTER, fontSize:11, fontWeight:750, cursor:'pointer', whiteSpace:'nowrap', transition:'all 160ms' }}>{category}</button>})}</div>
+          </section>
+
+          {uploadedSOPs.length === 0 ? (
+            <div style={{ minHeight:240, border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:isMobile?'30px 20px':'36px 28px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', boxShadow:SHADOW }}>
+              <div style={{ width:50, height:50, borderRadius:14, background:`${BLUE}10`, border:`1px solid ${BLUE}20`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:12 }}><BookOpen size={22} color={BLUE} strokeWidth={1.6}/></div>
+              <h3 style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:TEXT, letterSpacing:'-.02em', margin:'0 0 7px' }}>No property procedures have been documented yet</h3>
+              <p style={{ maxWidth:430, fontFamily:INTER, fontSize:13, color:MUTED, lineHeight:1.6, margin:'0 auto 16px' }}>Noted will never invent an answer. Ask the property manager to add the approved procedure before relying on this section.</p>
+              <button onClick={()=>setShowContacts(true)} style={{ minHeight:44, padding:'0 16px', borderRadius:14, border:`1px solid ${BORDER}`, background:CARD2, color:TEXT, fontFamily:INTER, fontSize:12, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7 }}><Phone size={14}/>Open property contacts</button>
+            </div>
+          ) : results.length === 0 ? (
+            <div style={{ border:`1px solid ${BORDER}`, borderRadius:18, background:CARD, padding:'32px 22px', textAlign:'center' }}><Search size={24} color={MUTED}/><h3 style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT, margin:'12px 0 6px' }}>That procedure has not been documented</h3><p style={{ fontFamily:INTER, fontSize:12, color:MUTED, lineHeight:1.6, margin:'0 0 14px' }}>Try a broader search or choose another category. Do not guess at a property procedure.</p><button onClick={()=>{setSopSearch('');setSopFilter('All');}} style={{ minHeight:40, padding:'0 14px', borderRadius:999, border:`1px solid ${BORDER}`, background:CARD2, color:TEXT, fontFamily:INTER, fontSize:11, fontWeight:700, cursor:'pointer' }}>Clear search</button></div>
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,minmax(0,1fr))', gap:10 }}>
+            {results.map((sop, index) => {
           const CatIcon = sop.fileType === 'image' ? Image : sop.fileType === 'pdf' ? FileText : (SOP_ICON_MAP[sop.category] || BookOpen);
           const catColor = SOP_COLOR_MAP[sop.category] || MUTED;
-          const typeLabel = sop.fileType === 'image' ? 'Photo' : 'PDF';
-          const typeBadgeColor = sop.fileType === 'image' ? GREEN : ORANGE;
+          const typeLabel = sop.fileType === 'image' ? 'Visual guide' : sop.fileType === 'video' ? 'Video guide' : 'Document';
           return (
             <button key={sop.id} onClick={() => setFullscreenItem(sop)}
-              style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%', background:CARD, border:`1px solid ${BORDER}` }}>
-              <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:CARD2, overflow:'hidden' }}>
+              style={{ minHeight:128, padding:14, borderRadius:14, textAlign:'left', display:'grid', gridTemplateColumns:'52px minmax(0,1fr) 18px', alignItems:'center', gap:13, cursor:'pointer', width:'100%', background:CARD, border:`1px solid ${BORDER}`, boxShadow:SHADOW, transition:'border-color 150ms, box-shadow 150ms' }}>
+              <div style={{ width:52, height:72, borderRadius:11, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:CARD2, overflow:'hidden', position:'relative' }}>
                 {sop.fileType === 'image' ? (
                   <img src={sop.dataURL} alt={sop.title} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
                 ) : (
-                  <CatIcon size={26} color={catColor} />
+                  <CatIcon size={23} color={catColor} />
                 )}
+                <span style={{ position:'absolute', top:5, left:5, fontFamily:INTER, fontSize:7, fontWeight:800, color:catColor }}>{String(index+1).padStart(2,'0')}</span>
               </div>
               <div style={{ flex:1, minWidth:0 }}>
-                <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', margin:'0 0 4px' }}>{sop.category}</p>
-                <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 6px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sop.title}</p>
-                <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 9px', borderRadius:8, background:typeBadgeColor, fontFamily:INTER, fontSize:11, fontWeight:700, color:'white' }}>
-                  <FileText size={11} color="white" />{typeLabel}
-                </span>
+                <p style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:catColor, textTransform:'uppercase', letterSpacing:'0.14em', margin:'0 0 6px' }}>{sop.category}</p>
+                <p style={{ fontFamily:INTER, fontWeight:800, color:TEXT, fontSize:14, lineHeight:1.3, margin:'0 0 8px' }}>{sop.title}</p>
+                <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontFamily:INTER, fontSize:10, fontWeight:650, color:MUTED }}><Eye size={12}/>{typeLabel}</span>
               </div>
               <ChevronRight size={18} color={MUTED} style={{ flexShrink:0 }} />
             </button>
           );
         })}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -2119,48 +2239,76 @@ export const CaregiverDashboard = ({
       'Other': HelpCircle,
     };
 
-    if (trainingItems.length === 0) {
-      return (
-        <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', gap:16, padding:'24px 20px 0', textAlign:'center' }}>
-          <div style={{ width:72, height:72, borderRadius:22, background:'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <GraduationCap size={36} color={BLUE} />
-          </div>
-          <div>
-            <p style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, margin:'0 0 8px', letterSpacing:'-0.01em' }}>No training materials yet</p>
-            <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0, lineHeight:1.6 }}>Your manager will upload training documents, videos, and images here.</p>
-          </div>
-        </div>
-      );
-    }
+    const openTraining = (item) => {
+      setLastTrainingId(item.id);
+      try { localStorage.setItem('_notedLastTraining', item.id); } catch {}
+      setFullscreenItem({ ...item, _knowledgeType:'training' });
+    };
+    const q = trainingSearch.trim().toLowerCase();
+    const results = trainingItems.filter(item => (!q || `${item.title || ''} ${item.category || ''} ${item.fileName || ''}`.toLowerCase().includes(q)) && (trainingFilter === 'All' || (trainingFilter === 'Completed' ? completedTraining.has(item.id) : item.fileType === trainingFilter.toLowerCase())));
+    const completedCount = trainingItems.filter(item=>completedTraining.has(item.id)).length;
+    const resumeItem = trainingItems.find(item=>item.id===lastTrainingId && !completedTraining.has(item.id));
+    const progress = trainingItems.length ? Math.round((completedCount/trainingItems.length)*100) : 0;
+    const closeTraining = () => handleTabChange('home');
 
     return (
-      <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
-        {trainingItems.map((item) => {
+      <div style={{ height:'100%', minHeight:0, display:'flex', flexDirection:'column', background:BG }}>
+        <section style={{ flexShrink:0, background:CARD, borderBottom:`1px solid ${BORDER}` }}>
+          <div style={{ padding:isMobile?'20px 20px 16px':'26px 30px 20px', display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16 }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:11 }}><span style={{ width:24, height:2, background:BLUE }} /><span style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.22em', textTransform:'uppercase' }}>{propertyName}</span></div>
+              <h2 style={{ fontFamily:INTER, fontSize:isMobile?28:34, fontWeight:800, color:TEXT, letterSpacing:'-.045em', lineHeight:.98, margin:0 }}>Training library</h2>
+              <p style={{ maxWidth:520, fontFamily:INTER, fontSize:12, color:MUTED, lineHeight:1.5, margin:'9px 0 0' }}>Property-specific learning for confident front desk operations.</p>
+            </div>
+            <button onClick={closeTraining} aria-label="Close training library" data-testid="training-close-btn" style={{ width:44, height:44, borderRadius:999, border:`1px solid ${BORDER}`, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}><X size={19} color={TEXT} /></button>
+          </div>
+          <div style={{ display:'flex', gap:5, padding:isMobile?'0 20px 16px':'0 30px 20px' }}>
+            <div style={{ flex:1, height:3, borderRadius:2, background:BLUE }} />
+            <div style={{ flex:1, height:3, borderRadius:2, background:progress===100?BLUE:BORDER, transition:'background 200ms' }} />
+          </div>
+        </section>
+
+        <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:isMobile?'18px':'24px 28px 32px', display:'flex', flexDirection:'column', gap:18, background:BG }}>
+          <section style={{ border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:isMobile?16:20, boxShadow:SHADOW }}>
+            <div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>Search desk learning</div>
+            <h3 style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:TEXT, letterSpacing:'-.025em', margin:'0 0 13px' }}>What would you like to review?</h3>
+            <div style={{ position:'relative' }}><Search size={18} color={MUTED} style={{ position:'absolute', left:15, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }}/><input value={trainingSearch} onChange={e=>setTrainingSearch(e.target.value)} placeholder="Search training by topic or building system…" aria-label="Search property training" style={{ width:'100%', minHeight:52, boxSizing:'border-box', border:`1.5px solid ${trainingSearch?BLUE:BORDER}`, borderRadius:12, background:trainingSearch?'rgba(255,56,92,.025)':CARD2, color:TEXT, padding:'13px 46px', fontFamily:INTER, fontSize:16, outline:'none', transition:'border-color 150ms' }}/>{trainingSearch&&<button onClick={()=>setTrainingSearch('')} aria-label="Clear search" style={{ position:'absolute', right:8, top:8, width:36, height:36, borderRadius:9, border:0, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><X size={15} color={MUTED}/></button>}</div>
+          </section>
+
+          <section style={{ border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:isMobile?16:18, display:'grid', gridTemplateColumns:isPhone?'1fr':'1fr auto', alignItems:'center', gap:16, boxShadow:SHADOW }}>
+            <div><div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, marginBottom:9 }}><span style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase' }}>Property readiness</span><span style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:TEXT }}>{progress}%</span></div><div style={{ height:5, borderRadius:99, background:CARD2, overflow:'hidden' }}><div style={{ width:`${progress}%`, height:'100%', borderRadius:99, background:BLUE, transition:'width 220ms ease' }}/></div><p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:'8px 0 0' }}>{completedCount} of {trainingItems.length} materials reviewed</p></div>
+            {resumeItem&&<button onClick={()=>openTraining(resumeItem)} style={{ minHeight:44, padding:'0 16px', borderRadius:14, border:0, background:BLUE, color:'white', fontFamily:INTER, fontSize:11, fontWeight:750, cursor:'pointer', boxShadow:`0 7px 22px ${BLUE}28`, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7 }}><Play size={13}/>Resume</button>}
+          </section>
+
+          <section><div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:12, marginBottom:12 }}><div><div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>Desk learning</div><h3 style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT, letterSpacing:'-.03em', margin:0 }}>Assigned materials</h3></div><span aria-label={`${results.length} training materials shown`} style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:MUTED, whiteSpace:'nowrap' }}>{results.length} / {trainingItems.length}</span></div><div role="tablist" aria-label="Training material types" style={{ display:'flex', gap:4, padding:4, overflowX:'auto', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, scrollbarWidth:'none' }}>{['All','video','image','pdf','Completed'].map(filter=>{const selected=trainingFilter===filter;return <button key={filter} role="tab" aria-selected={selected} onClick={()=>setTrainingFilter(filter)} style={{ minHeight:42, padding:'0 14px', border:selected?`1px solid ${BORDER}`:'1px solid transparent', borderRadius:11, background:selected?CARD:'transparent', boxShadow:selected?'0 2px 8px rgba(0,0,0,.07)':'none', color:selected?TEXT:MUTED, fontFamily:INTER, fontSize:11, fontWeight:750, textTransform:filter==='pdf'?'uppercase':'capitalize', cursor:'pointer', whiteSpace:'nowrap', transition:'all 160ms' }}>{filter==='image'?'Photos':filter==='video'?'Videos':filter}</button>})}</div></section>
+
+          {trainingItems.length===0 ? <div style={{ minHeight:240, border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:'36px 24px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', boxShadow:SHADOW }}><div style={{ width:50, height:50, borderRadius:14, background:`${BLUE}10`, border:`1px solid ${BLUE}20`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:12 }}><GraduationCap size={22} color={BLUE} strokeWidth={1.6}/></div><h3 style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:TEXT, letterSpacing:'-.02em', margin:'0 0 7px' }}>No property training has been assigned yet</h3><p style={{ maxWidth:430, fontFamily:INTER, fontSize:13, color:MUTED, lineHeight:1.6, margin:0 }}>Your property manager can add approved videos, visual guides, and reference documents.</p></div> : results.length===0 ? <div style={{ minHeight:200, border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:'30px 22px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', boxShadow:SHADOW }}><Search size={24} color={MUTED}/><h3 style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT, margin:'12px 0 6px' }}>No training matches this view</h3><button onClick={()=>{setTrainingSearch('');setTrainingFilter('All');}} style={{ minHeight:40, padding:'0 14px', borderRadius:14, border:`1px solid ${BORDER}`, background:CARD2, color:TEXT, fontFamily:INTER, fontSize:11, fontWeight:700, cursor:'pointer' }}>Show all training</button></div> : <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,minmax(0,1fr))', gap:10 }}>
+        {results.map((item) => {
           const CatIcon = TRAINING_ICON_MAP[item.category] || HelpCircle;
           const typeLabel = item.fileType === 'video' ? 'Video' : item.fileType === 'image' ? 'Photo' : 'PDF';
-          const typeBadgeColor = item.fileType === 'video' ? BLUE : item.fileType === 'image' ? GREEN : ORANGE;
           const TypeIcon = item.fileType === 'video' ? Video : item.fileType === 'image' ? Image : FileText;
+          const done = completedTraining.has(item.id);
           return (
-            <button key={item.id} onClick={() => setFullscreenItem(item)}
-              style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%', background:CARD, border:`1px solid ${BORDER}` }}>
-              <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:CARD2, overflow:'hidden' }}>
+            <button key={item.id} onClick={() => openTraining(item)} style={{ minHeight:130, padding:14, borderRadius:14, textAlign:'left', display:'grid', gridTemplateColumns:'58px minmax(0,1fr) 18px', alignItems:'center', gap:13, cursor:'pointer', width:'100%', background:CARD, border:`1px solid ${done?`${GREEN}45`:BORDER}`, boxShadow:SHADOW, transition:'border-color 150ms, box-shadow 150ms' }}>
+              <div style={{ width:58, height:78, borderRadius:11, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:CARD2, overflow:'hidden', position:'relative' }}>
                 {item.fileType === 'image' ? (
                   <img src={item.dataURL} alt={item.title} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
                 ) : (
-                  <CatIcon size={26} color={MUTED} />
+                  <CatIcon size={24} color={MUTED} />
                 )}
+                {item.fileType==='video'&&<span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.08)' }}><Play size={18} color={BLUE}/></span>}
               </div>
               <div style={{ flex:1, minWidth:0 }}>
-                <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', margin:'0 0 4px' }}>{item.category}</p>
-                <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 6px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</p>
-                <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 9px', borderRadius:8, background:typeBadgeColor, fontFamily:INTER, fontSize:11, fontWeight:700, color:'white' }}>
-                  <TypeIcon size={11} color="white" />{typeLabel}
-                </span>
+                <p style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, textTransform:'uppercase', letterSpacing:'0.14em', margin:'0 0 6px' }}>{item.category}</p>
+                <p style={{ fontFamily:INTER, fontWeight:800, color:TEXT, fontSize:14, lineHeight:1.3, margin:'0 0 9px' }}>{item.title}</p>
+                <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontFamily:INTER, fontSize:10, fontWeight:650, color:done?GREEN:MUTED }}><TypeIcon size={12}/>{done?'Reviewed':typeLabel}</span>
               </div>
               <ChevronRight size={18} color={MUTED} style={{ flexShrink:0 }} />
             </button>
           );
         })}
+          </div>}
+        </div>
       </div>
     );
   };
@@ -2169,10 +2317,10 @@ export const CaregiverDashboard = ({
   const PAGE_TITLES = {
     home: "Today's Tasks", requests: 'Requests', packages: 'Packages',
     loaners: 'Loaners', lockout: 'Lockouts', tours: 'Tours',
-    vendors: 'Vendors', incident: 'Incident Report', calendar: 'Calendar',
+    vendors: 'Vendors', incident: 'Incident Report', calendar: 'Shifts',
     'shift-history': 'Shift History', messages: 'Messages',
-    guests: 'Guests', settings: 'Settings', profile: 'Profile',
-    sops: 'Building SOPs', training: 'Training', followup: 'Follow-up Tracker',
+    guests: 'Visitors', settings: 'Settings', profile: 'Profile',
+    sops: 'Property Knowledge', training: 'Training', followup: 'Follow-up Tracker',
   };
 
   const PAGE_SUBTITLES = {
@@ -2186,7 +2334,7 @@ export const CaregiverDashboard = ({
     calendar: 'Your shift schedule and history',
     'shift-history': 'Past shifts and daily reports',
     messages: 'Team messages for this property',
-    guests: 'Guest check-ins and authorizations',
+    guests: 'Visitor check-ins and authorizations',
     settings: 'Account, appearance, and preferences',
     profile: 'Your account and certifications',
     sops: 'Standard operating procedures for the desk',
@@ -2194,21 +2342,27 @@ export const CaregiverDashboard = ({
   };
 
   const NAV_ITEMS = [
-    { id: 'home',          Icon: Home,          label: "Today's"             },
-    { id: 'new-task',      Icon: Plus,          label: 'New Task',           action: () => setShowNewTask(true) },
-    { id: 'requests',      Icon: Bell,          label: 'Requests'            },
-    { id: 'packages',      Icon: Package,       label: 'Packages'            },
-    { id: 'guests',        Icon: UserCheck,     label: 'Guests'              },
-    { id: 'lockout',       Icon: Lock,          label: 'Lockouts'            },
-    { id: 'vendors',       Icon: Wrench,        label: 'Vendors'             },
-    { id: 'tours',         Icon: Users,         label: 'Tours'               },
-    { id: 'loaners',       Icon: ShoppingCart,  label: 'Loaners'             },
-    { id: 'incident',      Icon: AlertTriangle,  label: 'Incident'   },
-    { id: 'sops',          Icon: BookOpen,       label: 'SOPs'       },
-    { id: 'training',      Icon: GraduationCap,  label: 'Training'   },
-    { id: 'calendar',      Icon: Calendar,       label: 'Shifts'     },
-    { id: 'settings',      Icon: Settings,       label: 'Settings'   },
-    { id: 'emergency',     Icon: Phone,         label: 'Emergency Contacts', action: () => setShowContacts(true) },
+    { id: 'home',          Icon: Home,           label: "Today's"             },
+    { id: 'new-task',      Icon: Plus,           label: 'New Task',           action: () => setShowNewTask(true) },
+    { id: 'requests',      Icon: Bell,           label: 'Requests'            },
+    { id: 'packages',      Icon: Package,        label: 'Packages'            },
+    { id: 'guests',        Icon: UserCheck,      label: 'Guests'              },
+    { id: 'lockout',       Icon: Lock,           label: 'Lockouts'            },
+    { id: 'vendors',       Icon: Wrench,         label: 'Vendors'             },
+    { id: 'tours',         Icon: Users,          label: 'Tours'               },
+    { id: 'loaners',       Icon: ShoppingCart,   label: 'Loaners'             },
+    { id: 'incident',      Icon: AlertTriangle,  label: 'Incident'            },
+    { id: 'sops',          Icon: BookOpen,       label: 'SOPs'                },
+    { id: 'training',      Icon: GraduationCap,  label: 'Training'            },
+    { id: 'calendar',      Icon: Calendar,       label: 'Shifts'              },
+    { id: 'settings',      Icon: Settings,       label: 'Settings'            },
+    { id: 'emergency',     Icon: Phone,          label: 'Emergency Contacts', action: () => setShowContacts(true) },
+  ];
+  const NAV_GROUPS = [
+    { label: 'Shift record', ids: ['home', 'new-task', 'requests'] },
+    { label: 'Front desk', ids: ['packages', 'guests', 'lockout', 'vendors', 'tours', 'loaners', 'incident'] },
+    { label: 'Property guide', ids: ['sops', 'training'] },
+    { label: 'Account & support', ids: ['calendar', 'settings', 'emergency'] },
   ];
 
   /* ── Shift Calendar ─────────────────────────────────────────────────────────── */
@@ -2281,39 +2435,39 @@ export const CaregiverDashboard = ({
       const incoming = delivery.filter(a => !a.title.toLowerCase().includes('pickup'));
       const lockouts = security.filter(a => a.title.toLowerCase().includes('lockout'));
       const rounds   = security.filter(a => !a.title.toLowerCase().includes('lockout'));
-      const Sect = ({ title, accent='#6597FF' }) => (
-        <div style={{ background:'transparent', borderTop:`2px solid ${accent}`, padding: isMobile ? '8px 16px 2px' : '9px 28px 2px', marginTop:10 }}>
-          <span style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:accent, letterSpacing:'0.18em', textTransform:'uppercase' }}>{title}</span>
+      const Sect = ({ title, accent=BLUE }) => (
+        <div style={{ background:'transparent', borderTop:`1px solid ${BORDER}`, padding: isMobile ? '18px 16px 5px' : '20px 24px 5px', marginTop:4 }}>
+          <span style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:accent, letterSpacing:'0.18em', textTransform:'uppercase' }}>{title}</span>
         </div>
       );
       const Field = ({ label, value, sub, last }) => (
-        <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 2 : 20, padding: isMobile ? '12px 16px' : '14px 28px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
-          <div style={{ width: isMobile ? '100%' : 240, flexShrink:0, fontFamily:INTER, fontSize: isMobile ? 11 : 16, fontWeight:700, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
+        <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 4 : 20, padding: isMobile ? '11px 16px' : '13px 24px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
+          <div style={{ width: isMobile ? '100%' : 220, flexShrink:0, fontFamily:INTER, fontSize: isMobile ? 10 : 13, fontWeight:750, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.08em' : 'normal' }}>{label}</div>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontFamily:INTER, fontSize: isMobile ? 15 : 16, color:TEXT, lineHeight:1.55, whiteSpace:'pre-line' }}>{value}</div>
-            {sub && <div style={{ fontFamily:INTER, fontSize: isMobile ? 13 : 14, color:MUTED, marginTop:3 }}>{sub}</div>}
+            <div style={{ fontFamily:INTER, fontSize: isMobile ? 14 : 14, color:TEXT, lineHeight:1.6, whiteSpace:'pre-line' }}>{value}</div>
+            {sub && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:3 }}>{sub}</div>}
           </div>
         </div>
       );
       return (
         <>
-          <div style={{ background:'#0b0b0b', padding:'28px 28px 22px' }}>
+          <div style={{ background:CARD2, borderBottom:`1px solid ${BORDER}`, padding:isMobile?'18px 16px':'20px 24px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
               <div>
-                <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.4)', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:8 }}>Daily Activity Report</div>
-                <div style={{ fontFamily:INTER, fontSize:22, fontWeight:800, color:'white', marginBottom:5 }}>{s.concierge.name}</div>
-                <div style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.55)' }}>
+                <div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:7 }}>Daily Activity Report</div>
+                <div style={{ fontFamily:INTER, fontSize:isMobile?19:22, fontWeight:800, color:TEXT, letterSpacing:'-.025em', marginBottom:5 }}>{s.concierge.name}</div>
+                <div style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>
                   {dateLabel} · {s.clockIn}{s.clockOut ? ` – ${s.clockOut}` : ' – Present'}
                 </div>
               </div>
               <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
-                <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:s.status==='active'?'rgba(52,199,89,0.15)':'rgba(255,255,255,0.08)', borderRadius:999, padding:'6px 14px' }}>
-                  <div style={{ width:6, height:6, borderRadius:'50%', background:s.status==='active'?GREEN:'rgba(255,255,255,0.4)' }} />
-                  <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:s.status==='active'?GREEN:'rgba(255,255,255,0.6)' }}>
+                <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:s.status==='active'?'rgba(52,199,89,0.12)':CARD, border:`1px solid ${s.status==='active'?'rgba(52,199,89,.2)':BORDER}`, borderRadius:999, padding:'6px 11px' }}>
+                  <div style={{ width:6, height:6, borderRadius:'50%', background:s.status==='active'?GREEN:MUTED }} />
+                  <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:s.status==='active'?GREEN:MUTED, textTransform:'uppercase', letterSpacing:'.08em' }}>
                     {s.status==='active' ? 'On Duty' : 'Completed'}
                   </span>
                 </div>
-                <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.45)' }}>{s.duration}</div>
+                <div style={{ fontFamily:INTER, fontSize:11, color:MUTED }}>{s.duration}</div>
               </div>
             </div>
           </div>
@@ -2368,25 +2522,25 @@ export const CaregiverDashboard = ({
     const pageShifts  = monthShifts.slice(shiftsPage * 5, shiftsPage * 5 + 5);
 
     return (
-      <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'1fr 400px', gap: isMobile ? 16 : 20, alignItems: isMobile ? 'stretch' : 'start', padding: isMobile ? '8px 16px 48px' : '12px 32px 48px' }}>
+      <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'minmax(0,1fr) minmax(320px,400px)', gap: isMobile ? 14 : 18, alignItems: isMobile ? 'stretch' : 'start', width:'100%', maxWidth:1440, margin:'0 auto', boxSizing:'border-box', padding: isMobile ? '16px 16px 48px' : '22px 28px 48px' }}>
 
         {/* DAR — top on mobile, left column on desktop */}
-        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.05)', order: isMobile ? 2 : 0, gridColumn: 1, gridRow: '1 / 3' }}>
+        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, overflow:'hidden', boxShadow:SHADOW, order: isMobile ? 2 : 0, gridColumn: 1, gridRow: '1 / 3', minWidth:0 }}>
           {selectedShift ? (
             shiftDARBody(selectedShift, (() => { const dp=shiftDay.split('-'); return `${SH_MONTHS[parseInt(dp[1])-1]} ${parseInt(dp[2])}, ${dp[0]}`; })())
           ) : (
-            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'80px 32px', textAlign:'center' }}>
-              <div style={{ width:72, height:72, borderRadius:20, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}>
-                <Calendar size={34} color={MUTED} strokeWidth={1.5} />
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:isMobile?230:360, padding:'48px 24px', textAlign:'center' }}>
+              <div style={{ width:50, height:50, borderRadius:14, background:`${BLUE}10`, border:`1px solid ${BLUE}20`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:13 }}>
+                <Calendar size={22} color={BLUE} strokeWidth={1.7} />
               </div>
-              <p style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:TEXT, margin:'0 0 6px' }}>No shift selected</p>
-              <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0 }}>Pick a highlighted date or shift below to view the daily activity report</p>
+              <p style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:TEXT, letterSpacing:'-.02em', margin:'0 0 7px' }}>No shift selected</p>
+              <p style={{ maxWidth:390, fontFamily:INTER, fontSize:13, color:MUTED, lineHeight:1.6, margin:0 }}>Choose a highlighted date or a shift card to review its daily activity report.</p>
             </div>
           )}
         </div>
 
         {/* Calendar card — top on mobile, right col row 1 on desktop */}
-        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:20, boxShadow:'0 2px 8px rgba(0,0,0,0.05)', order: isMobile ? 1 : 0, gridColumn: 2, gridRow: 1 }}>
+        <section aria-label="Shift calendar" style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:isMobile?16:18, boxShadow:SHADOW, order: isMobile ? 1 : 0, gridColumn: 2, gridRow: 1, minWidth:0 }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                 {shCalView === 'month' ? (
@@ -2414,10 +2568,10 @@ export const CaregiverDashboard = ({
                   </>
                 )}
               </div>
-              <div style={{ display:'flex', background:CARD2, borderRadius:10, padding:2, border:`1px solid ${BORDER}` }}>
+              <div role="tablist" aria-label="Calendar view" style={{ display:'flex', background:CARD2, borderRadius:12, padding:4, border:`1px solid ${BORDER}` }}>
                 {['month','year'].map(v => (
-                  <button key={v} onClick={() => setShCalView(v)}
-                    style={{ padding:'6px 14px', borderRadius:8, background:shCalView===v?CARD:'transparent', border:shCalView===v?`1px solid ${BORDER}`:'none', fontFamily:INTER, fontSize:12, fontWeight:700, color:shCalView===v?TEXT:MUTED, cursor:'pointer', textTransform:'capitalize' }}>
+                  <button key={v} role="tab" aria-selected={shCalView===v} onClick={() => setShCalView(v)}
+                    style={{ minHeight:36, padding:'0 13px', borderRadius:9, background:shCalView===v?CARD:'transparent', border:shCalView===v?`1px solid ${BORDER}`:'1px solid transparent', boxShadow:shCalView===v?'0 2px 8px rgba(0,0,0,.07)':'none', fontFamily:INTER, fontSize:11, fontWeight:750, color:shCalView===v?TEXT:MUTED, cursor:'pointer', textTransform:'capitalize', transition:'all 160ms' }}>
                     {v}
                   </button>
                 ))}
@@ -2466,15 +2620,15 @@ export const CaregiverDashboard = ({
                 })}
               </div>
             )}
-          </div>
+          </section>
 
         {/* Shifts this month — bottom on mobile, right col row 2 on desktop */}
         {shCalView === 'month' && (
-          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:20, boxShadow:'0 2px 8px rgba(0,0,0,0.05)', order: isMobile ? 3 : 0, gridColumn: 2, gridRow: 2 }}>
+          <section aria-label="Shifts this month" style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:isMobile?16:18, boxShadow:SHADOW, order: isMobile ? 3 : 0, gridColumn: 2, gridRow: 2, minWidth:0 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <Clock size={20} color={BLUE} />
-                  <h2 style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Shifts This Month</h2>
+                  <div style={{ width:34, height:34, borderRadius:10, background:`${BLUE}10`, display:'flex', alignItems:'center', justifyContent:'center' }}><Clock size={16} color={BLUE} /></div>
+                  <div><div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.14em', textTransform:'uppercase', marginBottom:2 }}>Schedule</div><h2 style={{ fontFamily:INTER, fontWeight:800, color:TEXT, fontSize:16, letterSpacing:'-.02em', margin:0 }}>Shifts this month</h2></div>
                 </div>
                 <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{monthShifts.length > 0 ? `${shiftsPage*5+1}–${Math.min(shiftsPage*5+5,monthShifts.length)} of ${monthShifts.length}` : '0'}</span>
               </div>
@@ -2488,9 +2642,10 @@ export const CaregiverDashboard = ({
                   const stColor = onDuty ? GREEN : BLUE;
                   return (
                     <button key={dateStr} onClick={() => setShiftDay(dateStr)}
-                      style={{ display:'flex', alignItems:'center', gap:14, padding:16, background:isSel?'rgba(255,56,92,0.04)':CARD2, border:`1.5px solid ${isSel?BLUE:BORDER}`, borderRadius:14, cursor:'pointer', textAlign:'left', transition:'border-color 150ms' }}>
-                      <div style={{ width:48, height:48, borderRadius:14, background:onDuty?'rgba(52,199,89,0.12)':'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        <span style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:stColor }}>{s.concierge.init}</span>
+                      aria-pressed={isSel}
+                      style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:13, background:isSel?'rgba(255,56,92,0.045)':CARD, border:`1.5px solid ${isSel?BLUE:BORDER}`, borderRadius:14, cursor:'pointer', textAlign:'left', boxShadow:isSel?'0 5px 18px rgba(255,56,92,.10)':SHADOW, transition:'all 150ms' }}>
+                      <div style={{ width:42, height:42, borderRadius:12, background:onDuty?'rgba(52,199,89,0.12)':'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <span style={{ fontFamily:INTER, fontSize:14, fontWeight:800, color:stColor }}>{s.concierge.init}</span>
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}>
@@ -2499,7 +2654,7 @@ export const CaregiverDashboard = ({
                         </div>
                         <div style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{label} · {s.clockIn}{s.clockOut?` – ${s.clockOut}`:''} · {s.activities.length} actions</div>
                       </div>
-                      <ChevronRight size={16} color={isSel?BLUE:MUTED} />
+                      {isSel ? <div style={{ width:22, height:22, borderRadius:'50%', background:BLUE, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Check size={13} color="white" strokeWidth={3}/></div> : <ChevronRight size={16} color={MUTED} />}
                     </button>
                   );
                 })}
@@ -2524,8 +2679,9 @@ export const CaregiverDashboard = ({
                   </button>
                 </div>
               )}
-            </div>
+            </section>
         )}
+
       </div>
     );
   };
@@ -2571,62 +2727,56 @@ export const CaregiverDashboard = ({
         {/* Profile — top on mobile drawer, bottom on desktop */}
         {isDrawer && profileSection}
 
-        {/* Nav items */}
-        <nav style={{ padding: collapsed ? '16px 8px 4px' : '12px 8px 4px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
-          {NAV_ITEMS.map(({ id, Icon, label, action }) => {
-            const active = !action && activeTab === id;
-            return (
-              <button key={id}
-                className={`nav-btn touch-target${active ? ' nav-btn--active' : ''}`}
-                onClick={() => {
-                  if (collapsed) setSidebarCollapsed(false);
-                  action ? action() : handleTabChange(id);
-                  if (isDrawer) setSidebarOpen(false);
-                }}
-                title={collapsed ? label : undefined}
-                style={{
-                  display: 'flex', alignItems: 'center',
-                  justifyContent: collapsed ? 'center' : 'flex-start',
-                  gap: collapsed ? 0 : 12, padding: '10px 12px', marginBottom: 2,
-                  border: 'none', cursor: 'pointer', textAlign: 'left',
-                  background: active ? (isDarkMode ? 'rgba(255,255,255,0.10)' : '#222222') : 'transparent',
-                  borderRadius: 12, width: '100%',
-                  transition: 'background 120ms', position: 'relative',
-                  minHeight: 44,
-                }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                  background: active ? 'rgba(255,255,255,0.14)' : CARD2,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'background 120ms', position: 'relative',
-                }}>
-                  <Icon size={18} color={active ? '#FFFFFF' : MUTED} strokeWidth={active ? 2.2 : 1.6} />
-                  {id === 'requests' && pendingRequests.length > 0 && (
-                    <span style={{ position: 'absolute', top: 2, right: 2, minWidth: 14, height: 14, borderRadius: '50%', background: RED, border: `2px solid ${CARD}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px' }}>
-                      <span style={{ fontFamily: INTER, fontSize: 7, fontWeight: 800, color: 'white', lineHeight: 1 }}>{pendingRequests.length}</span>
+        {/* One-level operational index — grouped for scanning, never nested */}
+        <nav aria-label="Concierge workspace" style={{ padding: collapsed ? '10px 7px 4px' : '8px 10px 4px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+          {!collapsed && <div style={{ position:'relative', padding: '4px 38px 13px 8px', borderBottom: `1px solid ${BORDER}`, marginBottom: 8 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:5 }}><span style={{ width:20, height:2, background:BLUE }} /><span style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.20em', textTransform:'uppercase' }}>Concierge desk</span></div>
+            <div style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, letterSpacing:'-.01em' }}>Property operations</div>
+            {!isDrawer && <button aria-label="Collapse sidebar" onClick={() => setSidebarCollapsed(true)} style={{ position:'absolute', top:2, right:0, width:32, height:32, borderRadius:9, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><ChevronLeft size={15} color={MUTED} /></button>}
+          </div>}
+          {NAV_GROUPS.map((group, groupIndex) => (
+            <div key={group.label} style={{ paddingTop: groupIndex ? 8 : 0, marginTop: groupIndex ? 5 : 0, borderTop: collapsed && groupIndex ? `1px solid ${BORDER}` : 'none' }}>
+              {!collapsed && <div style={{ padding:'4px 10px 6px', fontFamily:INTER, fontSize:9, fontWeight:800, color:MUTED, letterSpacing:'.16em', textTransform:'uppercase' }}>{group.label}</div>}
+              {group.ids.map(id => {
+                const item = NAV_ITEMS.find(navItem => navItem.id === id);
+                if (!item) return null;
+                const { Icon, label, action } = item;
+                const active = !action && activeTab === id;
+                const urgent = id === 'emergency';
+                return (
+                  <button key={id}
+                    className={`nav-btn touch-target${active ? ' nav-btn--active' : ''}`}
+                    onClick={() => {
+                      if (collapsed) setSidebarCollapsed(false);
+                      action ? action() : handleTabChange(id);
+                      if (isDrawer) setSidebarOpen(false);
+                    }}
+                    title={collapsed ? label : undefined}
+                    aria-current={active ? 'page' : undefined}
+                    style={{
+                      display:'flex', alignItems:'center', justifyContent:collapsed?'center':'flex-start', gap:collapsed?0:11,
+                      width:'100%', minHeight:44, padding:collapsed?'4px':'4px 8px', marginBottom:2,
+                    border: urgent && !active ? `1px solid ${RED}28` : '1px solid transparent',
+                    borderRadius:10, cursor:'pointer', textAlign:'left', position:'relative',
+                      background:active?(isDarkMode?'rgba(255,255,255,.12)':'#222222'):urgent?`${RED}08`:'transparent',
+                      transition:'background 120ms ease, border-color 120ms ease',
+                    }}>
+                    {active && <span aria-hidden="true" style={{ position:'absolute', left:0, top:10, bottom:10, width:3, borderRadius:'0 3px 3px 0', background:'rgba(255,255,255,.88)' }} />}
+                    <span style={{ width:32, height:32, borderRadius:9, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', position:'relative', background:active?'rgba(255,255,255,.16)':urgent?`${RED}10`:'transparent' }}>
+                      <Icon size={17} color={active?'#fff':urgent?RED:MUTED} strokeWidth={active?2.2:1.7} />
+                      {id === 'requests' && pendingRequests.length > 0 && <span aria-label={`${pendingRequests.length} pending requests`} style={{ position:'absolute', top:-1, right:-2, minWidth:15, height:15, borderRadius:99, background:RED, border:`2px solid ${active?BLUE:NAV_SURFACE}`, color:'#fff', fontFamily:INTER, fontSize:7, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 2px' }}>{pendingRequests.length}</span>}
                     </span>
-                  )}
-                </div>
-                {!collapsed && (
-                  <span style={{ fontFamily: INTER, fontSize: 15, fontWeight: active ? 700 : 500, color: active ? '#FFFFFF' : MUTED, flex: 1, letterSpacing: active ? '-0.01em' : 'normal', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                    {label}
-                  </span>
-                )}
-                {!collapsed && !isDrawer && id === 'home' && (
-                  <button aria-label="Collapse sidebar" onClick={(e) => { e.stopPropagation(); setSidebarCollapsed(true); }}
-                    style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                    <X size={16} color={active ? 'rgba(255,255,255,0.7)' : MUTED} />
+                    {!collapsed && <span style={{ flex:1, minWidth:0, fontFamily:INTER, fontSize:13, fontWeight:active?750:600, color:active?'#fff':urgent?RED:TEXT, letterSpacing:'-.005em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>}
                   </button>
-                )}
-                {!collapsed && (isDrawer || id !== 'home') && active && <div style={{ width: 6, height: 6, borderRadius: '50%', background: BLUE, flexShrink: 0 }} />}
-              </button>
-            );
-          })}
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* Bottom branding */}
         <div style={{ flexShrink: 0, padding: collapsed ? '12px 0' : '20px 20px 0', paddingBottom: 'max(24px, env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start' }}>
-          {!collapsed && <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: MUTED, letterSpacing: '0.24em', textTransform: 'uppercase' }}>onepermit</span>}
+          {!collapsed && <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: MUTED, letterSpacing: '0.24em', textTransform: 'uppercase' }}>Noted</span>}
         </div>
       </>
     );
@@ -2640,18 +2790,16 @@ export const CaregiverDashboard = ({
       </div>
       {/* ── Full-width desktop header ────────────────────────────────────── */}
       {!isMobile && (
-        <div style={{ height: 56, background: '#0b0b0b', display: 'flex', alignItems: 'center', padding: '0 20px', flexShrink: 0, gap: 14, zIndex: 20 }}>
-          {/* Left: branding — compact */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Building2 size={15} color="white" />
-            </div>
-            <span style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: 'white', letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{propertyName}</span>
-          </div>
+        <header style={{ height:72, background:CARD, borderBottom:`1px solid ${BORDER}`, display:'flex', alignItems:'center', padding:'0 24px', flexShrink:0, gap:16, zIndex:20, boxShadow:'0 2px 10px rgba(0,0,0,.03)' }}>
+          <button onClick={() => setSidebarCollapsed(c => !c)} aria-label={sidebarCollapsed ? 'Expand workspace navigation' : 'Collapse workspace navigation'} style={{ width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}><Menu size={18} color={TEXT} /></button>
+          <button onClick={() => handleTabChange('home')} style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, border:'none', padding:0, background:'transparent', cursor:'pointer', textAlign:'left', flexShrink:0 }}>
+            <div style={{ width:36, height:36, borderRadius:11, background:'#222222', display:'flex', alignItems:'center', justifyContent:'center' }}><Building2 size={17} color="white" /></div>
+            <div style={{ minWidth:0 }}><div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, letterSpacing:'.18em', textTransform:'uppercase', marginBottom:2 }}>Noted workspace</div><div style={{ fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:210 }}>{propertyName}</div></div>
+          </button>
 
           {/* Search — fills all remaining space */}
-          <div style={{ flex: 1, position: 'relative', marginRight: 520, marginLeft: 220 }}>
-            <Search size={14} color="#717171" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 1 }} />
+          <div style={{ flex:1, maxWidth:640, position:'relative', margin:'0 auto' }}>
+            <Search size={15} color={MUTED} style={{ position: 'absolute', left:14, top:'50%', transform:'translateY(-50%)', pointerEvents:'none', zIndex:1 }} />
             <input
               ref={searchInputRef}
               value={searchQuery}
@@ -2669,7 +2817,7 @@ export const CaregiverDashboard = ({
                 }
               }}
               placeholder="Search or jump to a section… (⌘K)"
-              style={{ width: '100%', height: 38, background: '#FFFFFF', border: 'none', borderRadius: 12, paddingLeft: 36, paddingRight: searchQuery ? 30 : 14, fontFamily: INTER, fontSize: 13, color: '#222222', outline: 'none', boxSizing: 'border-box' }}
+              style={{ width:'100%', height:44, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, paddingLeft:40, paddingRight:searchQuery?34:14, fontFamily:INTER, fontSize:13, color:TEXT, outline:'none', boxSizing:'border-box' }}
             />
             {searchQuery && (
               <button aria-label="Clear search" onClick={() => { setSearchQuery(''); setShowSearch(false); }}
@@ -2829,21 +2977,22 @@ export const CaregiverDashboard = ({
             })()}
           </div>
 
-          {/* Right: dark/light toggle */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:8, flexShrink:0 }}>
+            <span style={{ minHeight:34, padding:'0 11px', borderRadius:999, background:CARD2, border:`1px solid ${BORDER}`, display:'inline-flex', alignItems:'center', gap:7, fontFamily:INTER, fontSize:11, fontWeight:700, color:TEXT }}><span style={{ width:7, height:7, borderRadius:'50%', background:isShiftActive?GREEN:MUTED, boxShadow:isShiftActive?'0 0 0 3px rgba(52,199,89,.12)':'none' }} />{isShiftActive?'On shift':'Off shift'}</span>
+            <button aria-label="View notifications" title="Notifications" style={{ position:'relative', width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><Bell size={17} color={TEXT} />{pendingRequests.length > 0 && <span aria-label={`${pendingRequests.length} pending requests`} style={{ position:'absolute', top:7, right:7, width:7, height:7, borderRadius:'50%', background:RED }} />}</button>
             <button
               onClick={toggleTheme}
               title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.10)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 150ms' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.10)'}
+              style={{ flexShrink:0, width:40, height:40, borderRadius:12, background:CARD, border:`1px solid ${BORDER}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'background 150ms' }}
+              onMouseEnter={e => e.currentTarget.style.background = CARD2}
+              onMouseLeave={e => e.currentTarget.style.background = CARD}
             >
               {isDarkMode
-                ? <Sun size={15} color="#FFD60A" />
-                : <Moon size={15} color="rgba(255,255,255,0.80)" />}
+                ? <Sun size={17} color="#D18A00" />
+                : <Moon size={17} color={MUTED} />}
             </button>
           </div>
-        </div>
+        </header>
       )}
 
       {/* ── Body row: sidebar + content ─────────────────────────────────── */}
@@ -2851,9 +3000,9 @@ export const CaregiverDashboard = ({
 
       {/* ── DESKTOP SIDEBAR — persistent, always visible ≥768px ─────────── */}
       {!isMobile && (
-        <div style={{ width: sidebarCollapsed ? 64 : 248, minWidth: sidebarCollapsed ? 64 : 248, background: SIDEBAR, borderRight: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 10, flexShrink: 0, height: '100%', transition: 'width 220ms ease, min-width 220ms ease' }}>
-          {renderSidebarContent(false)}
-        </div>
+        <aside aria-label="Concierge workspace navigation" style={{ width:sidebarCollapsed?80:272, minWidth:sidebarCollapsed?80:272, background:BG, borderRight:`1px solid ${BORDER}`, padding:12, display:'flex', flexDirection:'column', overflow:'hidden', zIndex:10, flexShrink:0, height:'100%', transition:'width 220ms ease, min-width 220ms ease' }}>
+          <div style={{ minHeight:0, flex:1, display:'flex', flexDirection:'column', background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, boxShadow:'0 2px 8px rgba(0,0,0,.035)', overflow:'hidden' }}>{renderSidebarContent(false)}</div>
+        </aside>
       )}
 
       {/* ── MOBILE DRAWER — overlay, <768px ──────────────────────────────── */}
@@ -2861,22 +3010,22 @@ export const CaregiverDashboard = ({
         <>
           {/* Mobile header */}
           {!sidebarOpen && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, background: CARD, borderBottom: `1px solid ${BORDER}`, zIndex: 48 }}>
+            <div style={{ position:'fixed', top:0, left:0, right:0, background:CARD, borderBottom:`1px solid ${BORDER}`, boxShadow:'0 2px 10px rgba(0,0,0,.03)', zIndex:48 }}>
               {/* Top row */}
-              <div style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 14px', gap: 10 }}>
-                <button aria-label="Open navigation menu" onClick={() => setSidebarOpen(true)}
-                  style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+              <div style={{ height:64, display:'flex', alignItems:'center', padding:'0 14px', gap:10 }}>
+              <button aria-label="Open navigation menu" onClick={() => setSidebarOpen(true)}
+                  style={{ width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
                   <Menu size={20} color={TEXT} />
                 </button>
-                <div style={{ flex: 1, textAlign: 'center', fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>
+                <div style={{ flex:1, minWidth:0, textAlign:'center', fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, letterSpacing:'-.01em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {propertyName}
                 </div>
                 <button aria-label={showSearch ? 'Close search' : 'Open search'} onClick={() => { setShowSearch(s => !s); setSearchQuery(''); }}
-                  style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: showSearch ? `${BLUE}14` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  style={{ width:40, height:40, borderRadius:12, border:`1px solid ${showSearch?BLUE:BORDER}`, background:showSearch?`${BLUE}10`:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
                   {showSearch ? <X size={18} color={BLUE} /> : <Search size={18} color={TEXT} />}
                 </button>
                 <button aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'} onClick={toggleTheme}
-                  style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: isDarkMode ? 'rgba(255,214,10,0.12)' : `${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  style={{ width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:isDarkMode?'rgba(255,214,10,.12)':CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
                   {isDarkMode ? <Sun size={17} color="#FFD60A" /> : <Moon size={17} color={MUTED} />}
                 </button>
               </div>
@@ -2958,8 +3107,8 @@ export const CaregiverDashboard = ({
                 <motion.div key="sb-panel"
                   initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}
                   transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                  style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 248, background: SIDEBAR, borderRight: `1px solid ${BORDER}`, zIndex: 55, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  {renderSidebarContent(true)}
+                  style={{ position:'fixed', left:0, top:0, bottom:0, width:272, padding:12, background:BG, borderRight:`1px solid ${BORDER}`, zIndex:55, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+                  <div style={{ minHeight:0, flex:1, display:'flex', flexDirection:'column', background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, boxShadow:'0 8px 30px rgba(0,0,0,.12)', overflow:'hidden' }}>{renderSidebarContent(true)}</div>
                 </motion.div>
               </>
             )}
@@ -2980,7 +3129,7 @@ export const CaregiverDashboard = ({
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 200, background: GREEN, padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <Activity size={14} color="white" />
           <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: 'white' }}>
-            Syncing {queueLen} queued {queueLen === 1 ? 'entry' : 'entries'}…
+            Reconnected — syncing {queueLen} queued {queueLen === 1 ? 'entry' : 'entries'}…
           </span>
         </div>
       )}
@@ -3019,38 +3168,49 @@ export const CaregiverDashboard = ({
                   boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
                 }}>
 
-                {/* Panel title bar — editorial drawer header */}
+                {/* Panel title bar — operational sections use the New Task drawer treatment */}
                 <div style={{
-                  background: BG, borderBottom: `1px solid ${BORDER}`,
-                  padding: isMobile ? '22px 20px 18px' : '30px 32px 24px', flexShrink: 0,
-                  display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16,
+                  // Only workflow-capable operational drawers can suppress this
+                  // header. This prevents a stale child state from affecting the
+                  // guest list (or any other panel) after navigation.
+                  display: ['sops', 'training', 'loaners', 'tours', 'incident', 'packages'].includes(activeTab) || (sectionWorkflow && ['guests', 'lockout', 'vendors'].includes(activeTab)) ? 'none' : 'flex',
+                  background: ['sops', 'training'].includes(activeTab) ? 'transparent' : CARD,
+                  borderBottom: ['sops', 'training'].includes(activeTab) || ['requests', 'packages', 'guests', 'lockout', 'vendors'].includes(activeTab) ? 'none' : `1px solid ${BORDER}`,
+                  padding: ['sops', 'training'].includes(activeTab) ? (isMobile ? 12 : 18) : (['requests', 'packages', 'guests', 'lockout', 'vendors', 'calendar'].includes(activeTab) ? (isMobile ? '20px 20px 17px' : '26px 30px 20px') : (isMobile ? '22px 20px 18px' : '30px 32px 24px')), flexShrink: 0,
+                  alignItems: 'flex-start', justifyContent: 'space-between', gap: 16,
+                  ...(['sops', 'training'].includes(activeTab) ? { position:'absolute', top:0, right:0, zIndex:2 } : {}),
                 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 12px' }}>
-                      {propertyName}
-                    </p>
-                    <h2 style={{ fontFamily: INTER, fontSize: isMobile ? 32 : 42, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.045em', lineHeight: 0.95 }}>
+                  {!['sops', 'training'].includes(activeTab) && <div style={{ minWidth: 0 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:11 }}><span style={{ width:24, height:2, background:BLUE }} /><span style={{ fontFamily: INTER, fontSize: 9, fontWeight: 800, color: BLUE, letterSpacing: '0.22em', textTransform: 'uppercase' }}>{propertyName}</span></div>
+                    <h2 style={{ fontFamily: INTER, fontSize: ['requests', 'packages', 'guests', 'lockout', 'vendors', 'calendar'].includes(activeTab) ? (isMobile ? 28 : 34) : (isMobile ? 32 : 42), fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.045em', lineHeight: 0.98 }}>
                       {PAGE_TITLES[activeTab] || activeTab}
                     </h2>
                     {PAGE_SUBTITLES[activeTab] && (
-                      <p style={{ fontFamily: INTER, fontSize: 15, color: MUTED, margin: '10px 0 0', lineHeight: 1.5 }}>
+                      <p style={{ fontFamily: INTER, fontSize: activeTab==='calendar'?12:15, color: MUTED, margin: '9px 0 0', lineHeight: 1.5 }}>
                         {PAGE_SUBTITLES[activeTab]}
                       </p>
                     )}
-                  </div>
+                  </div>}
                   <button onClick={() => handleTabChange('home')} aria-label="Close panel" data-testid="panel-close-btn"
-                    style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                    style={{ width:44, height:44, borderRadius:999, border:`1px solid ${BORDER}`, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
                     <X size={19} color={TEXT} strokeWidth={2} />
                   </button>
                 </div>
 
                 {/* Panel content — contained */}
-                <div className="panel-enter" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
+                <div className="panel-enter" style={{
+                  flex: 1,
+                  // These drawers own their scrolling region and fixed action
+                  // footer. Keeping a second scrolling container here caused
+                  // their top summary cards to be compressed.
+                  overflow: ['sops', 'training', 'requests', 'packages', 'guests', 'lockout', 'vendors', 'loaners', 'tours', 'incident'].includes(activeTab) ? 'hidden' : 'auto',
+                  display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative'
+                }}>
                   {activeTab === 'requests'      && renderRequestsContent()}
-                  {activeTab === 'packages'      && <PackageDashboard onActivityLogged={handleActivityLogged} />}
-                  {activeTab === 'loaners'       && <LoanersDashboard onActivityLogged={handleActivityLogged} />}
-                  {activeTab === 'lockout'       && <LockoutPage      onActivityLogged={handleActivityLogged} />}
-                  {activeTab === 'incident'      && <IncidentReportPage patientName={propertyName} incidents={incidents} onAddIncident={async (inc) => {
+                  {activeTab === 'packages'      && <PackageDashboard propertyName={propertyName} isPhone={isPhone} onClose={() => handleTabChange('home')} onWorkflowChange={setSectionWorkflow} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'packages' })} />}
+                  {activeTab === 'loaners'       && <LoanersDashboard propertyName={propertyName} isPhone={isPhone} onClose={() => handleTabChange('home')} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'loaners' })} />}
+                  {activeTab === 'lockout'       && <LockoutPage propertyName={propertyName} isPhone={isPhone} onWorkflowChange={setSectionWorkflow} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'lockout' })} />}
+                  {activeTab === 'incident'      && <IncidentReportPage patientName={propertyName} incidents={incidents} isPhone={isPhone} onClose={() => handleTabChange('home')} onAddIncident={async (inc) => {
                     try {
                       const saved = await authApi.createIncident(inc);
                       if (saved.incident_id && inc.photos?.length) {
@@ -3063,11 +3223,16 @@ export const CaregiverDashboard = ({
                         if (exists) return prev.map(i => i.incident_id === saved.incident_id ? withPhotos : i);
                         return [withPhotos, ...prev];
                       });
-                    } catch { /* ignore */ }
+                      handleTabChange('home');
+                      setDarReceipt({ title: inc.description || inc.title || inc.type || 'Incident report', detail: 'Incident filed and linked to this shift’s DAR' });
+                      setTimeout(() => setDarReceipt(null), 4200);
+                    } catch (error) {
+                      throw error;
+                    }
                   }} />}
-                  {activeTab === 'tours'         && <ToursDashboard   onActivityLogged={handleActivityLogged} />}
-                  {activeTab === 'vendors'       && <VendorsDashboard onActivityLogged={handleActivityLogged} />}
-                  {activeTab === 'guests'        && <GuestsDashboard  onActivityLogged={handleActivityLogged} />}
+                  {activeTab === 'tours'         && <ToursDashboard propertyName={propertyName} isPhone={isPhone} onClose={() => handleTabChange('home')} onWorkflowChange={setSectionWorkflow} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'tours' })} />}
+                  {activeTab === 'vendors'       && <VendorsDashboard propertyName={propertyName} isPhone={isPhone} onWorkflowChange={setSectionWorkflow} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'vendors' })} />}
+                  {activeTab === 'guests'        && <GuestsDashboard propertyName={propertyName} isPhone={isPhone} onWorkflowChange={setSectionWorkflow} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'guests' })} />}
                   {activeTab === 'calendar'      && renderShifts()}
                   {activeTab === 'shift-history' && <HistoryPage />}
                   {activeTab === 'profile'       && renderProfileContent()}
@@ -3110,7 +3275,7 @@ export const CaregiverDashboard = ({
       {/* AI Shift Summary modal */}
       {/* ── End-Shift Handoff drawer ─────────────────────────────────────── */}
       <AnimatePresence>
-        {showHandover && (
+        {showHandover && activeTab !== 'home' && (
           <>
             <motion.div key="ho-bg"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -3471,23 +3636,23 @@ export const CaregiverDashboard = ({
                 overflow: 'hidden',
               }}>
 
-              {/* Wizard header — editorial */}
-              <div style={{ flexShrink: 0, background: BG, borderBottom: `1px solid ${BORDER}` }}>
-                <div style={{ padding: isMobile ? '22px 20px 12px' : '28px 32px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+              {/* Wizard header — editorial document drawer */}
+              <div style={{ flexShrink: 0, background: CARD, borderBottom: `1px solid ${BORDER}` }}>
+                <div style={{ padding: isMobile ? '20px 20px 14px' : '26px 30px 18px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 12 }}>{propertyName}</div>
-                    <div style={{ fontFamily: INTER, fontSize: isMobile ? 30 : 38, fontWeight: 800, color: TEXT, letterSpacing: '-0.045em', lineHeight: 0.95 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:11 }}><span style={{ width:24, height:2, background:BLUE }} /><span style={{ fontFamily: INTER, fontSize: 9, fontWeight: 800, color: BLUE, letterSpacing: '0.22em', textTransform: 'uppercase' }}>{propertyName}</span></div>
+                    <div style={{ fontFamily: INTER, fontSize: isMobile ? 28 : 34, fontWeight: 800, color: TEXT, letterSpacing: '-0.045em', lineHeight: 0.98 }}>
                       {ntStep === 1 ? 'Describe the task' : ntStep === 2 ? 'Choose a category' : 'Priority & details'}
                     </div>
-                    <div style={{ fontFamily: INTER, fontSize: 15, color: MUTED, marginTop: 10 }}>Step {ntStep} of 3 · Log a new task</div>
+                    <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 9 }}>Step {ntStep} of 3 · New DAR entry</div>
                   </div>
                   <button onClick={() => { setShowNewTask(false); setNtStep(1); setNTF({ title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '' }); }}
                     aria-label="Close"
-                    style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                    style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                     <X size={19} color={TEXT} />
                   </button>
                 </div>
-                <div style={{ display: 'flex', gap: 4, padding: isMobile ? '0 20px 16px' : '0 32px 18px' }}>
+                <div style={{ display: 'flex', gap: 5, padding: isMobile ? '0 20px 16px' : '0 30px 20px' }}>
                   {[1, 2, 3].map(i => (
                     <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= ntStep ? BLUE : BORDER, transition: 'background 200ms' }} />
                   ))}
@@ -3495,69 +3660,71 @@ export const CaregiverDashboard = ({
               </div>
 
               {/* Step content */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '18px' : '24px 28px', display: 'flex', flexDirection: 'column', gap: 18, background: BG }}>
 
                 {/* ── Step 1: Describe ── */}
                 {ntStep === 1 && (
                   <>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <div style={{ flex: 1, background: CARD2, borderRadius: 14, border: `1px solid ${BORDER}`, padding: '14px 16px' }}>
-                        <p style={{ fontFamily: INTER, fontSize: 10, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Assignee</p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width:28, height:28, borderRadius:'50%', background:`${BLUE}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE }}>{(authUser?.name||'C').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span></div>
-                          <span style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT }}>{(authUser?.name || 'Concierge').split(' ')[0]}</span>
-                        </div>
+                    <div style={{ display:'grid', gridTemplateColumns:isPhone?'1fr':'1fr 1fr', border:`1px solid ${BORDER}`, borderRadius:14, background:CARD, overflow:'hidden', boxShadow:SHADOW }}>
+                      <div style={{ minHeight:64, padding:'11px 14px', display:'flex', alignItems:'center', gap:11, borderRight:isPhone?'none':`1px solid ${BORDER}`, borderBottom:isPhone?`1px solid ${BORDER}`:'none' }}>
+                        <div style={{ width:34, height:34, borderRadius:10, background:`${BLUE}12`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE }}>{(authUser?.name||'C').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span></div>
+                        <div><p style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'.14em', margin:'0 0 4px' }}>Assignee</p><span style={{ fontFamily:INTER, fontSize:13, fontWeight:750, color:TEXT }}>{(authUser?.name || 'Concierge').split(' ')[0]}</span></div>
                       </div>
-                      <div style={{ flex: 1, background: CARD2, borderRadius: 14, border: `1px solid ${BORDER}`, padding: '14px 16px' }}>
-                        <p style={{ fontFamily: INTER, fontSize: 10, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Time</p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Clock size={16} color={BLUE} />
-                          <span style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT }}>{nowStr()}</span>
-                        </div>
+                      <div style={{ minHeight:64, padding:'11px 14px', display:'flex', alignItems:'center', gap:11 }}>
+                        <div style={{ width:34, height:34, borderRadius:10, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Clock size={15} color={BLUE} /></div>
+                        <div><p style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'.14em', margin:'0 0 4px' }}>Time</p><span style={{ fontFamily:INTER, fontSize:13, fontWeight:750, color:TEXT }}>{nowStr()}</span></div>
                       </div>
                     </div>
-                    <div>
-                      <h3 style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: '0 0 10px' }}>Description *</h3>
+                    <section style={{ border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:isPhone?'16px':'20px', boxShadow:SHADOW }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, marginBottom:13 }}>
+                        <div><div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>01 · Required</div><h3 style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:TEXT, letterSpacing:'-.025em', margin:0 }}>What happened?</h3></div>
+                        <span style={{ fontFamily:INTER, fontSize:10, color:MUTED, textAlign:'right', lineHeight:1.4 }}>Write it as it should<br/>appear in the DAR</span>
+                      </div>
                       <div style={{ position: 'relative' }}>
                         <textarea
-                          placeholder="e.g. Helped resident in 1204 carry groceries, assisted maintenance with P2 shut-off valve..."
+                          placeholder="Example: Assisted maintenance with the P2 shut-off valve and documented the completed inspection."
                           value={ntForm.title + (ntTitleInterim ? (ntForm.title ? ' ' : '') + ntTitleInterim : '')}
                           onChange={e => setNTF(p => ({ ...p, title: e.target.value }))}
-                          rows={isPhone ? 4 : 5}
+                          rows={isPhone ? 5 : 7}
                           autoFocus={!isPhone}
                           style={{
-                            width: '100%', padding: '16px 44px 16px 16px', borderRadius: 14,
+                            width: '100%', padding: '16px 46px 16px 16px', borderRadius: 12,
                             border: `1.5px solid ${ntForm.title ? BLUE : BORDER}`,
-                            fontFamily: INTER, fontSize: 15, color: TEXT,
-                            background: ntForm.title ? 'rgba(255,56,92,0.03)' : CARD,
+                            fontFamily: INTER, fontSize: 16, color: TEXT,
+                            background: ntForm.title ? 'rgba(255,56,92,0.025)' : CARD2,
                             outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.6,
                             transition: 'border-color 0.15s',
                           }} />
                         <MicButton onTranscript={t => setNTF(p => ({ ...p, title: p.title ? p.title + ' ' + t : t }))} onInterim={setNtTitleInterim} />
                       </div>
-                    </div>
+                      <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginTop:9 }}><span style={{ fontFamily:INTER, fontSize:10, color:MUTED }}>Use names, unit, location, action, and outcome when relevant.</span><span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:ntForm.title.length>300?ORANGE:MUTED }}>{ntForm.title.length}</span></div>
+                    </section>
                   </>
                 )}
 
                 {/* ── Step 2: Category ── */}
-                {ntStep === 2 && TASK_CATEGORY_CONFIG.map(({ id, Icon, desc }) => {
+                {ntStep === 2 && <>
+                  <div style={{ marginBottom:2 }}><div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>02 · Classification</div><h3 style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT, letterSpacing:'-.03em', margin:'0 0 5px' }}>Where does this belong?</h3><p style={{ fontFamily:INTER, fontSize:12, color:MUTED, lineHeight:1.5, margin:0 }}>Choose one category so the entry lands in the correct DAR section.</p></div>
+                  <div style={{ display:'grid', gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))', gap:9 }}>
+                  {TASK_CATEGORY_CONFIG.map(({ id, Icon, desc }, categoryIndex) => {
                   const sel = ntForm.category === id;
                   return (
                     <button key={id} onClick={() => setNTF(p => ({ ...p, category: sel ? '' : id }))}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 16, padding: '15px 16px',
-                        borderRadius: 16, border: `1.5px solid ${sel ? BLUE : BORDER}`,
-                        background: sel ? 'rgba(255,56,92,0.05)' : CARD,
+                        minHeight:92, display:'grid', gridTemplateColumns:'36px 1fr 22px', alignItems:'center', gap:11, padding:'13px',
+                        borderRadius: 14, border: `1.5px solid ${sel ? BLUE : BORDER}`,
+                        background: sel ? 'rgba(255,56,92,0.045)' : CARD,
                         cursor: 'pointer', textAlign: 'left', width: '100%',
-                        boxShadow: sel ? '0 4px 16px rgba(255,56,92,0.12)' : SHADOW,
+                        boxShadow: sel ? '0 5px 18px rgba(255,56,92,0.10)' : SHADOW,
                         transition: 'all 150ms',
                       }}>
-                      <div style={{ width: 48, height: 48, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: sel ? 'rgba(255,56,92,0.12)' : CARD2 }}>
-                        <Icon size={22} color={sel ? BLUE : MUTED} />
+                      <div style={{ width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', background:sel?'rgba(255,56,92,.12)':CARD2, position:'relative' }}>
+                        <Icon size={18} color={sel ? BLUE : MUTED} />
+                        <span style={{ position:'absolute', top:-6, left:-6, fontFamily:INTER, fontSize:7, fontWeight:800, color:sel?BLUE:MUTED }}>{String(categoryIndex+1).padStart(2,'0')}</span>
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, marginBottom: 2 }}>{id}</div>
-                        <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>{desc}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: INTER, fontSize: 13, fontWeight: 750, color: TEXT, marginBottom: 4 }}>{id}</div>
+                        <div style={{ fontFamily: INTER, fontSize: 11, color: MUTED, lineHeight:1.4 }}>{desc}</div>
                       </div>
                       {sel && (
                         <div style={{ width: 22, height: 22, borderRadius: '50%', background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -3567,13 +3734,16 @@ export const CaregiverDashboard = ({
                     </button>
                   );
                 })}
+                  </div>
+                </>}
 
                 {/* ── Step 3: Priority & details ── */}
                 {ntStep === 3 && (
                   <>
-                    <div>
-                      <h3 style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: '0 0 10px' }}>Priority</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div><div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>03 · Routing details</div><h3 style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT, letterSpacing:'-.03em', margin:'0 0 5px' }}>Set the operational context</h3><p style={{ fontFamily:INTER, fontSize:12, color:MUTED, lineHeight:1.5, margin:0 }}>Add only the details the next concierge or manager will need.</p></div>
+                    <section style={{ border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:isPhone?'15px':'18px', boxShadow:SHADOW }}>
+                      <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, marginBottom:12 }}><h3 style={{ fontFamily: INTER, fontSize: 15, fontWeight: 800, color: TEXT, margin:0 }}>Priority</h3><span style={{ fontFamily:INTER, fontSize:10, color:MUTED }}>How quickly does this need attention?</span></div>
+                      <div style={{ display:'grid', gridTemplateColumns:isPhone?'1fr':'repeat(3,minmax(0,1fr))', gap:8 }}>
                         {[
                           { val: 'normal', label: 'Normal', desc: 'Routine task, no rush',    Icon: CheckCircle,   color: GREEN  },
                           { val: 'high',   label: 'High',   desc: 'Needs attention soon',      Icon: AlertTriangle, color: ORANGE },
@@ -3583,21 +3753,21 @@ export const CaregiverDashboard = ({
                           return (
                             <button key={val} onClick={() => setNTF(p => ({ ...p, priority: val }))}
                               style={{
-                                display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px',
-                                borderRadius: 16, border: `1.5px solid ${sel ? color : BORDER}`,
+                                minHeight:isPhone?68:112, display:'flex', flexDirection:isPhone?'row':'column', alignItems:isPhone?'center':'flex-start', justifyContent:'center', gap:isPhone?11:8, padding:'12px',
+                                borderRadius: 12, border: `1.5px solid ${sel ? color : BORDER}`,
                                 background: sel ? `${color}0D` : CARD,
                                 cursor: 'pointer', textAlign: 'left', width: '100%',
-                                boxShadow: sel ? `0 4px 16px ${color}22` : SHADOW,
+                                boxShadow: sel ? `0 4px 14px ${color}18` : 'none',
                                 transition: 'all 150ms',
                               }}>
-                              <div style={{ width: 48, height: 48, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: sel ? `${color}1A` : CARD2 }}>
-                                <Icon size={22} color={sel ? color : MUTED} />
+                              <div style={{ width:32, height:32, borderRadius:9, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', background:sel?`${color}18`:CARD2 }}>
+                                <Icon size={16} color={sel ? color : MUTED} />
                               </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, marginBottom: 2 }}>{label}</div>
-                                <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>{desc}</div>
+                              <div style={{ flex:isPhone?1:'none', minWidth:0 }}>
+                                <div style={{ fontFamily: INTER, fontSize: 13, fontWeight: 750, color: TEXT, marginBottom: 3 }}>{label}</div>
+                                <div style={{ fontFamily: INTER, fontSize: 10, color: MUTED, lineHeight:1.35 }}>{desc}</div>
                               </div>
-                              {sel && (
+                              {sel && isPhone && (
                                 <div style={{ width: 22, height: 22, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                   <Check size={13} color="white" strokeWidth={3} />
                                 </div>
@@ -3606,36 +3776,37 @@ export const CaregiverDashboard = ({
                           );
                         })}
                       </div>
-                    </div>
+                    </section>
+                    <section style={{ border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:isPhone?'15px':'18px', boxShadow:SHADOW, display:'grid', gap:17 }}>
                     <div>
-                      <h3 style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: '0 0 10px' }}>
-                        Location / Unit <span style={{ fontWeight: 400, fontSize: 13, color: MUTED }}>(optional)</span>
-                      </h3>
+                      <label htmlFor="new-task-location" style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, fontFamily: INTER, fontSize: 14, fontWeight: 800, color: TEXT, margin: '0 0 9px' }}><span>Location / Unit</span><span style={{ fontWeight: 500, fontSize: 10, color: MUTED, textTransform:'uppercase', letterSpacing:'.12em' }}>Optional</span></label>
                       <input type="text" placeholder="e.g. Unit 412, Lobby, P2 Garage…"
+                        id="new-task-location"
                         value={ntForm.location} onChange={e => setNTF(p => ({ ...p, location: e.target.value }))}
-                        style={{ width: '100%', padding: '14px 16px', borderRadius: 14, border: `1.5px solid ${ntForm.location ? BLUE : BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: ntForm.location ? 'rgba(255,56,92,0.03)' : CARD, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' }} />
+                        style={{ width: '100%', minHeight:48, padding: '12px 14px', borderRadius: 12, border: `1.5px solid ${ntForm.location ? BLUE : BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: ntForm.location ? 'rgba(255,56,92,0.025)' : CARD2, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' }} />
                     </div>
                     <div>
-                      <h3 style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: '0 0 10px' }}>
-                        Entry Notes <span style={{ fontWeight: 400, fontSize: 13, color: MUTED }}>(optional)</span>
-                      </h3>
+                      <label htmlFor="new-task-notes" style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, fontFamily: INTER, fontSize: 14, fontWeight: 800, color: TEXT, margin: '0 0 9px' }}><span>Entry notes</span><span style={{ fontWeight: 500, fontSize: 10, color: MUTED, textTransform:'uppercase', letterSpacing:'.12em' }}>Optional</span></label>
                       <div style={{ position: 'relative' }}>
                         <textarea placeholder="Resident name, outcome, follow-up needed…"
+                          id="new-task-notes"
                           value={ntForm.notes + (ntNotesInterim ? (ntForm.notes ? ' ' : '') + ntNotesInterim : '')} onChange={e => setNTF(p => ({ ...p, notes: e.target.value }))}
                           rows={3}
-                          style={{ width: '100%', padding: '14px 44px 14px 16px', borderRadius: 14, border: `1.5px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+                          style={{ width: '100%', padding: '13px 44px 13px 14px', borderRadius: 12, border: `1.5px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight:1.5 }} />
                         <MicButton onTranscript={t => setNTF(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} onInterim={setNtNotesInterim} />
                       </div>
                     </div>
+                    </section>
                     {/* Flag for Follow-up */}
                     <button onClick={() => setNTF(p => ({ ...p, flagFollowUp: !p.flagFollowUp }))}
-                      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 14, border: `1.5px solid ${ntForm.flagFollowUp ? ORANGE : BORDER}`, background: ntForm.flagFollowUp ? 'rgba(255,149,0,0.06)' : CARD2, cursor: 'pointer', textAlign: 'left', width: '100%' }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 11, background: ntForm.flagFollowUp ? 'rgba(255,149,0,0.15)' : CARD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      aria-pressed={ntForm.flagFollowUp}
+                      style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '13px 15px', borderRadius: 14, border: `1.5px solid ${ntForm.flagFollowUp ? ORANGE : BORDER}`, background: ntForm.flagFollowUp ? 'rgba(255,149,0,0.055)' : CARD, cursor: 'pointer', textAlign: 'left', width: '100%', boxShadow:SHADOW }}>
+                      <div style={{ width: 38, height: 38, borderRadius: 10, background: ntForm.flagFollowUp ? 'rgba(255,149,0,0.14)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <Flag size={18} color={ntForm.flagFollowUp ? ORANGE : MUTED} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: ntForm.flagFollowUp ? TEXT : MUTED }}>Flag for Follow-up</div>
-                        <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 2 }}>Adds this task to your Follow-up Tracker</div>
+                        <div style={{ fontFamily: INTER, fontSize: 13, fontWeight: 750, color: TEXT }}>Carry into handoff</div>
+                        <div style={{ fontFamily: INTER, fontSize: 11, color: MUTED, marginTop: 3 }}>Keep this item visible for follow-up and the next shift.</div>
                       </div>
                       <div style={{ width: 22, height: 22, borderRadius: 7, background: ntForm.flagFollowUp ? ORANGE : 'transparent', border: ntForm.flagFollowUp ? 'none' : `2px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {ntForm.flagFollowUp && <Check size={13} color="white" strokeWidth={3} />}
@@ -3646,14 +3817,14 @@ export const CaregiverDashboard = ({
               </div>
 
               {/* Wizard footer */}
-              <div style={{ flexShrink: 0, background: CARD, borderTop: `1px solid ${BORDER}` }}>
+              <div style={{ flexShrink: 0, background: CARD, borderTop: `1px solid ${BORDER}`, boxShadow:'0 -8px 24px rgba(0,0,0,.04)' }}>
                 {ntError && (
                   <div style={{ padding: '8px 20px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <AlertTriangle size={13} color={RED} />
                     <span style={{ fontFamily: INTER, fontSize: 12, fontWeight: 600, color: RED }}>{ntError}</span>
                   </div>
                 )}
-                <div style={{ padding: isPhone ? '12px 20px 32px' : '12px 20px 24px', display: 'flex', gap: 10 }}>
+                <div style={{ padding: isPhone ? '12px 20px 30px' : '14px 28px 20px', display: 'flex', gap: 10 }}>
                   {ntStep > 1 && (
                     <button onClick={() => { setNtStep(p => p - 1); setNtError(''); }}
                       style={{ flex: 1, padding: '15px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
@@ -3661,17 +3832,18 @@ export const CaregiverDashboard = ({
                     </button>
                   )}
                   {ntStep < 3 ? (
-                    <button onClick={() => {
+                      <button onClick={() => {
                         if (ntStep === 1 && !ntForm.title.trim()) { setNtError('Please describe what you did before continuing.'); return; }
+                        if (ntStep === 2 && !ntForm.category) { setNtError('Choose the DAR category for this entry.'); return; }
                         setNtError(''); setNtStep(p => p + 1);
                       }}
-                      style={{ flex: 1, padding: '15px 0', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 6px 20px ${BLUE}28` }}>
-                      Continue
+                      style={{ flex: 1, minHeight:48, padding: '0 20px', background: BLUE, border: 'none', borderRadius: 999, fontFamily: INTER, fontSize: 14, fontWeight: 750, color: 'white', cursor: 'pointer', boxShadow: `0 7px 22px ${BLUE}28`, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                      Continue <ChevronRight size={16} />
                     </button>
                   ) : (
-                    <button onClick={submitNewTask}
-                      style={{ flex: 1, padding: '15px 0', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 6px 20px ${BLUE}28` }}>
-                      Create Task
+                    <button onClick={submitNewTask} disabled={ntSaving}
+                      style={{ flex: 1, minHeight:48, padding: '0 20px', background: ntSaving ? MUTED : BLUE, border: 'none', borderRadius: 999, fontFamily: INTER, fontSize: 14, fontWeight: 750, color: 'white', cursor: ntSaving ? 'wait' : 'pointer', boxShadow: ntSaving ? 'none' : `0 7px 22px ${BLUE}28`, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                      <Check size={16} /> {ntSaving ? 'Adding…' : 'Add to DAR'}
                     </button>
                   )}
                 </div>
@@ -4371,8 +4543,16 @@ export const CaregiverDashboard = ({
           <div style={{ flexShrink:0, padding:'12px 20px 24px', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}
             onClick={e => e.stopPropagation()}>
             <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:280 }}>{fullscreenItem.fileName}</span>
-            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.20)' }}>·</span>
-            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)' }}>Tap outside to close</span>
+            {fullscreenItem._knowledgeType === 'training' ? (
+              <button onClick={() => {
+                setCompletedTraining(prev => {
+                  const next = new Set(prev);
+                  if (next.has(fullscreenItem.id)) next.delete(fullscreenItem.id); else next.add(fullscreenItem.id);
+                  try { localStorage.setItem('_notedTrainingComplete', JSON.stringify([...next])); } catch {}
+                  return next;
+                });
+              }} aria-pressed={completedTraining.has(fullscreenItem.id)} style={{ minHeight:42, padding:'0 15px', marginLeft:10, borderRadius:999, border:`1px solid ${completedTraining.has(fullscreenItem.id)?GREEN:'rgba(255,255,255,.22)'}`, background:completedTraining.has(fullscreenItem.id)?GREEN:'rgba(255,255,255,.10)', color:'white', fontFamily:INTER, fontSize:11, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:7 }}><Check size={14}/>{completedTraining.has(fullscreenItem.id)?'Reviewed':'Mark reviewed'}</button>
+            ) : <><span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.20)' }}>·</span><span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)' }}>Tap outside to close</span></>}
           </div>
         </div>
       )}

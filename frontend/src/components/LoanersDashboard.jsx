@@ -1,503 +1,100 @@
 import React, { useState } from 'react';
-import { ShoppingCart, Archive, Key, Flame, AlertTriangle, Check, FileText, ChevronRight, RotateCcw, Camera } from 'lucide-react';
+import { ShoppingCart, Archive, Key, Flame, AlertTriangle, Check, FileText, ChevronRight, RotateCcw, Camera, X, ClipboardCheck } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { SignaturePad } from './SignaturePad';
 import MicButton from './MicButton';
 
-const GREEN  = '#34C759';
-const BLUE   = '#FF385C';
+const GREEN = '#34C759';
+const BLUE = '#FF385C';
 const ORANGE = '#FF9500';
-
 const LOANER_INIT = [
-  { id: 'cart-1',  name: 'Luggage Cart #1', desc: 'Front lobby, large rolling cart',  Icon: ShoppingCart, checkedOut: false, resident: null, unit: null, checkoutTime: null },
-  { id: 'cart-2',  name: 'Luggage Cart #2', desc: 'Storage room, large rolling cart', Icon: ShoppingCart, checkedOut: false, resident: null, unit: null, checkoutTime: null },
-  { id: 'firepit', name: 'Firepit Remote',  desc: 'Rooftop deck fire feature control', Icon: Flame,        checkedOut: false, resident: null, unit: null, checkoutTime: null },
-  { id: 'grill',   name: 'Grilling Kit',   desc: 'BBQ tools and accessories set',     Icon: Archive,      checkedOut: false, resident: null, unit: null, checkoutTime: null },
-  { id: 'tv-key',  name: 'TV Cabinet Key', desc: 'Common room TV cabinet key',        Icon: Key,          checkedOut: false, resident: null, unit: null, checkoutTime: null },
+  { id:'cart-1', name:'Luggage Cart #1', desc:'Front lobby, large rolling cart', Icon:ShoppingCart, checkedOut:false },
+  { id:'cart-2', name:'Luggage Cart #2', desc:'Storage room, large rolling cart', Icon:ShoppingCart, checkedOut:false },
+  { id:'firepit', name:'Firepit Remote', desc:'Rooftop deck fire feature control', Icon:Flame, checkedOut:false },
+  { id:'grill', name:'Grilling Kit', desc:'BBQ tools and accessories set', Icon:Archive, checkedOut:false },
+  { id:'tv-key', name:'TV Cabinet Key', desc:'Common room TV cabinet key', Icon:Key, checkedOut:false },
 ];
+const now = () => new Date().toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
 
-const now = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-
-function Label({ children }) {
-  const { colors } = useTheme();
-  const { MUTED, INTER } = colors;
-  return (
-    <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>
-      {children}
+function Header({ propertyName, title, description, step, total=2, onClose }) {
+  const { colors:{ INTER,CARD,CARD2,BORDER,TEXT,MUTED } } = useTheme();
+  return <header style={{ flexShrink:0, background:CARD, color:TEXT, borderBottom:`1px solid ${BORDER}` }}>
+    <div style={{ padding:'24px 28px 17px', display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:18 }}>
+      <div style={{ minWidth:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:11 }}><span style={{ width:24, height:2, background:BLUE }}/><span style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.22em', textTransform:'uppercase' }}>{propertyName}</span></div>
+        <h2 style={{ fontFamily:INTER, fontSize:34, fontWeight:800, letterSpacing:'-.045em', lineHeight:.98, margin:0 }}>{title}</h2>
+        <p style={{ maxWidth:470, fontFamily:INTER, fontSize:12, color:MUTED, lineHeight:1.55, margin:'9px 0 0' }}>{description}</p>
+        {step && <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:'8px 0 0' }}>Step {step} of {total} · Loaner record</p>}
+      </div>
+      <button onClick={onClose} aria-label="Close loaners" style={{ width:44, height:44, borderRadius:999, border:`1px solid ${BORDER}`, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}><X size={19} color={TEXT}/></button>
     </div>
-  );
+    {step && <div style={{ display:'flex', gap:5, padding:'0 28px 20px' }}>{Array.from({length:total}).map((_,i)=><span key={i} style={{ flex:1, height:3, borderRadius:2, background:i<step?BLUE:BORDER, transition:'background 200ms' }}/>)}</div>}
+  </header>;
 }
 
-function WizardHeader({ title, step, totalSteps, onCancel }) {
-  const { colors } = useTheme();
-  const { CARD, BORDER, TEXT, MUTED, INTER } = colors;
-  return (
-    <div style={{ flexShrink: 0, background: CARD, borderBottom: `1px solid ${BORDER}` }}>
-      <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>{title}</div>
-          <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 3 }}>Step {step} of {totalSteps}</div>
-        </div>
-        <button onClick={onCancel} style={{ fontFamily: INTER, fontSize: 14, fontWeight: 600, color: MUTED, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginTop: 2 }}>
-          Cancel
-        </button>
-      </div>
-      <div style={{ display: 'flex', gap: 4, padding: '0 20px 14px' }}>
-        {Array.from({ length: totalSteps }).map((_, i) => (
-          <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i < step ? BLUE : BORDER, transition: 'background 200ms' }} />
-        ))}
-      </div>
-    </div>
-  );
+function Footer({ onBack, onContinue, label, disabled, single }) {
+  const { colors:{ CARD,CARD2,BORDER,TEXT,MUTED,INTER } } = useTheme();
+  return <footer style={{ flexShrink:0, padding:'14px 28px 20px', background:CARD, borderTop:`1px solid ${BORDER}`, boxShadow:'0 -8px 24px rgba(0,0,0,.04)', display:'flex', gap:10 }}>
+    {!single && <button onClick={onBack} style={{ flex:1, minHeight:48, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, cursor:'pointer' }}>Back</button>}
+    <button onClick={onContinue} disabled={disabled} style={{ flex:1, minHeight:48, padding:'0 20px', background:disabled?CARD2:BLUE, border:disabled?`1px solid ${BORDER}`:'none', borderRadius:999, fontFamily:INTER, fontSize:14, fontWeight:750, color:disabled?MUTED:'white', cursor:disabled?'not-allowed':'pointer', boxShadow:disabled?'none':`0 7px 22px ${BLUE}28`, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8 }}>{label}{!disabled&&<ChevronRight size={16}/>}</button>
+  </footer>;
 }
 
-function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continueDisabled = false, isFirst = false }) {
-  const { colors } = useTheme();
-  const { CARD, CARD2, BORDER, TEXT, MUTED, INTER } = colors;
-  return (
-    <div style={{ flexShrink: 0, padding: '12px 20px 24px', background: CARD, borderTop: `1px solid ${BORDER}`, display: 'flex', gap: 10 }}>
-      {!isFirst && (
-        <button onClick={onBack}
-          style={{ flex: 1, padding: '15px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
-          Back
-        </button>
-      )}
-      <button onClick={onContinue} disabled={continueDisabled}
-        style={{ flex: 1, padding: '15px 0', background: continueDisabled ? CARD2 : BLUE, border: continueDisabled ? `1px solid ${BORDER}` : 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: continueDisabled ? MUTED : 'white', cursor: continueDisabled ? 'not-allowed' : 'pointer', boxShadow: continueDisabled ? 'none' : `0 6px 20px ${BLUE}28` }}>
-        {continueLabel}
-      </button>
-    </div>
-  );
+function FieldLabel({ children, optional }) {
+  const { colors:{ TEXT,MUTED,INTER } } = useTheme();
+  return <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:9 }}><span style={{ fontFamily:INTER, fontSize:14, fontWeight:800, color:TEXT }}>{children}</span>{optional&&<span style={{ fontFamily:INTER, fontSize:10, fontWeight:600, color:MUTED, textTransform:'uppercase', letterSpacing:'.12em' }}>Optional</span>}</div>;
 }
 
-export const LoanersDashboard = ({ onActivityLogged }) => {
-  const { colors } = useTheme();
-  const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
-  const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
-  const [loaners,      setLoaners]      = useState(LOANER_INIT);
-  const [subTab,       setSubTab]       = useState('items');
-  const [view,         setView]         = useState('main');
-  const [lStep,        setLStep]        = useState(1);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [lForm,        setLF]           = useState({ resident: '', unit: '', notes: '', photo: null, photoPreview: null, signature: null, signedAt: null });
-  const [returnNotes,  setReturnNotes]  = useState('');
-  const [lNotesInterim,  setLNotesInterim]  = useState('');
-  const [retInterim,     setRetInterim]     = useState('');
-  const [showSigPad,   setShowSigPad]   = useState(false);
+export const LoanersDashboard = ({ onActivityLogged, propertyName='The Alexen', onClose, isPhone=false }) => {
+  const { colors:{ BG,CARD,CARD2,TEXT,MUTED,BORDER,SHADOW,INTER } } = useTheme();
+  const [loaners,setLoaners]=useState(LOANER_INIT);
+  const [subTab,setSubTab]=useState('items');
+  const [view,setView]=useState('main');
+  const [step,setStep]=useState(1);
+  const [selected,setSelected]=useState(null);
+  const [form,setForm]=useState({ resident:'',unit:'',notes:'',photo:null,photoPreview:null,signature:null,signedAt:null });
+  const [returnNotes,setReturnNotes]=useState('');
+  const [notesInterim,setNotesInterim]=useState('');
+  const [returnInterim,setReturnInterim]=useState('');
+  const [showSig,setShowSig]=useState(false);
+  const surface={ background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,boxShadow:SHADOW };
+  const input=value=>({ width:'100%',minHeight:48,padding:'12px 14px',borderRadius:12,border:`1.5px solid ${value?BLUE:BORDER}`,fontFamily:INTER,fontSize:16,color:TEXT,background:value?'rgba(255,56,92,.025)':CARD2,outline:'none',boxSizing:'border-box' });
+  const reset=()=>{setView('main');setSelected(null);setStep(1);setForm({resident:'',unit:'',notes:'',photo:null,photoPreview:null,signature:null,signedAt:null});setReturnNotes('');setShowSig(false);};
+  const close=()=>view==='main'?onClose?.():reset();
+  const available=loaners.filter(i=>!i.checkedOut);
+  const out=loaners.filter(i=>i.checkedOut);
+  const checkout=()=>{if(!form.resident||!form.unit||!form.signature)return;setLoaners(p=>p.map(i=>i.id===selected.id?{...i,checkedOut:true,resident:form.resident,unit:form.unit,checkoutTime:now()}:i));const notes=[form.signature?'Resident signature captured':'',form.photoPreview?'Item condition photographed':'',form.notes.trim()].filter(Boolean).join('. ');onActivityLogged?.({title:`Loaner checkout · ${selected.name} · ${form.resident} · Unit ${form.unit}`,category:'Amenity',notes,evidenceUrls:form.photoPreview?[form.photoPreview]:[]});reset();};
+  const returnItem=()=>{setLoaners(p=>p.map(i=>i.id===selected.id?{...i,checkedOut:false,resident:null,unit:null,checkoutTime:null}:i));onActivityLogged?.({title:`Loaner return · ${selected.name}`,category:'Amenity',notes:returnNotes.trim()});reset();};
 
-  const openCheckout = (item) => { setSelectedItem(item); setView('checkout'); setLStep(1); };
-  const openReturn   = (item) => { setSelectedItem(item); setView('return'); setReturnNotes(''); };
-  const goBack       = () => { setView('main'); setSelectedItem(null); setLF({ resident: '', unit: '', notes: '', photo: null, photoPreview: null, signature: null, signedAt: null }); setLStep(1); setShowSigPad(false); setReturnNotes(''); };
+  if(view==='checkout'&&selected){const Icon=selected.Icon;return <div style={{ flex:1,minHeight:0,display:'flex',flexDirection:'column',background:BG }}>
+    <Header propertyName={propertyName} title={step===1?'Confirm the loaner':'Assign to a resident'} description={step===1?'Verify the item before creating a checkout record.':'Capture responsibility, condition, and resident acknowledgment.'} step={step} onClose={close}/>
+    <main style={{ flex:1,minHeight:0,overflowY:'auto',padding:isPhone?18:'24px 28px',display:'flex',flexDirection:'column',gap:18 }}>
+      {step===1?<><Intro n="01 · Item confirmation" title="Is this the correct item?" text="Confirm the physical item before collecting resident details." colors={{INTER,TEXT,MUTED}}/><section style={{...surface,padding:isPhone?16:20,borderColor:BLUE,background:'rgba(255,56,92,.035)'}}><div style={{ display:'grid',gridTemplateColumns:'52px 1fr 28px',alignItems:'center',gap:14 }}><IconBox Icon={Icon} color={BLUE}/><div><p style={{fontFamily:INTER,fontSize:16,fontWeight:800,color:TEXT,margin:'0 0 4px'}}>{selected.name}</p><p style={{fontFamily:INTER,fontSize:12,color:MUTED,margin:0}}>{selected.desc}</p></div><span style={{width:28,height:28,borderRadius:999,background:BLUE,display:'flex',alignItems:'center',justifyContent:'center'}}><Check size={14} color="white" strokeWidth={3}/></span></div><div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${BORDER}`,display:'flex',justifyContent:'space-between'}}><span style={{fontFamily:INTER,fontSize:11,color:MUTED}}>Inventory status</span><Badge text="Available" color={GREEN} INTER={INTER}/></div></section></>:<>
+        <Intro n="02 · Checkout record" title="Who is responsible?" text="Required fields protect the property’s inventory and create a clear handoff record." colors={{INTER,TEXT,MUTED}}/>
+        <div style={{...surface,display:'grid',gridTemplateColumns:isPhone?'1fr':'1fr 1fr',overflow:'hidden'}}><Meta Icon={Icon} label="Item" value={selected.name} border={!isPhone} colors={{CARD2,BORDER,TEXT,MUTED,INTER}}/><Meta Icon={FileText} label="Record time" value={now()} colors={{CARD2,BORDER,TEXT,MUTED,INTER}}/></div>
+        <section style={{...surface,padding:isPhone?16:20,display:'grid',gap:18}}><div><FieldLabel>Resident name *</FieldLabel><input aria-label="Resident name" value={form.resident} onChange={e=>setForm(p=>({...p,resident:e.target.value}))} placeholder="Full name on record" style={input(form.resident)}/></div><div><FieldLabel>Unit number *</FieldLabel><input aria-label="Unit number" value={form.unit} onChange={e=>setForm(p=>({...p,unit:e.target.value}))} placeholder="e.g. 412" style={input(form.unit)}/></div></section>
+        <section style={{...surface,padding:isPhone?16:20,display:'grid',gap:18}}>
+          <div><FieldLabel optional>Item condition photo</FieldLabel>{form.photoPreview?<div style={{position:'relative',borderRadius:12,overflow:'hidden',border:`1px solid ${BORDER}`}}><img src={form.photoPreview} alt="Item condition" style={{width:'100%',height:160,objectFit:'cover',display:'block'}}/><IconButton onClick={()=>setForm(p=>({...p,photo:null,photoPreview:null}))}/></div>:<label style={{minHeight:48,display:'flex',alignItems:'center',gap:11,padding:'0 14px',background:CARD2,border:`1px dashed ${BORDER}`,borderRadius:12,cursor:'pointer'}}><Camera size={18} color={BLUE}/><span style={{fontFamily:INTER,fontSize:13,fontWeight:650,color:TEXT}}>Add condition photo</span><input type="file" accept="image/*" capture="environment" onChange={e=>{const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onloadend=()=>setForm(p=>({...p,photo:file,photoPreview:reader.result}));reader.readAsDataURL(file);}} style={{display:'none'}}/></label>}</div>
+          <div><FieldLabel>Resident signature *</FieldLabel>{form.signature?<div style={{position:'relative',borderRadius:12,overflow:'hidden',border:`1.5px solid ${GREEN}`}}><img src={form.signature} alt="Resident signature" style={{width:'100%',height:100,objectFit:'contain',background:CARD2,display:'block'}}/><div style={{padding:'7px 12px',background:CARD2,borderTop:`1px solid ${BORDER}`,fontFamily:INTER,fontSize:11,color:MUTED}}>Signed {form.signedAt}</div><IconButton onClick={()=>setForm(p=>({...p,signature:null,signedAt:null}))}/></div>:showSig?<SignaturePad signerName={form.resident} colors={{TEXT,MUTED,BORDER,CARD2}} onSave={(url,ts)=>{setForm(p=>({...p,signature:url,signedAt:ts}));setShowSig(false);}} onCancel={()=>setShowSig(false)}/>:<button onClick={()=>setShowSig(true)} style={{width:'100%',minHeight:48,padding:'0 14px',background:CARD2,border:`1px dashed ${BORDER}`,borderRadius:12,fontFamily:INTER,fontSize:13,fontWeight:650,color:TEXT,cursor:'pointer',textAlign:'left'}}>Capture resident signature</button>}</div>
+          <div><FieldLabel optional>Checkout notes</FieldLabel><div style={{position:'relative'}}><textarea value={form.notes+(notesInterim?`${form.notes?' ':''}${notesInterim}`:'')} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Condition, intended use, or special instructions…" rows={3} style={{...input(form.notes),minHeight:96,paddingRight:46,resize:'none',lineHeight:1.5}}/><MicButton onTranscript={t=>setForm(p=>({...p,notes:p.notes?`${p.notes} ${t}`:t}))} onInterim={setNotesInterim}/></div></div>
+        </section></>}
+    </main><Footer single={step===1} onBack={()=>setStep(1)} onContinue={()=>step===1?setStep(2):checkout()} label={step===1?'Continue':'Complete checkout'} disabled={step===2&&(!form.resident||!form.unit||!form.signature)}/>
+  </div>}
 
-  const checkoutLoaner = () => {
-    if (!lForm.resident || !lForm.unit) return;
-    setLoaners(p => p.map(l => l.id === selectedItem.id
-      ? { ...l, checkedOut: true, resident: lForm.resident, unit: lForm.unit, checkoutTime: now() }
-      : l
-    ));
-    onActivityLogged?.({ title: `Loaner checkout · ${selectedItem.name} · ${lForm.resident} · Unit ${lForm.unit}`, category: 'Amenity', notes: lForm.notes.trim(), evidenceUrls: lForm.photoPreview ? [lForm.photoPreview] : [] });
-    goBack();
-  };
+  if(view==='return'&&selected){const Icon=selected.Icon;return <div style={{flex:1,minHeight:0,display:'flex',flexDirection:'column',background:BG}}><Header propertyName={propertyName} title="Return the loaner" description="Confirm custody and document the item’s condition before restoring availability." step={1} total={1} onClose={close}/><main style={{flex:1,minHeight:0,overflowY:'auto',padding:isPhone?18:'24px 28px',display:'flex',flexDirection:'column',gap:18}}><Intro n="01 · Return record" title="Confirm the hand-back" text="Review who held the item and note anything the next shift should know." colors={{INTER,TEXT,MUTED}}/><section style={{...surface,padding:isPhone?16:20}}><div style={{display:'grid',gridTemplateColumns:'52px 1fr',alignItems:'center',gap:14}}><IconBox Icon={Icon} color={ORANGE}/><div><p style={{fontFamily:INTER,fontSize:16,fontWeight:800,color:TEXT,margin:'0 0 4px'}}>{selected.name}</p><p style={{fontFamily:INTER,fontSize:12,color:MUTED,margin:0}}>{selected.resident} · Unit {selected.unit} · {selected.checkoutTime}</p></div></div></section><section style={{...surface,padding:isPhone?16:20}}><FieldLabel optional>Return notes</FieldLabel><div style={{position:'relative'}}><textarea value={returnNotes+(returnInterim?`${returnNotes?' ':''}${returnInterim}`:'')} onChange={e=>setReturnNotes(e.target.value)} placeholder="Condition on return, damage, missing parts, or follow-up…" rows={4} style={{...input(returnNotes),minHeight:118,paddingRight:46,resize:'none',lineHeight:1.5}}/><MicButton onTranscript={t=>setReturnNotes(p=>p?`${p} ${t}`:t)} onInterim={setReturnInterim}/></div></section><div style={{background:'rgba(52,199,89,.06)',border:'1px solid rgba(52,199,89,.22)',borderRadius:14,padding:'13px 15px',display:'flex',gap:10}}><RotateCcw size={16} color={GREEN}/><span style={{fontFamily:INTER,fontSize:12,color:MUTED}}>Completing this record returns the item to available inventory.</span></div></main><Footer single onContinue={returnItem} label="Confirm return"/></div>}
 
-  const checkinLoaner = () => {
-    setLoaners(p => p.map(l => l.id === selectedItem.id
-      ? { ...l, checkedOut: false, resident: null, unit: null, checkoutTime: null }
-      : l
-    ));
-    onActivityLogged?.({ title: `Loaner return · ${selectedItem.name}`, category: 'Amenity', notes: returnNotes.trim() });
-    goBack();
-  };
+  const InventoryCard=({item})=>{const color=item.checkedOut?ORANGE:BLUE;return <article style={{...surface,padding:isPhone?14:16,display:'grid',gridTemplateColumns:'46px minmax(0,1fr) auto',alignItems:'center',gap:13}}><div style={{width:46,height:46,borderRadius:13,background:`${color}11`,display:'flex',alignItems:'center',justifyContent:'center'}}><item.Icon size={20} color={color}/></div><div style={{minWidth:0}}><p style={{fontFamily:INTER,fontSize:14,fontWeight:800,color:TEXT,margin:'0 0 4px'}}>{item.name}</p><p style={{fontFamily:INTER,fontSize:11,color:MUTED,margin:0,lineHeight:1.45}}>{item.checkedOut?`${item.resident} · Unit ${item.unit} · ${item.checkoutTime}`:item.desc}</p></div><button onClick={()=>{setSelected(item);setView(item.checkedOut?'return':'checkout');setStep(1);}} style={{minHeight:38,padding:'0 13px',borderRadius:999,border:item.checkedOut?'1px solid rgba(255,149,0,.3)':'none',background:item.checkedOut?'rgba(255,149,0,.09)':BLUE,color:item.checkedOut?ORANGE:'white',fontFamily:INTER,fontSize:11,fontWeight:750,cursor:'pointer',whiteSpace:'nowrap',boxShadow:item.checkedOut?'none':`0 5px 16px ${BLUE}22`}}>{item.checkedOut?'Return':'Check out'}</button></article>};
+  const Section=({Icon,title,count,color=BLUE,children})=><section><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:11}}><div style={{display:'flex',alignItems:'center',gap:9}}><div style={{width:32,height:32,borderRadius:10,background:`${color}12`,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon size={16} color={color}/></div><h3 style={{fontFamily:INTER,fontSize:16,fontWeight:800,color:TEXT,margin:0}}>{title}</h3></div><span style={{minWidth:28,height:28,borderRadius:999,background:CARD2,display:'inline-flex',alignItems:'center',justifyContent:'center',fontFamily:INTER,fontSize:11,fontWeight:750,color:MUTED}}>{count}</span></div>{children}</section>;
 
-  const openLoaners = loaners.filter(l => l.checkedOut);
-  const allIn       = openLoaners.length === 0;
-
-  // ── CHECK OUT WIZARD ──────────────────────────────────────────────────────
-  if (view === 'checkout' && selectedItem) {
-    const { Icon } = selectedItem;
-
-    // Step 1: Confirm item
-    if (lStep === 1) return (
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Check Out Item" step={1} totalSteps={2} onCancel={goBack} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px' }}>
-          <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: '0 0 20px' }}>
-            Confirm item
-          </h2>
-
-          {/* Selected item card */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 18, background: 'rgba(255,56,92,0.04)', border: `1.5px solid ${BLUE}`, borderRadius: 16, boxShadow: `0 0 0 3px rgba(255,56,92,0.10)` }}>
-            <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(255,56,92,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Icon size={26} color={BLUE} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT }}>{selectedItem.name}</div>
-              <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 3, lineHeight: 1.4 }}>{selectedItem.desc}</div>
-            </div>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Check size={14} color="white" strokeWidth={3} />
-            </div>
-          </div>
-
-          {/* Availability badge */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, padding: '10px 16px', background: 'rgba(255,56,92,0.06)', border: '1px solid rgba(255,56,92,0.18)', borderRadius: 10 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: BLUE, flexShrink: 0 }} />
-            <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 600, color: BLUE }}>Available — ready to check out</span>
-          </div>
-
-          <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 20, lineHeight: 1.6 }}>
-            On the next step, enter the resident's name and unit number to complete the checkout.
-          </p>
-        </div>
-        <WizardFooter isFirst onContinue={() => setLStep(2)} continueLabel="Continue" />
-      </div>
-    );
-
-    // Step 2: Resident details
-    return (
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Check Out Item" step={2} totalSteps={2} onCancel={goBack} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
-          <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
-            Who is checking out?
-          </h2>
-
-          {/* Item summary chip */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: CARD2, borderRadius: 12, border: `1px solid ${BORDER}` }}>
-            <Icon size={16} color={BLUE} />
-            <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 600, color: TEXT }}>{selectedItem.name}</span>
-          </div>
-
-          <div>
-            <Label>Resident Name *</Label>
-            <input type="text" placeholder="Full name on record" value={lForm.resident} onChange={e => setLF(p => ({ ...p, resident: e.target.value }))}
-              style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
-          </div>
-
-          <div>
-            <Label>Unit Number *</Label>
-            <input type="text" placeholder="e.g. 412" value={lForm.unit} onChange={e => setLF(p => ({ ...p, unit: e.target.value }))}
-              style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
-          </div>
-
-          {/* Optional condition photo */}
-          <div>
-            <Label>Item Condition Photo <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
-            {lForm.photoPreview ? (
-              <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
-                <img src={lForm.photoPreview} alt="Item" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
-                <button onClick={() => setLF(p => ({ ...p, photo: null, photoPreview: null }))}
-                  style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: 'white', fontSize: 14, lineHeight: 1 }}>✕</span>
-                </button>
-              </div>
-            ) : (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: CARD2, border: `1px dashed ${BORDER}`, borderRadius: 12, cursor: 'pointer' }}>
-                <Camera size={20} color={MUTED} />
-                <span style={{ fontFamily: INTER, fontSize: 14, color: MUTED }}>Document item condition at checkout</span>
-                <input type="file" accept="image/*" capture="environment" onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onloadend = () => setLF(p => ({ ...p, photo: file, photoPreview: reader.result }));
-                  reader.readAsDataURL(file);
-                }} style={{ display: 'none' }} />
-              </label>
-            )}
-          </div>
-
-          {/* Resident signature */}
-          <div>
-            <Label>Resident Signature *</Label>
-            {lForm.signature ? (
-              <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
-                <img src={lForm.signature} alt="Signature" style={{ width: '100%', height: 100, objectFit: 'contain', background: CARD2, display: 'block' }} />
-                <div style={{ padding: '6px 12px', background: CARD2, borderTop: `1px solid ${BORDER}` }}>
-                  <span style={{ fontFamily: INTER, fontSize: 11, color: MUTED }}>Signed {lForm.signedAt}</span>
-                </div>
-                <button onClick={() => setLF(p => ({ ...p, signature: null, signedAt: null }))}
-                  style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: 'white', fontSize: 14 }}>✕</span>
-                </button>
-              </div>
-            ) : showSigPad ? (
-              <SignaturePad signerName={lForm.resident} colors={{ TEXT, MUTED, BORDER, CARD2 }}
-                onSave={(dataUrl, ts) => { setLF(p => ({ ...p, signature: dataUrl, signedAt: ts })); setShowSigPad(false); }}
-                onCancel={() => setShowSigPad(false)} />
-            ) : (
-              <button onClick={() => setShowSigPad(true)}
-                style={{ width: '100%', padding: '14px 16px', background: CARD2, border: `1px dashed ${BORDER}`, borderRadius: 12, fontFamily: INTER, fontSize: 14, color: MUTED, cursor: 'pointer', textAlign: 'left' }}>
-                ✍ Tap to capture resident signature
-              </button>
-            )}
-          </div>
-
-          <div style={{ background: 'rgba(255,56,92,0.06)', border: '1px solid rgba(255,56,92,0.18)', borderRadius: 12, padding: '12px 16px' }}>
-            <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
-              The item will be marked <strong style={{ color: TEXT }}>checked out</strong> and the resident will be responsible for its return before shift close.
-            </span>
-          </div>
-          <div style={{ position: 'relative' }}>
-            <Label>Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
-            <textarea
-              value={lForm.notes + (lNotesInterim ? (lForm.notes ? ' ' : '') + lNotesInterim : '')}
-              onChange={e => setLF(p => ({ ...p, notes: e.target.value }))}
-              placeholder="e.g. Item was in good condition, resident needed it for moving boxes…"
-              rows={3}
-              style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
-            />
-            <MicButton onTranscript={t => setLF(p => ({ ...p, notes: p.notes ? p.notes + ' ' + t : t }))} onInterim={setLNotesInterim} />
-          </div>
-        </div>
-        <WizardFooter onBack={() => setLStep(1)} onContinue={checkoutLoaner} continueLabel="Check Out" continueDisabled={!lForm.resident || !lForm.unit || !lForm.signature} />
-      </div>
-    );
-  }
-
-  // ── RETURN CONFIRMATION ───────────────────────────────────────────────────
-  if (view === 'return' && selectedItem) {
-    const { Icon } = selectedItem;
-    return (
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Return Item" step={1} totalSteps={1} onCancel={goBack} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
-            Confirm return
-          </h2>
-
-          {/* Item card */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 18, background: 'rgba(255,149,0,0.04)', border: `1.5px solid ${ORANGE}`, borderRadius: 16 }}>
-            <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(255,149,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Icon size={26} color={ORANGE} />
-            </div>
-            <div>
-              <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT }}>{selectedItem.name}</div>
-              <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 3 }}>{selectedItem.desc}</div>
-            </div>
-          </div>
-
-          {/* Who has it */}
-          <div style={{ background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 18 }}>
-            <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Currently Checked Out By</div>
-            <div style={{ fontFamily: INTER, fontSize: 18, fontWeight: 700, color: TEXT }}>{selectedItem.resident}</div>
-            <div style={{ fontFamily: INTER, fontSize: 14, color: MUTED, marginTop: 5 }}>Unit {selectedItem.unit} · Checked out at {selectedItem.checkoutTime}</div>
-          </div>
-
-          <div style={{ background: 'rgba(52,199,89,0.06)', border: '1px solid rgba(52,199,89,0.22)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <RotateCcw size={15} color={GREEN} style={{ flexShrink: 0 }} />
-            <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
-              Confirming return will mark this item as <strong style={{ color: TEXT }}>available</strong> and clear the checkout record.
-            </span>
-          </div>
-          <div style={{ position: 'relative' }}>
-            <Label>Return Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
-            <textarea
-              value={returnNotes + (retInterim ? (returnNotes ? ' ' : '') + retInterim : '')}
-              onChange={e => setReturnNotes(e.target.value)}
-              placeholder="e.g. Item returned in good condition, no damage observed…"
-              rows={3}
-              style={{ width: '100%', padding: '14px 16px', paddingRight: 48, borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 15, color: TEXT, background: CARD2, outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
-            />
-            <MicButton onTranscript={t => setReturnNotes(p => p ? p + ' ' + t : t)} onInterim={setRetInterim} />
-          </div>
-        </div>
-
-        <div style={{ flexShrink: 0, padding: '12px 20px 24px', background: CARD, borderTop: `1px solid ${BORDER}` }}>
-          <button onClick={checkinLoaner}
-            style={{ width: '100%', padding: '15px 0', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 6px 20px ${BLUE}28` }}>
-            Confirm Return
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── MAIN LIST / AUDIT VIEW ────────────────────────────────────────────────
-  const availableItems = loaners.filter(l => !l.checkedOut);
-
-  return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 24, background: BG }}>
-
-      {/* Sub-tab toggle */}
-      <div style={{ padding: '16px 16px 14px' }}>
-        <div style={{ display: 'flex', background: CARD2, borderRadius: 12, border: `1px solid ${BORDER}`, padding: 3 }}>
-          {[{ id: 'items', label: 'Items' }, { id: 'audit', label: 'Audit' }].map(tab => (
-            <button key={tab.id} onClick={() => setSubTab(tab.id)}
-              style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: subTab === tab.id ? `1px solid ${BORDER}` : 'none', cursor: 'pointer', background: subTab === tab.id ? CARD : 'transparent', transition: 'background 150ms', boxShadow: subTab === tab.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
-              <span style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: subTab === tab.id ? TEXT : MUTED }}>{tab.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ITEMS */}
-      {subTab === 'items' && (
-        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* Outstanding alert */}
-          {openLoaners.length > 0 && (
-            <div style={{ background: 'rgba(255,149,0,0.08)', border: '1.5px solid rgba(255,149,0,0.30)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,149,0,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <AlertTriangle size={20} color={ORANGE} />
-              </div>
-              <div>
-                <p style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: ORANGE, margin: '0 0 2px' }}>
-                  {openLoaners.length} item{openLoaners.length > 1 ? 's' : ''} out
-                </p>
-                <p style={{ fontFamily: INTER, fontSize: 12, color: MUTED, margin: 0 }}>Must be returned before shift close</p>
-              </div>
-            </div>
-          )}
-
-          {/* Checked Out section */}
-          {openLoaners.length > 0 && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <RotateCcw size={18} color={ORANGE} />
-                  <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 16, margin: 0 }}>Checked Out</h2>
-                </div>
-                <span style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,149,0,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: ORANGE }}>{openLoaners.length}</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {openLoaners.map(item => {
-                  const { Icon } = item;
-                  return (
-                    <div key={item.id} style={{ background: CARD, border: `1.5px solid rgba(255,149,0,0.30)`, borderRadius: 16, padding: 20, boxShadow: '0 4px 16px rgba(255,149,0,0.08)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
-                        <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,149,0,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Icon size={26} color={ORANGE} />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, margin: '0 0 3px' }}>{item.name}</p>
-                          <p style={{ fontFamily: INTER, fontSize: 12, color: MUTED, margin: 0 }}>{item.resident} · Unit {item.unit} · since {item.checkoutTime}</p>
-                        </div>
-                        <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: ORANGE, background: 'rgba(255,149,0,0.12)', borderRadius: 6, padding: '3px 8px', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Out</span>
-                      </div>
-                      <button onClick={() => openReturn(item)}
-                        style={{ width: '100%', padding: '13px 0', background: ORANGE, border: 'none', borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: '0 4px 14px rgba(255,149,0,0.30)' }}>
-                        Return Item
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Available section */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ShoppingCart size={18} color={BLUE} />
-                <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 16, margin: 0 }}>Available</h2>
-              </div>
-              <span style={{ width: 30, height: 30, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: MUTED }}>{availableItems.length}</span>
-            </div>
-            {availableItems.length === 0 ? (
-              <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '32px 20px', textAlign: 'center' }}>
-                <div style={{ width: 56, height: 56, background: CARD2, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                  <ShoppingCart size={26} color={MUTED} />
-                </div>
-                <p style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 15, margin: '0 0 4px' }}>All items checked out</p>
-                <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>No items available right now</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {availableItems.map(item => {
-                  const { Icon } = item;
-                  return (
-                    <div key={item.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
-                        <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,56,92,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Icon size={26} color={BLUE} />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, margin: '0 0 3px' }}>{item.name}</p>
-                          <p style={{ fontFamily: INTER, fontSize: 12, color: MUTED, margin: 0 }}>{item.desc}</p>
-                        </div>
-                        <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: GREEN, background: 'rgba(52,199,89,0.12)', borderRadius: 6, padding: '3px 8px', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Available</span>
-                      </div>
-                      <button onClick={() => openCheckout(item)}
-                        style={{ width: '100%', padding: '13px 0', background: BLUE, border: 'none', borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: '0 4px 14px rgba(255,56,92,0.28)' }}>
-                        Check Out
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* AUDIT */}
-      {subTab === 'audit' && (
-        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-          {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
-            {[
-              { label: 'Total',      value: loaners.length,                     color: TEXT,                                Icon: ShoppingCart },
-              { label: 'Checked Out',value: openLoaners.length,                  color: openLoaners.length > 0 ? ORANGE : MUTED, Icon: RotateCcw },
-              { label: 'Available',  value: loaners.length - openLoaners.length, color: BLUE,                              Icon: Check },
-            ].map(({ label, value, color, Icon: SI }) => (
-              <div key={label} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '14px 10px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
-                  <SI size={16} color={color} />
-                </div>
-                <div style={{ fontFamily: INTER, fontSize: '1.6rem', fontWeight: 800, color, letterSpacing: '-0.02em', lineHeight: 1, marginBottom: 4 }}>{value}</div>
-                <div style={{ fontFamily: INTER, fontSize: 10, color: MUTED, fontWeight: 700 }}>{label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Item Status section */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FileText size={18} color={BLUE} />
-                <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 16, margin: 0 }}>Item Status</h2>
-              </div>
-              <span style={{ width: 30, height: 30, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: MUTED }}>{loaners.length}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {loaners.map(item => (
-                <div key={item.id} style={{ background: CARD, border: `1px solid ${item.checkedOut ? 'rgba(255,149,0,0.25)' : BORDER}`, borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: item.checkedOut ? 'rgba(255,149,0,0.10)' : 'rgba(255,56,92,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <item.Icon size={20} color={item.checkedOut ? ORANGE : BLUE} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: TEXT, margin: '0 0 2px' }}>{item.name}</p>
-                    {item.checkedOut && <p style={{ fontFamily: INTER, fontSize: 12, color: MUTED, margin: 0 }}>{item.resident} · Unit {item.unit}</p>}
-                  </div>
-                  <span style={{ fontFamily: INTER, fontSize: 11, fontWeight: 800, color: item.checkedOut ? ORANGE : GREEN, background: item.checkedOut ? 'rgba(255,149,0,0.10)' : 'rgba(52,199,89,0.10)', borderRadius: 7, padding: '3px 9px', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>
-                    {item.checkedOut ? 'Out' : 'In'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Shift close status */}
-          <div style={{ background: CARD, border: `1.5px solid ${allIn ? 'rgba(52,199,89,0.25)' : 'rgba(255,149,0,0.25)'}`, borderRadius: 16, padding: 20, display: 'flex', alignItems: 'center', gap: 16, boxShadow: allIn ? '0 4px 16px rgba(52,199,89,0.08)' : '0 4px 16px rgba(255,149,0,0.08)' }}>
-            <div style={{ width: 56, height: 56, borderRadius: 16, background: allIn ? 'rgba(52,199,89,0.10)' : 'rgba(255,149,0,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              {allIn ? <Check size={26} color={GREEN} /> : <AlertTriangle size={26} color={ORANGE} />}
-            </div>
-            <div>
-              <p style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: '0 0 3px' }}>
-                {allIn ? 'All Items Returned' : 'Items Outstanding'}
-              </p>
-              <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>
-                {allIn
-                  ? 'Loaner inventory complete. Ready to close shift.'
-                  : `${openLoaners.length} item${openLoaners.length > 1 ? 's' : ''} must be returned before clocking out.`}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return <div style={{flex:1,minHeight:0,display:'flex',flexDirection:'column',background:BG}}><Header propertyName={propertyName} title="Loaners" description="Track shared property items, resident custody, and returns in one operational record." onClose={close}/><nav style={{flexShrink:0,padding:isPhone?'14px 18px 0':'16px 28px 0'}}><div style={{display:'flex',padding:4,background:CARD2,border:`1px solid ${BORDER}`,borderRadius:14}}>{[{id:'items',label:'Inventory',count:loaners.length},{id:'audit',label:'Shift audit',count:out.length}].map(t=>{const active=subTab===t.id;return <button key={t.id} onClick={()=>setSubTab(t.id)} style={{flex:1,minHeight:42,borderRadius:11,border:active?`1px solid ${BORDER}`:'1px solid transparent',background:active?CARD:'transparent',boxShadow:active?'0 2px 8px rgba(0,0,0,.07)':'none',color:active?TEXT:MUTED,fontFamily:INTER,fontSize:12,fontWeight:750,cursor:'pointer',transition:'all 160ms'}}>{t.label} <span style={{color:active?BLUE:MUTED,fontSize:9,marginLeft:5}}>{t.count}</span></button>})}</div></nav><main style={{flex:1,minHeight:0,overflowY:'auto',padding:isPhone?18:'20px 28px 30px'}}>{subTab==='items'?<div style={{display:'grid',gap:22}}>{out.length>0&&<div style={{background:'rgba(255,149,0,.07)',border:'1px solid rgba(255,149,0,.24)',borderRadius:14,padding:'13px 15px',display:'flex',gap:11}}><AlertTriangle size={18} color={ORANGE}/><div><p style={{fontFamily:INTER,fontSize:12,fontWeight:800,color:TEXT,margin:'0 0 2px'}}>{out.length} outstanding {out.length===1?'item':'items'}</p><p style={{fontFamily:INTER,fontSize:11,color:MUTED,margin:0}}>Resolve or include in the shift handoff.</p></div></div>}{out.length>0&&<Section Icon={RotateCcw} title="Checked out" count={out.length} color={ORANGE}><div style={{display:'grid',gap:9}}>{out.map(i=><InventoryCard key={i.id} item={i}/>)}</div></Section>}<Section Icon={ShoppingCart} title="Available inventory" count={available.length}>{available.length?<div style={{display:'grid',gap:9}}>{available.map(i=><InventoryCard key={i.id} item={i}/>)}</div>:<Empty colors={{CARD,CARD2,BORDER,TEXT,MUTED,INTER}}/>}</Section></div>:<Audit loaners={loaners} out={out} available={available} surface={surface} colors={{CARD,CARD2,TEXT,MUTED,BORDER,INTER}}/>}</main></div>;
 };
+
+const Intro=({n,title,text,colors:{INTER,TEXT,MUTED}})=><div><div style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.16em',textTransform:'uppercase',marginBottom:6}}>{n}</div><h3 style={{fontFamily:INTER,fontSize:20,fontWeight:800,color:TEXT,letterSpacing:'-.03em',margin:'0 0 5px'}}>{title}</h3><p style={{fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.5,margin:0}}>{text}</p></div>;
+const IconBox=({Icon,color})=><div style={{width:52,height:52,borderRadius:14,background:`${color}11`,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon size={23} color={color}/></div>;
+const Badge=({text,color,INTER})=><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color,background:`${color}12`,borderRadius:999,padding:'5px 8px',textTransform:'uppercase',letterSpacing:'.07em'}}>{text}</span>;
+const IconButton=({onClick})=><button onClick={onClick} aria-label="Remove" style={{position:'absolute',top:8,right:8,width:32,height:32,borderRadius:999,background:'rgba(0,0,0,.6)',border:0,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><X size={15} color="white"/></button>;
+const Meta=({Icon,label,value,border,colors:{CARD2,BORDER,TEXT,MUTED,INTER}})=><div style={{padding:14,display:'flex',alignItems:'center',gap:11,borderRight:border?`1px solid ${BORDER}`:'none'}}><div style={{width:34,height:34,borderRadius:10,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon size={16} color={BLUE}/></div><div><p style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:MUTED,textTransform:'uppercase',letterSpacing:'.14em',margin:'0 0 4px'}}>{label}</p><span style={{fontFamily:INTER,fontSize:13,fontWeight:750,color:TEXT}}>{value}</span></div></div>;
+const Empty=({colors:{CARD,CARD2,BORDER,TEXT,MUTED,INTER}})=><div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:'34px 20px',textAlign:'center'}}><div style={{width:48,height:48,borderRadius:14,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px'}}><ShoppingCart size={21} color={MUTED}/></div><p style={{fontFamily:INTER,fontSize:15,fontWeight:800,color:TEXT,margin:'0 0 4px'}}>No items available</p><p style={{fontFamily:INTER,fontSize:12,color:MUTED,margin:0}}>Return an outstanding item to restore inventory.</p></div>;
+function Audit({loaners,out,available,surface,colors:{CARD,CARD2,TEXT,MUTED,BORDER,INTER}}){const allIn=!out.length;return <div style={{display:'grid',gap:20}}><Intro n="Shift accountability" title="Inventory at a glance" text="Use this status check before closing or handing off the desk." colors={{INTER,TEXT,MUTED}}/><div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:9}}>{[{label:'Total',value:loaners.length,Icon:ShoppingCart,color:TEXT},{label:'Out',value:out.length,Icon:RotateCcw,color:out.length?ORANGE:MUTED},{label:'Available',value:available.length,Icon:Check,color:GREEN}].map(s=><div key={s.label} style={{...surface,padding:15,textAlign:'center'}}><s.Icon size={16} color={s.color}/><strong style={{display:'block',fontFamily:INTER,fontSize:23,color:s.color,marginTop:7}}>{s.value}</strong><span style={{fontFamily:INTER,fontSize:9,fontWeight:750,color:MUTED,textTransform:'uppercase'}}>{s.label}</span></div>)}</div><div style={{...surface,overflow:'hidden'}}>{loaners.map((i,n)=><div key={i.id} style={{minHeight:62,padding:'10px 13px',display:'grid',gridTemplateColumns:'36px 1fr auto',alignItems:'center',gap:11,borderBottom:n<loaners.length-1?`1px solid ${BORDER}`:'none'}}><div style={{width:36,height:36,borderRadius:10,background:i.checkedOut?'rgba(255,149,0,.1)':`${BLUE}10`,display:'flex',alignItems:'center',justifyContent:'center'}}><i.Icon size={16} color={i.checkedOut?ORANGE:BLUE}/></div><div><p style={{fontFamily:INTER,fontSize:13,fontWeight:750,color:TEXT,margin:'0 0 3px'}}>{i.name}</p><p style={{fontFamily:INTER,fontSize:10,color:MUTED,margin:0}}>{i.checkedOut?`${i.resident} · Unit ${i.unit}`:i.desc}</p></div><Badge text={i.checkedOut?'Out':'In'} color={i.checkedOut?ORANGE:GREEN} INTER={INTER}/></div>)}</div><div style={{...surface,padding:16,borderColor:allIn?'rgba(52,199,89,.28)':'rgba(255,149,0,.28)',display:'flex',alignItems:'center',gap:13}}>{allIn?<ClipboardCheck size={22} color={GREEN}/>:<AlertTriangle size={22} color={ORANGE}/>}<div><p style={{fontFamily:INTER,fontSize:13,fontWeight:800,color:TEXT,margin:'0 0 3px'}}>{allIn?'Inventory reconciled':'Handoff required'}</p><p style={{fontFamily:INTER,fontSize:11,color:MUTED,margin:0}}>{allIn?'All loaners are accounted for and available.':`${out.length} items are still with residents.`}</p></div></div></div>}
 
 export default LoanersDashboard;

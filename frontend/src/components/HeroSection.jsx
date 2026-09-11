@@ -1,30 +1,34 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import "../styles/hero.css";
 import conciergeCharacter from "../assets/hero-characters/concierge-clean.png";
-import doormanCharacter from "../assets/hero-characters/doorman-clean.png";
-import securityCharacter from "../assets/hero-characters/security-no-shadow.png";
-import attendantCharacter from "../assets/hero-characters/attendant-clean.png";
+import doormanCharacter from "../assets/hero-characters/doorman-friendly.png";
+import securityCharacter from "../assets/hero-characters/security-friendly.png";
+import attendantCharacter from "../assets/hero-characters/concierge-friendly.png";
 
 export const HERO_IMAGES = [
   {
     src: conciergeCharacter,
     bg: "#FFFFFF",
+    wordColor: "#F2F1EE",
     centerScale: 1.2,
   },
   {
     src: doormanCharacter,
     bg: "#FFFFFF",
+    wordColor: "#F2F1EE",
     centerScale: 1.2,
   },
   {
     src: securityCharacter,
     bg: "#FFFFFF",
-    centerScale: 1.6,
+    wordColor: "#F2F1EE",
+    centerScale: 1.2,
   },
   {
     src: attendantCharacter,
     bg: "#FFFFFF",
+    wordColor: "#F2F1EE",
     centerScale: 1.2,
   },
 ];
@@ -33,9 +37,7 @@ const EASE = "cubic-bezier(0.22,1,0.36,1)";
 const DURATION_MS = 650;
 const TRANSITION = `transform 650ms ${EASE}, filter 650ms ${EASE}, opacity 650ms ${EASE}, left 650ms ${EASE}`;
 
-export default function HeroSection({
-  onExplore = () => {},
-}) {
+export default function HeroSection() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
@@ -56,7 +58,9 @@ export default function HeroSection({
   const navigate = useCallback((direction) => {
     if (isAnimating) return;
     setIsAnimating(true);
-    setActiveIndex((current) => direction === "next" ? (current + 1) % 4 : (current + 3) % 4);
+    setActiveIndex((current) => direction === "next"
+      ? (current + 1) % HERO_IMAGES.length
+      : (current - 1 + HERO_IMAGES.length) % HERO_IMAGES.length);
     window.setTimeout(() => setIsAnimating(false), DURATION_MS);
   }, [isAnimating]);
 
@@ -70,17 +74,16 @@ export default function HeroSection({
   }, [navigate]);
 
   const center = activeIndex;
-  const left = (activeIndex + 3) % 4;
-  const right = (activeIndex + 1) % 4;
+  const left = (activeIndex - 1 + HERO_IMAGES.length) % HERO_IMAGES.length;
+  const right = (activeIndex + 1) % HERO_IMAGES.length;
 
   const getFigureStyle = (index) => {
-    const height = isMobile ? "58%" : "46%";
     if (index === center) {
       return {
         left: "50%",
-        height,
+        height: isMobile ? "52%" : "46%",
         bottom: 0,
-        transform: `translateX(-50%) scale(${HERO_IMAGES[index].centerScale ?? 1})`,
+        transform: `translateX(-50%) scale(${isMobile ? (index === 2 ? 1.15 : 1) : (HERO_IMAGES[index].centerScale ?? 1)})`,
         transformOrigin: "bottom center",
         filter: "none",
         opacity: 1,
@@ -89,8 +92,8 @@ export default function HeroSection({
     }
     if (index === left) {
       return {
-        left: isMobile ? "18%" : "28%",
-        height,
+        left: isMobile ? "25%" : "28%",
+        height: isMobile ? "42%" : "46%",
         bottom: 0,
         transform: "translateX(-50%) scale(1)",
         transformOrigin: "bottom center",
@@ -101,8 +104,8 @@ export default function HeroSection({
     }
     if (index === right) {
       return {
-        left: isMobile ? "82%" : "72%",
-        height,
+        left: isMobile ? "75%" : "72%",
+        height: isMobile ? "42%" : "46%",
         bottom: 0,
         transform: "translateX(-50%) scale(1)",
         transformOrigin: "bottom center",
@@ -118,20 +121,29 @@ export default function HeroSection({
       transform: "translateX(-50%) scale(1)",
       transformOrigin: "bottom center",
       filter: "none",
-      opacity: 0.4,
+      opacity: 0,
       zIndex: 5,
     };
   };
 
   return (
-    <section className="onepermit-hero" aria-label="onepermit introduction">
+    <section className="onepermit-hero" aria-label="Noted introduction">
       <div
         className="onepermit-hero__field"
         style={{ backgroundColor: HERO_IMAGES[activeIndex].bg }}
         aria-hidden="true"
       />
 
-      <div className="onepermit-hero__wordmark" aria-hidden="true">ONEPERMIT</div>
+      <div className="onepermit-hero__message" aria-live="polite" aria-atomic="true">
+        <h1
+          className="onepermit-hero__headline"
+          key={activeIndex}
+          aria-label="Clockit"
+          style={{ color: HERO_IMAGES[activeIndex].wordColor }}
+        >
+          CLOCKIT
+        </h1>
+      </div>
 
       <div className="onepermit-hero__dots" aria-hidden="true">
         {HERO_IMAGES.map((_, index) => (
@@ -156,30 +168,11 @@ export default function HeroSection({
       </div>
 
       <div className="onepermit-hero__summary">
-        <p className="onepermit-hero__name">onepermit</p>
-        {!isMobile && (
-          <p className="onepermit-hero__copy">
-            Real-time workforce operations and accountability for property management, concierge services, cleaning, security, and hospitality teams.
-          </p>
-        )}
-        <div className="onepermit-hero__arrows">
-          <button className="onepermit-hero__arrow" onClick={() => navigate("prev")} aria-label="Previous hero image">
-            <ArrowLeft size={26} strokeWidth={2.25} />
-          </button>
-          <button className="onepermit-hero__arrow" onClick={() => navigate("next")} aria-label="Next hero image">
-            <ArrowRight size={26} strokeWidth={2.25} />
-          </button>
-        </div>
+        <button className="onepermit-hero__arrow" onClick={() => navigate("next")} aria-label="Show next role">
+          <ArrowRight size={26} strokeWidth={2.25} />
+        </button>
       </div>
 
-      <a
-        className="onepermit-hero__explore"
-        href="#onepermit-explore"
-        onClick={(event) => { event.preventDefault(); onExplore(); }}
-      >
-        Explore now
-        <ArrowRight className="onepermit-hero__explore-icon" strokeWidth={2.25} />
-      </a>
     </section>
   );
 }

@@ -8,16 +8,16 @@ const faqData = [
     category: "Getting Started",
     questions: [
       {
-        q: "What is ADLTrack?",
-        a: "ADLTrack is a comprehensive care tracking platform that connects families, caregivers, and agencies. It provides real-time health updates, task management, photo verification, and secure messaging to ensure transparent and quality care for your loved ones."
+        q: "What is Noted?",
+        a: "Noted is a workforce operations platform that gives property teams a shared, verifiable record of shifts, tasks, incidents, and handoffs."
       },
       {
         q: "How do I get started?",
-        a: "Simply click 'Get Started' on our homepage and select your role - Family Member, Caregiver, or Agency. You'll be guided through a quick setup process to create your account and start using ADLTrack within minutes."
+        a: "Click 'Get Started' on the homepage to create a manager account, set up your property, and invite your team."
       },
       {
         q: "Do I need special hardware?",
-        a: "No. ADLTrack works on any modern smartphone (iOS and Android) or web browser. Caregivers just download the app to get started - no special equipment required."
+        a: "No. Noted works in a modern web browser and is designed for the shared property devices teams already use."
       }
     ]
   },
@@ -25,7 +25,7 @@ const faqData = [
     category: "Security & Privacy",
     questions: [
       {
-        q: "Is ADLTrack HIPAA Compliant?",
+        q: "How does Noted protect operational records?",
         a: "Yes, absolutely. We use enterprise-grade encryption and strictly adhere to HIPAA standards to protect all patient health information. Your data is encrypted both in transit and at rest."
       },
       {
@@ -77,11 +77,11 @@ const faqData = [
     questions: [
       {
         q: "What is EVV Compliance?",
-        a: "Electronic Visit Verification (EVV) is a government mandate requiring proof of care delivery. ADLTrack automatically generates GPS-verified, timestamped, and photo-backed logs that meet all EVV requirements."
+        a: "Noted creates timestamped, attributable activity records with supporting evidence where required by your workflow."
       },
       {
         q: "How does billing work?",
-        a: "ADLTrack automatically tracks hours worked and tasks completed. You can generate detailed reports for billing, approve timesheets, and export data to your payroll system."
+        a: "Noted records shift activity and task completion so managers can review performance and operational history."
       },
       {
         q: "Can I track multiple caregivers?",
@@ -146,7 +146,7 @@ export const FAQPage = ({ onBack }) => {
                 <div className="w-8 h-8 rounded-xl bg-[#25D366] flex items-center justify-center">
                   <Activity className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-lg font-bold tracking-tight text-[#25D366]">Adltrack</span>
+                <span className="text-lg font-bold tracking-tight text-[#ff385c]">Noted</span>
               </div>
             </div>
           </div>
@@ -168,7 +168,7 @@ export const FAQPage = ({ onBack }) => {
               Frequently Asked Questions
             </h1>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              Find answers to common questions about ADLTrack. Can't find what you're looking for? 
+              Find answers to common questions about Noted. Can't find what you're looking for?
               <a href="#contact" className="text-[#25D366] font-semibold ml-1 hover:underline">Contact our support team</a>.
             </p>
           </motion.div>
@@ -245,7 +245,7 @@ export const FAQPage = ({ onBack }) => {
               Chat with Support
             </Button>
             <Button variant="outline" className="rounded-full px-8 h-12 font-semibold">
-              support@adltrack.com
+              support@noted.app
             </Button>
           </div>
         </div>
@@ -258,9 +258,9 @@ export const FAQPage = ({ onBack }) => {
             <div className="w-6 h-6 rounded-lg bg-[#25D366] flex items-center justify-center">
               <Activity className="w-3 h-3 text-white" />
             </div>
-            <span className="text-sm font-bold tracking-tight text-[#25D366]">Adltrack</span>
+            <span className="text-sm font-bold tracking-tight text-[#ff385c]">Noted</span>
           </div>
-          <p className="text-sm text-slate-500">© {new Date().getFullYear()} Adltrack Inc. All rights reserved.</p>
+          <p className="text-sm text-slate-500">© {new Date().getFullYear()} Noted Inc. All rights reserved.</p>
         </div>
       </footer>
     </div>

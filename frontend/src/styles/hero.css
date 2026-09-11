@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap");
 
 .onepermit-hero,
 .onepermit-hero *,
@@ -31,24 +31,31 @@
   transition: background-color 650ms var(--hero-ease);
 }
 
-.onepermit-hero__wordmark {
+.onepermit-hero__message {
   position: absolute;
   z-index: 2;
-  top: 18%;
-  right: 0;
-  left: 0;
+  top: 18.5%;
+  right: 16px;
+  left: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+.onepermit-hero__headline {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #f2f1ee;
-  font-size: clamp(90px, 28vw, 380px);
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
+  margin: 0;
+  font-family: "Anton", "Arial Narrow", sans-serif;
+  font-size: clamp(170px, 27vw, 440px);
+  font-weight: 400;
+  line-height: 0.84;
+  letter-spacing: -0.025em;
   white-space: nowrap;
-  pointer-events: none;
-  user-select: none;
+  animation: hero-message-in 650ms var(--hero-ease) both;
+}
+@keyframes hero-message-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .onepermit-hero__brand {
@@ -136,27 +143,9 @@
 .onepermit-hero__summary {
   position: absolute;
   z-index: 60;
-  bottom: 24px;
-  left: 16px;
-  max-width: 320px;
+  right: 16px;
+  bottom: 20px;
 }
-.onepermit-hero__name {
-  margin: 0 0 8px;
-  color: #222;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  opacity: 0.95;
-}
-.onepermit-hero__copy {
-  margin: 0 0 20px;
-  color: #717171;
-  font-size: 14px;
-  line-height: 1.6;
-  opacity: 0.85;
-}
-.onepermit-hero__arrows { display: flex; gap: 12px; }
 .onepermit-hero__arrow {
   display: flex;
   width: 48px;
@@ -174,37 +163,25 @@
 .onepermit-hero__arrow:hover { transform: scale(1.08); background: #f2f1ee; }
 .onepermit-hero__arrow:active { transform: scale(0.97); }
 
-.onepermit-hero__explore {
-  position: absolute;
-  z-index: 60;
-  right: 16px;
-  bottom: 24px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #222;
-  font-size: clamp(20px, 4vw, 56px);
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.02em;
-  text-decoration: none;
-  text-transform: uppercase;
-  opacity: 0.95;
-  cursor: pointer;
-  transition: opacity 200ms;
-}
-.onepermit-hero__explore:hover { opacity: 1; }
-.onepermit-hero__explore-icon { width: 20px; height: 20px; }
-
 @media (min-width: 640px) {
+  .onepermit-hero__message { right: 32px; left: 32px; }
   .onepermit-hero__brand { left: 32px; }
   .onepermit-hero__auth { right: 32px; }
   .onepermit-hero__button { padding: 9px 22px; font-size: 13px; }
-  .onepermit-hero__summary { bottom: 80px; left: 96px; }
-  .onepermit-hero__name { margin-bottom: 12px; font-size: 22px; }
+  .onepermit-hero__summary { right: 24px; bottom: 24px; }
   .onepermit-hero__arrow { width: 64px; height: 64px; }
-  .onepermit-hero__explore { right: 40px; bottom: 80px; gap: 10px; }
-  .onepermit-hero__explore-icon { width: 32px; height: 32px; }
+}
+
+@media (max-width: 639px) {
+  .onepermit-hero__message {
+    top: 18%;
+    right: 10px;
+    left: 10px;
+  }
+  .onepermit-hero__headline {
+    font-size: clamp(132px, 28vw, 190px);
+    letter-spacing: -0.03em;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Wrench, CheckCircle, Clock, Plus, Check, LogOut, ChevronRight, FileText, Thermometer, Droplets, Zap, Wifi, Shield, Truck, Hammer, Sparkles, HelpCircle, Building2, Camera } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import MicButton from './MicButton';
@@ -24,44 +24,44 @@ const ID_METHODS = ['Photo ID checked', 'Work order on file', 'Management pre-au
 const now        = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const EMPTY_FORM = { company: '', contact: '', purpose: '', unit: '', authorizedBy: '', workOrder: '', idMethod: '', notes: '', photo: null, photoPreview: null };
 
-function Label({ children }) {
+function Label({ children, optional=false }) {
   const { colors } = useTheme();
   const { MUTED, INTER } = colors;
   return (
-    <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>
-      {children}
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12,fontFamily:INTER,fontSize:14,fontWeight:800,color:colors.TEXT,marginBottom:9}}>
+      <span>{children}</span>{optional&&<span style={{fontSize:10,fontWeight:600,color:MUTED,letterSpacing:'.12em',textTransform:'uppercase'}}>Optional</span>}
     </div>
   );
 }
 
-function WizardHeader({ title, step, totalSteps, onCancel }) {
+function WizardHeader({ propertyName, title, description, step, totalSteps, onCancel, compact=false }) {
   const { colors } = useTheme();
-  const { CARD, BORDER, TEXT, MUTED, INTER } = colors;
+  const { INTER, CARD, CARD2, BORDER, TEXT, MUTED } = colors;
   return (
-    <div style={{ flexShrink: 0, background: CARD, borderBottom: `1px solid ${BORDER}` }}>
-      <div style={{ padding: '14px 20px 10px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontFamily: INTER, fontSize: 16, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>{title}</div>
-          <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 3 }}>Step {step} of {totalSteps}</div>
+    <div style={{ flexShrink:0, background:CARD, borderBottom:`1px solid ${BORDER}` }}>
+      <div style={{padding:compact?'20px 20px 14px':'26px 30px 18px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16}}>
+        <div style={{minWidth:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:11}}><span style={{width:24,height:2,background:BLUE}}/><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.22em',textTransform:'uppercase'}}>{propertyName}</span></div>
+          <div style={{fontFamily:INTER,fontSize:compact?28:34,fontWeight:800,color:TEXT,letterSpacing:'-.045em',lineHeight:.98}}>{title}</div>
+          {description&&<div style={{maxWidth:470,fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.55,marginTop:9}}>{description}</div>}
+          <div style={{fontFamily:INTER,fontSize:11,color:MUTED,marginTop:8}}>Step {step} of {totalSteps} · Vendor access record</div>
         </div>
-        <button onClick={onCancel} style={{ fontFamily: INTER, fontSize: 14, fontWeight: 600, color: MUTED, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginTop: 2 }}>
-          Cancel
-        </button>
+        <button onClick={onCancel} aria-label="Close vendor workflow" style={{ width:44, height:44, borderRadius:999, border:`1px solid ${BORDER}`, color:TEXT, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}><span style={{ fontSize:22, lineHeight:1 }}>×</span></button>
       </div>
-      <div style={{ display: 'flex', gap: 4, padding: '0 20px 14px' }}>
+      <div style={{display:'flex',gap:5,padding:compact?'0 20px 16px':'0 30px 20px'}}>
         {Array.from({ length: totalSteps }).map((_, i) => (
-          <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i < step ? BLUE : BORDER, transition: 'background 200ms' }} />
+          <div key={i} style={{flex:1,height:3,borderRadius:2,background:i < step?BLUE:BORDER,transition:'background 200ms'}}/>
         ))}
       </div>
     </div>
   );
 }
 
-function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continueDisabled = false, isFirst = false }) {
+function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continueDisabled = false, isFirst = false, compact=false }) {
   const { colors } = useTheme();
   const { CARD, CARD2, BORDER, TEXT, MUTED, INTER } = colors;
   return (
-    <div style={{ flexShrink: 0, padding: '12px 20px 24px', background: CARD, borderTop: `1px solid ${BORDER}`, display: 'flex', gap: 10 }}>
+    <div style={{flexShrink:0,padding:compact?'12px 20px 30px':'14px 28px 20px',background:CARD,borderTop:`1px solid ${BORDER}`,display:'flex',gap:10,boxShadow:'0 -8px 24px rgba(0,0,0,.04)'}}>
       {!isFirst && (
         <button onClick={onBack}
           style={{ flex: 1, padding: '15px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, cursor: 'pointer' }}>
@@ -69,19 +69,22 @@ function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continue
         </button>
       )}
       <button onClick={onContinue} disabled={continueDisabled}
-        style={{ flex: 1, padding: '15px 0', background: continueDisabled ? CARD2 : BLUE, border: continueDisabled ? `1px solid ${BORDER}` : 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: continueDisabled ? MUTED : 'white', cursor: continueDisabled ? 'not-allowed' : 'pointer', boxShadow: continueDisabled ? 'none' : `0 6px 20px ${BLUE}28` }}>
+        style={{ flex: 1, padding: '15px 0', background: continueDisabled ? CARD2 : BLUE, border: continueDisabled ? `1px solid ${BORDER}` : 'none', borderRadius: 999, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: continueDisabled ? MUTED : 'white', cursor: continueDisabled ? 'not-allowed' : 'pointer', boxShadow: continueDisabled ? 'none' : `0 6px 20px ${BLUE}28` }}>
         {continueLabel}
       </button>
     </div>
   );
 }
 
-export const VendorsDashboard = ({ onActivityLogged }) => {
+export const VendorsDashboard = ({ onActivityLogged, onWorkflowChange, propertyName='The Alexen', isPhone=false }) => {
   const { colors } = useTheme();
   const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
   const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
+  const VendorHeader = props => <WizardHeader propertyName={propertyName} compact={isPhone} {...props}/>;
+  const VendorFooter = props => <WizardFooter compact={isPhone} {...props}/>;
   const [vendors,       setVendors]       = useState([]);
   const [view,          setView]          = useState('list');
+  const [vendorTab,     setVendorTab]     = useState('active');
   const [vStep,         setVStep]         = useState(1);
   const [checkoutId,    setCheckoutId]    = useState(null);
   const [checkoutNotes, setCheckoutNotes] = useState('');
@@ -89,13 +92,15 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
   const [notesInterim,    setNotesInterim]    = useState('');
   const [checkoutInterim, setCheckoutInterim] = useState('');
 
+  const changeView = (nextView) => { onWorkflowChange?.(nextView !== 'list'); setView(nextView); };
+  useEffect(() => { onWorkflowChange?.(view !== 'list'); return () => onWorkflowChange?.(false); }, [view, onWorkflowChange]);
   const setF   = (key, val) => setForm(p => ({ ...p, [key]: val }));
-  const goBack = () => { setView('list'); setForm(EMPTY_FORM); setVStep(1); };
+  const goBack = () => { changeView('list'); setForm(EMPTY_FORM); setVStep(1); };
 
   const checkIn = () => {
     if (!form.company || !form.purpose || !form.unit || !form.authorizedBy || !form.idMethod) return;
     setVendors(p => [...p, { id: Date.now(), ...form, checkInTime: now(), checkOutTime: null, status: 'active' }]);
-    const checkInNotes = [`${form.unit} · Auth: ${form.authorizedBy}`, form.notes.trim()].filter(Boolean).join('. ');
+    const checkInNotes = [`The vendor was directed to ${form.unit}`, form.contact ? `${form.contact} represented the company` : '', `Access was authorized by ${form.authorizedBy}`, `Identity was verified by ${form.idMethod.toLowerCase()}`, form.workOrder ? `Work order ${form.workOrder} was confirmed` : '', form.notes.trim()].filter(Boolean).join('. ');
     onActivityLogged?.({ title: `Vendor check-in · ${form.company} · ${form.purpose}`, category: 'Vendor / Contractor', notes: checkInNotes, evidenceUrls: form.photoPreview ? [form.photoPreview] : [] });
     goBack();
   };
@@ -104,12 +109,12 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
     const v = vendors.find(x => x.id === id);
     setVendors(p => p.map(x => x.id === id ? { ...x, status: 'out', checkOutTime: now() } : x));
     if (v) {
-      const outNotes = [`${v.unit} · In: ${v.checkInTime}`, checkoutNotes.trim()].filter(Boolean).join('. ');
+      const outNotes = [`The vendor departed from ${v.unit}`, `The original check-in was recorded at ${v.checkInTime}`, checkoutNotes.trim()].filter(Boolean).join('. ');
       onActivityLogged?.({ title: `Vendor check-out · ${v.company} · ${v.purpose}`, category: 'Vendor / Contractor', notes: outNotes });
     }
     setCheckoutId(null);
     setCheckoutNotes('');
-    setView('list');
+    changeView('list');
   };
 
   const active    = vendors.filter(v => v.status === 'active');
@@ -121,8 +126,8 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
     // Step 1: Vendor info
     if (vStep === 1) return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Log Vendor Entry" step={1} totalSteps={3} onCancel={goBack} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+        <VendorHeader title="Identify the vendor" description="Start the access record with the company and on-site contact." step={1} totalSteps={3} onCancel={goBack} />
+        <div style={{flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',padding:isPhone?'18px':'24px 28px',display:'flex',flexDirection:'column',gap:22}}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Who is visiting?
           </h2>
@@ -132,43 +137,43 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <Label>Contact Person (optional)</Label>
+            <Label optional>Contact Person</Label>
             <input type="text" placeholder="Technician or rep name" value={form.contact} onChange={e => setF('contact', e.target.value)}
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <Label>Work Order # (optional)</Label>
+            <Label optional>Work Order #</Label>
             <input type="text" placeholder="If available on paperwork" value={form.workOrder} onChange={e => setF('workOrder', e.target.value)}
               style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1px solid ${BORDER}`, fontFamily: INTER, fontSize: 16, color: TEXT, background: CARD2, outline: 'none', boxSizing: 'border-box' }} />
           </div>
         </div>
-        <WizardFooter isFirst onContinue={() => setVStep(2)} continueDisabled={!form.company} />
+        <VendorFooter isFirst onContinue={() => setVStep(2)} continueDisabled={!form.company} />
       </div>
     );
 
     // Step 2: Purpose of visit
     if (vStep === 2) return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Log Vendor Entry" step={2} totalSteps={3} onCancel={goBack} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px' }}>
+        <VendorHeader title="Classify the visit" description="Choose the service category for this property access record." step={2} totalSteps={3} onCancel={goBack} />
+        <div style={{flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',padding:isPhone?'18px':'24px 28px'}}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: '0 0 20px' }}>
             What's the reason for access?
           </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:9}}>
             {PURPOSE_CONFIG.map(({ id, Icon, desc }) => {
               const sel = form.purpose === id;
               return (
                 <button key={id} onClick={() => setF('purpose', id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, background: sel ? 'rgba(255,56,92,0.04)' : CARD, border: `1.5px solid ${sel ? BLUE : BORDER}`, borderRadius: 16, cursor: 'pointer', textAlign: 'left', width: '100%', boxShadow: sel ? `0 0 0 3px rgba(255,56,92,0.10)` : 'none', transition: 'all 150ms' }}>
-                  <div style={{ width: 52, height: 52, borderRadius: 14, background: sel ? 'rgba(255,56,92,0.12)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 150ms' }}>
-                    <Icon size={24} color={sel ? BLUE : MUTED} />
+                  style={{minHeight:92,display:'grid',gridTemplateColumns:'36px minmax(0,1fr) 22px',alignItems:'center',gap:11,padding:13,background:sel?'rgba(255,56,92,.045)':CARD,border:`1.5px solid ${sel?BLUE:BORDER}`,borderRadius:14,cursor:'pointer',textAlign:'left',width:'100%',boxShadow:sel?'0 5px 18px rgba(255,56,92,.10)':SHADOW,transition:'all 150ms'}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:sel?'rgba(255,56,92,.12)':CARD2,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <Icon size={18} color={sel ? BLUE : MUTED} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT }}>{id}</div>
-                    <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 2, lineHeight: 1.4 }}>{desc}</div>
+                    <div style={{fontFamily:INTER,fontSize:13,fontWeight:750,color:TEXT}}>{id}</div>
+                    <div style={{fontFamily:INTER,fontSize:11,color:MUTED,marginTop:4,lineHeight:1.4}}>{desc}</div>
                   </div>
                   {sel && (
-                    <div style={{ width: 26, height: 26, borderRadius: '50%', background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{width:22,height:22,borderRadius:'50%',background:BLUE,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                       <Check size={13} color="white" strokeWidth={3} />
                     </div>
                   )}
@@ -177,15 +182,15 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
             })}
           </div>
         </div>
-        <WizardFooter onBack={() => setVStep(1)} onContinue={() => setVStep(3)} continueDisabled={!form.purpose} />
+        <VendorFooter onBack={() => setVStep(1)} onContinue={() => setVStep(3)} continueDisabled={!form.purpose} />
       </div>
     );
 
     // Step 3: Access details + ID verification
     return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Log Vendor Entry" step={3} totalSteps={3} onCancel={goBack} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <VendorHeader title="Authorize access" description="Record the destination, authorization, and identity check." step={3} totalSteps={3} onCancel={goBack} />
+        <div style={{flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',padding:isPhone?'18px':'24px 28px',display:'flex',flexDirection:'column',gap:24}}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Access details
           </h2>
@@ -227,7 +232,7 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
           </div>
           {/* Optional ID / badge photo */}
           <div>
-            <Label>ID Photo <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional)</span></Label>
+            <Label optional>ID Photo</Label>
             {form.photoPreview ? (
               <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
                 <img src={form.photoPreview} alt="ID" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
@@ -252,7 +257,7 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
           </div>
 
           <div style={{ position: 'relative' }}>
-            <Label>Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
+            <Label optional>Notes</Label>
             <textarea
               value={form.notes + (notesInterim ? (form.notes ? ' ' : '') + notesInterim : '')}
               onChange={e => setF('notes', e.target.value)}
@@ -263,7 +268,7 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
             <MicButton onTranscript={t => setF('notes', form.notes ? form.notes + ' ' + t : t)} onInterim={setNotesInterim} />
           </div>
         </div>
-        <WizardFooter onBack={() => setVStep(2)} onContinue={checkIn} continueLabel="Check In Vendor" continueDisabled={!form.unit || !form.authorizedBy || !form.idMethod} />
+        <VendorFooter onBack={() => setVStep(2)} onContinue={checkIn} continueLabel="Check In Vendor" continueDisabled={!form.unit || !form.authorizedBy || !form.idMethod} />
       </div>
     );
   }
@@ -271,14 +276,14 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
   // ── CHECKOUT CONFIRMATION ─────────────────────────────────────────────────
   if (view === 'checkout' && checkoutId) {
     const v = vendors.find(x => x.id === checkoutId);
-    if (!v) { setView('list'); return null; }
+    if (!v) { changeView('list'); return null; }
     const purposeCfg = PURPOSE_CONFIG.find(p => p.id === v.purpose);
     const PIcon = purposeCfg?.Icon ?? Wrench;
 
     return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: BG }}>
-        <WizardHeader title="Check Out Vendor" step={1} totalSteps={1} onCancel={() => { setView('list'); setCheckoutId(null); }} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <VendorHeader title="Confirm departure" description="Close the access record and capture the final outcome." step={1} totalSteps={1} onCancel={() => { changeView('list'); setCheckoutId(null); }} />
+        <div style={{flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',padding:isPhone?'18px':'24px 28px',display:'flex',flexDirection:'column',gap:20}}>
           <h2 style={{ fontFamily: INTER, fontSize: 20, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', margin: 0 }}>
             Confirm departure
           </h2>
@@ -321,7 +326,7 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
             </span>
           </div>
           <div style={{ position: 'relative' }}>
-            <Label>Departure Notes <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', fontSize: 12 }}>(optional — or use mic)</span></Label>
+            <Label optional>Departure Notes</Label>
             <textarea
               value={checkoutNotes + (checkoutInterim ? (checkoutNotes ? ' ' : '') + checkoutInterim : '')}
               onChange={e => setCheckoutNotes(e.target.value)}
@@ -333,7 +338,7 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
           </div>
         </div>
 
-        <div style={{ flexShrink: 0, padding: '12px 20px 24px', background: CARD, borderTop: `1px solid ${BORDER}` }}>
+        <div style={{flexShrink:0,padding:isPhone?'12px 20px 30px':'14px 28px 20px',background:CARD,borderTop:`1px solid ${BORDER}`,boxShadow:'0 -8px 24px rgba(0,0,0,.04)'}}>
           <button onClick={() => checkOut(checkoutId)}
             style={{ width: '100%', padding: '15px 0', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 15, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 6px 20px ${BLUE}28` }}>
             Confirm Check-Out
@@ -345,22 +350,25 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
 
   // ── LIST VIEW ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 24, background: BG }}>
-      <div style={{ padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',paddingBottom:isPhone?32:24,background:BG}}>
+      <div style={{padding:isPhone?'18px 16px 0':'20px 28px 0',display:'flex',flexDirection:'column',gap:20}}>
+
+        <div style={{minHeight:82,boxSizing:'border-box',flexShrink:0,display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,overflow:'hidden',boxShadow:SHADOW}}>
+          <div style={{ height:'100%', boxSizing:'border-box', padding:'16px 18px', display:'flex', alignItems:'center', gap:13 }}><div style={{ width:40, height:40, borderRadius:12, background:`${BLUE}10`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Building2 size={19} color={BLUE} /></div><div><div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, letterSpacing:'.14em', textTransform:'uppercase', marginBottom:5 }}>On site</div><div style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT }}>{active.length} active vendor{active.length === 1 ? '' : 's'}</div></div></div>
+          <div style={{height:'100%',boxSizing:'border-box',padding:'16px 18px',display:'flex',alignItems:'center',gap:13,borderLeft:isPhone?'none':`1px solid ${BORDER}`,borderTop:isPhone?`1px solid ${BORDER}`:'none'}}><div style={{ width:40, height:40, borderRadius:12, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><CheckCircle size={19} color={GREEN} /></div><div><div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, letterSpacing:'.14em', textTransform:'uppercase', marginBottom:5 }}>This shift</div><div style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT }}>{vendors.length} vendor record{vendors.length === 1 ? '' : 's'}</div></div></div>
+        </div>
+
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:-8 }}><span style={{ width:24, height:2, background:BLUE }} /><span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, letterSpacing:'.18em', textTransform:'uppercase' }}>Vendor desk</span></div>
+        <div role="tablist" aria-label="Vendor activity" style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:4, padding:4, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14 }}>
+          {[['active', 'On site', active.length], ['history', 'History', completed.length]].map(([id, label, count]) => { const selected = vendorTab === id; return <button key={id} role="tab" aria-selected={selected} onClick={() => setVendorTab(id)} style={{ minHeight:44, border:'none', borderRadius:10, background:selected?CARD:'transparent', boxShadow:selected?'0 2px 6px rgba(0,0,0,.08)':'none', color:selected?TEXT:MUTED, cursor:'pointer', fontFamily:INTER, fontSize:14, fontWeight:700, transition:'all 160ms' }}>{label}<span style={{ marginLeft:7, color:selected?BLUE:MUTED }}>{count}</span></button>; })}
+        </div>
 
         {/* Hero CTA */}
-        <button onClick={() => setView('entry')}
-          style={{ width: '100%', padding: 20, background: BLUE, borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', boxShadow: `0 8px 28px ${BLUE}40` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ width: 56, height: 56, background: 'rgba(255,255,255,0.20)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Plus size={28} color="white" />
-            </div>
-            <div style={{ textAlign: 'left' }}>
-              <p style={{ fontFamily: INTER, fontSize: 17, fontWeight: 700, color: 'white', margin: '0 0 3px' }}>Log Vendor Entry</p>
-              <p style={{ fontFamily: INTER, fontSize: 13, color: 'rgba(255,255,255,0.72)', margin: 0 }}>Record vendor access to the property</p>
-            </div>
-          </div>
-          <ChevronRight size={24} color="rgba(255,255,255,0.72)" />
+        <button onClick={() => changeView('entry')}
+          style={{width:'100%',minHeight:92,padding:16,background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,display:'grid',gridTemplateColumns:'44px minmax(0,1fr) 38px',alignItems:'center',gap:13,cursor:'pointer',textAlign:'left',boxShadow:SHADOW,transition:'transform 150ms, border-color 150ms, box-shadow 150ms'}}>
+          <div style={{width:44,height:44,borderRadius:12,background:'rgba(255,56,92,.11)',display:'flex',alignItems:'center',justifyContent:'center'}}><Plus size={20} color={BLUE}/></div>
+          <div style={{minWidth:0}}><div style={{fontFamily:INTER,fontSize:14,fontWeight:800,color:TEXT,marginBottom:4}}>Log vendor entry</div><div style={{fontFamily:INTER,fontSize:11,color:MUTED,lineHeight:1.45}}>Record company access, authorization, and destination.</div></div>
+          <div style={{width:38,height:38,borderRadius:999,background:BLUE,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 6px 16px ${BLUE}2b`}}><ChevronRight size={17} color="white"/></div>
         </button>
 
         {/* Stats (shown when vendors exist) */}
@@ -383,7 +391,7 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
         )}
 
         {/* In Building section */}
-        {active.length > 0 && (
+        {vendorTab === 'active' && active.length > 0 && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -419,8 +427,8 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
                         </div>
                       </div>
                     </div>
-                    <button onClick={() => { setCheckoutId(v.id); setView('checkout'); }}
-                      style={{ width: '100%', padding: '13px 0', background: ORANGE, border: 'none', borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: '0 4px 14px rgba(255,149,0,0.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <button onClick={() => { setCheckoutId(v.id); changeView('checkout'); }}
+                      style={{ width: '100%', padding: '13px 0', background: BLUE, border: 'none', borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 4px 14px ${BLUE}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                       <LogOut size={16} />Check Out
                     </button>
                   </div>
@@ -431,7 +439,7 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
         )}
 
         {/* Checked Out section */}
-        {completed.length > 0 && (
+        {vendorTab === 'history' && completed.length > 0 && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -465,13 +473,13 @@ export const VendorsDashboard = ({ onActivityLogged }) => {
         )}
 
         {/* Empty state */}
-        {vendors.length === 0 && (
-          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '40px 20px', textAlign: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: 18, background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-              <Wrench size={30} color={MUTED} strokeWidth={1.5} />
+        {((vendorTab === 'active' && active.length === 0) || (vendorTab === 'history' && completed.length === 0)) && (
+          <div style={{minHeight:isPhone?220:260,background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:'34px 20px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',boxShadow:SHADOW}}>
+            <div style={{width:52,height:52,borderRadius:14,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
+              <Wrench size={24} color={MUTED} />
             </div>
-            <p style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 16, margin: '0 0 5px' }}>No Vendors Logged</p>
-            <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>Tap the button above to record a vendor entry</p>
+            <p style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 16, margin: '0 0 5px' }}>{vendorTab === 'history' ? 'No vendor history yet' : 'No vendors on site'}</p>
+            <p style={{ fontFamily: INTER, fontSize: 13, color: MUTED, margin: 0 }}>{vendorTab === 'history' ? 'Checked-out vendors will appear here.' : 'Use the action above to record vendor access.'}</p>
           </div>
         )}
 

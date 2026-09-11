@@ -4,6 +4,20 @@ const BACKEND = `${process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001'}
 
 const api = axios.create({ baseURL: BACKEND });
 
+export function classifyAuthError(error) {
+  if (!error?.response) return { kind: 'network', message: 'We could not reach Noted. Check your connection and try again.' };
+  const status = error.response.status;
+  const detail = error.response.data?.detail;
+  const detailMessage = typeof detail === 'string' ? detail : detail?.message;
+  if (status === 401) return { kind: 'credentials', message: detailMessage || 'The email, password, or selected role is not correct.' };
+  if (status === 403) return { kind: 'account', message: detailMessage || 'This account does not have access to the selected workspace.' };
+  if (status === 409) return { kind: 'account', message: detailMessage || 'This account already exists or cannot be updated.' };
+  if (status === 429) return { kind: 'rate_limited', message: detailMessage || 'Too many attempts. Please wait a few minutes and try again.' };
+  if (status === 410) return { kind: detail?.status || 'gone', message: detailMessage || 'This link is no longer valid.' };
+  if (status === 404 && detail?.status) return { kind: detail.status, message: detailMessage || 'This link is not valid.' };
+  return { kind: 'server', message: detailMessage || 'Something went wrong. Please try again.' };
+}
+
 api.interceptors.request.use(cfg => {
   const token = localStorage.getItem('op_token');
   if (token) cfg.headers['Authorization'] = `Bearer ${token}`;
@@ -35,6 +49,7 @@ function normalizeTask(t) {
     completedByName: t.completed_by_name || '',
     createdBy:       t.created_by_name || '',
     createdByType:   t.created_by_type || 'concierge',
+    sourceSection:   t.source_section || '',
   };
 }
 
@@ -130,6 +145,26 @@ export const authApi = {
     }
   },
 
+  async requestPasswordReset(email) {
+    const { data } = await api.post('/auth/password/forgot', { email });
+    return data;
+  },
+
+  async resetPassword(token, password) {
+    const { data } = await api.post('/auth/password/reset', { token, password });
+    return data;
+  },
+
+  async verifyInvitation(token) {
+    const { data } = await api.get(`/auth/invitations/${token}`);
+    return data;
+  },
+
+  async acceptInvitation(token, password) {
+    const { data } = await api.post(`/auth/invitations/${token}/accept`, { password });
+    return data;
+  },
+
   // Team (concierges)
   async addConcierge(payload) {
     const { data } = await api.post('/manager/concierge', payload);
@@ -197,6 +232,7 @@ export const authApi = {
       assigned_to:    form.assignedTo || null,
       assigned_to_id: form.toId || null,
       due_time:       form.dueTime || 'ASAP',
+      source_section: form.sourceSection || null,
     });
     return normalizeTask(data);
   },

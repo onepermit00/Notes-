@@ -22,7 +22,7 @@ export const PropertySelectPage = ({ onSelect, userName = 'George Nwachukwu' }) 
       {/* Header */}
       <div style={{ background: CARD, padding: '52px 20px 24px', borderBottom: `1px solid ${BORDER}` }}>
         <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.16em', marginBottom: 8 }}>
-          CLOCKIT · PROPERTY SELECT
+          NOTED · PROPERTY SELECT
         </div>
         <div style={{ fontFamily: INTER, fontSize: 'clamp(1.5rem,6vw,2.2rem)', color: TEXT, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
           Good {getGreeting()},<br />{firstName}

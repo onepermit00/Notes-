@@ -3,7 +3,7 @@ import {
   Camera, AlertTriangle, Clock, Check,
   ChevronRight, Plus, Trash2, Shield,
   HelpCircle, FileText, Car, Volume2, Package,
-  Wrench, Users, Zap
+  Wrench, Users, Zap, X
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import MicButton from './MicButton';
@@ -87,7 +87,23 @@ const PLAYBOOK_CONFIG = {
   ],
 };
 
-export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', incidents = [], onAddIncident }) => {
+function EditorialHeader({ propertyName, title, description, step, total = 5, onClose }) {
+  const { colors:{ INTER,CARD,CARD2,BORDER,TEXT,MUTED } } = useTheme();
+  return <header style={{ flexShrink:0,background:CARD,color:TEXT,borderBottom:`1px solid ${BORDER}` }}>
+    <div style={{ padding:'24px 28px 17px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:18 }}>
+      <div style={{ minWidth:0 }}>
+        <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:11 }}><span style={{width:24,height:2,background:BLUE}}/><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.22em',textTransform:'uppercase'}}>{propertyName}</span></div>
+        <h2 style={{ fontFamily:INTER,fontSize:34,fontWeight:800,color:TEXT,letterSpacing:'-.045em',lineHeight:.98,margin:0 }}>{title}</h2>
+        <p style={{ maxWidth:470,fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.55,margin:'9px 0 0' }}>{description}</p>
+        {step && <p style={{fontFamily:INTER,fontSize:11,color:MUTED,margin:'8px 0 0'}}>Step {step} of {total} · Incident record</p>}
+      </div>
+      <button onClick={onClose} aria-label="Close incident report" style={{width:44,height:44,borderRadius:999,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}><X size={19} color={TEXT}/></button>
+    </div>
+    {step && <div style={{display:'flex',gap:5,padding:'0 28px 20px'}}>{Array.from({length:total}).map((_,i)=><span key={i} style={{flex:1,height:3,borderRadius:2,background:i<step?BLUE:BORDER,transition:'background 200ms'}}/>)}</div>}
+  </header>;
+}
+
+export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', incidents = [], onAddIncident, onClose, isPhone = false }) => {
   const { colors } = useTheme();
   const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
 
@@ -129,6 +145,7 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
   const [notifyFamily,     setNotifyFamily]     = useState(true);
   const [followUpRequired, setFollowUpRequired] = useState(false);
   const [isSubmitting,     setIsSubmitting]     = useState(false);
+  const [submitError,      setSubmitError]      = useState('');
   const [showSuccess,      setShowSuccess]      = useState(false);
   const [escalationCopied, setEscalationCopied] = useState(false);
 
@@ -145,6 +162,7 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setSubmitError('');
     const newIncident = {
       type: incidentType, severity, description,
       unitNumber, personInvolved,
@@ -154,9 +172,14 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
       location: unitNumber ? `Unit ${unitNumber}` : '',
       notes: actionsTaken,
     };
-    if (onAddIncident) await onAddIncident(newIncident);
-    setIsSubmitting(false);
-    setShowSuccess(true);
+    try {
+      if (onAddIncident) await onAddIncident(newIncident);
+      setShowSuccess(true);
+    } catch {
+      setSubmitError('The incident was not submitted. Your report is still here—check the connection and try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -179,9 +202,9 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
 
         {/* Success Screen */}
         {showSuccess ? (
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', textAlign: 'center' }}>
-            <div style={{ width: 80, height: 80, background: GREEN, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24, boxShadow: '0 8px 32px rgba(46,158,91,0.3)' }}>
-              <Check size={40} color="white" />
+          <><EditorialHeader propertyName={patientName} title="Report submitted" description="The incident is documented and ready for management follow-up." onClose={resetForm}/><div style={{ flex:1,overflowY:'auto',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:isPhone?'28px 18px':'36px 28px',textAlign:'center' }}>
+            <div style={{ width:64,height:64,background:'rgba(52,199,89,.12)',border:'1px solid rgba(52,199,89,.25)',borderRadius:18,display:'flex',alignItems:'center',justifyContent:'center',marginBottom:18 }}>
+              <Check size={30} color={GREEN} />
             </div>
             <h2 style={{ fontFamily: INTER, fontSize: '1.6rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 8 }}>Report Submitted</h2>
             <p style={{ fontSize: 15, color: MUTED, marginBottom: 28, lineHeight: 1.6 }}>
@@ -213,59 +236,45 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
               })()}
             </div>
             <button onClick={resetForm}
-              style={{ padding: '16px 40px', background: BLUE, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 16, fontWeight: 700, color: 'white', cursor: 'pointer', boxShadow: `0 8px 24px ${BLUE}40` }}
+              style={{ minHeight:48,padding:'0 34px',background:BLUE,border:'none',borderRadius:999,fontFamily:INTER,fontSize:14,fontWeight:750,color:'white',cursor:'pointer',boxShadow:`0 7px 22px ${BLUE}28` }}
               data-testid="incident-done-btn">
               Done
             </button>
-          </div>
+          </div></>
         ) : (
           <>
-            {/* Header */}
-            <div style={{ flexShrink: 0, padding: '16px 20px', borderBottom: `1px solid ${BORDER}`, background: CARD }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div>
-                  <h2 style={{ fontFamily: INTER, fontSize: '1.1rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>New Property Incident</h2>
-                  <p style={{ fontSize: 13, color: MUTED }}>Step {step} of 5</p>
-                </div>
-                <button onClick={() => { window.scrollTo(0, 0); setActiveView('history'); }}
-                  style={{ padding: '10px 20px', ...glass(), borderRadius: 12, fontSize: 14, fontWeight: 600, color: TEXT, cursor: 'pointer', fontFamily: INTER }}
-                  data-testid="incident-cancel-btn">
-                  Cancel
-                </button>
-              </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {[1,2,3,4,5].map((s) => (
-                  <div key={s} style={{ height: 4, flex: 1, borderRadius: 999, background: s <= step ? RED : 'rgba(0,0,0,0.10)' }} />
-                ))}
-              </div>
-            </div>
+            <EditorialHeader propertyName={patientName}
+              title={['','Classify the incident','Document what happened','Record witnesses','Attach evidence','Review the report'][step]}
+              description={['','Choose the incident type and review the appropriate response protocol.','Set severity and capture the facts, people, location, and actions taken.','Document anyone who observed the event or confirm that no witnesses were present.','Add visual evidence when it helps establish condition, damage, or context.','Confirm the complete operational record before submitting it to management.'][step]}
+              step={step} onClose={() => { window.scrollTo(0,0); setActiveView('history'); }} />
 
             {/* Scrollable Content */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              <div style={{ padding: '24px 20px' }}>
+              <div style={{ padding:isPhone?18:'24px 28px' }}>
 
                 {/* Step 1: Type */}
                 {step === 1 && (
                   <div data-testid="incident-step-1">
-                    <h3 style={{ fontFamily: INTER, fontSize: '1.2rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 20 }}>What type of property incident?</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {INCIDENT_TYPES.map((type) => {
+                    <div style={{marginBottom:18}}><div style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.16em',textTransform:'uppercase',marginBottom:6}}>01 · Classification</div><h3 style={{fontFamily:INTER,fontSize:20,fontWeight:800,color:TEXT,letterSpacing:'-.03em',margin:'0 0 5px'}}>What type of incident occurred?</h3><p style={{fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.5,margin:0}}>Choose the closest category so the correct desk protocol appears.</p></div>
+                    <div style={{ display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:9 }}>
+                      {INCIDENT_TYPES.map((type,index) => {
                         const sel = incidentType === type.id;
                         return (
                           <button key={type.id} onClick={() => setIncidentType(type.id)}
-                            style={{ padding: 20, borderRadius: 16, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer',
+                            style={{ minHeight:92,padding:13,borderRadius:14,textAlign:'left',display:'grid',gridTemplateColumns:'36px 1fr 22px',alignItems:'center',gap:11,cursor:'pointer',
                               background: sel ? 'rgba(239,68,68,0.06)' : CARD,
-                              border: sel ? `2px solid ${RED}` : `2px solid ${BORDER}`,
-                              boxShadow: sel ? `0 4px 20px rgba(239,68,68,0.12)` : SHADOW,
+                              border: `1.5px solid ${sel ? BLUE : BORDER}`,
+                              boxShadow: sel ? '0 5px 18px rgba(255,56,92,.10)' : SHADOW,
                             }}
                             data-testid={`incident-type-${type.id}`}>
-                            <div style={{ width: 56, height: 56, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: sel ? 'rgba(239,68,68,0.12)' : CARD2 }}>
-                              <type.icon size={24} color={sel ? RED : MUTED} />
+                            <div style={{width:36,height:36,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',background:sel?'rgba(255,56,92,.12)':CARD2,position:'relative'}}>
+                              <type.icon size={18} color={sel ? BLUE : MUTED} /><span style={{position:'absolute',top:-6,left:-6,fontFamily:INTER,fontSize:7,fontWeight:800,color:sel?BLUE:MUTED}}>{String(index+1).padStart(2,'0')}</span>
                             </div>
                             <div style={{ flex: 1 }}>
-                              <p style={{ fontWeight: 700, color: TEXT, fontSize: 18, marginBottom: 2 }}>{type.label}</p>
-                              <p style={{ fontSize: 14, color: MUTED }}>{type.description}</p>
+                              <p style={{fontFamily:INTER,fontWeight:750,color:TEXT,fontSize:13,margin:'0 0 4px'}}>{type.label}</p>
+                              <p style={{fontFamily:INTER,fontSize:11,color:MUTED,lineHeight:1.4,margin:0}}>{type.description}</p>
                             </div>
+                            {sel&&<div style={{width:22,height:22,borderRadius:'50%',background:BLUE,display:'flex',alignItems:'center',justifyContent:'center'}}><Check size={13} color="white" strokeWidth={3}/></div>}
                           </button>
                         );
                       })}
@@ -292,9 +301,11 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
                 {/* Step 2: Severity & Details */}
                 {step === 2 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} data-testid="incident-step-2">
+                    <div><div style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.16em',textTransform:'uppercase',marginBottom:6}}>02 · Incident details</div><h3 style={{fontFamily:INTER,fontSize:20,fontWeight:800,color:TEXT,letterSpacing:'-.03em',margin:'0 0 5px'}}>Build the factual record</h3><p style={{fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.5,margin:0}}>Use direct observations and record actions in chronological order.</p></div>
+                    <section style={{...glassCard,padding:isPhone?16:20,boxShadow:SHADOW,display:'grid',gap:20}}>
                     <div>
                       <h3 style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 12 }}>Severity Level</h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                      <div style={{ display:'grid',gridTemplateColumns:isPhone?'repeat(2,1fr)':'repeat(4,1fr)',gap:8 }}>
                         {SEVERITY_LEVELS.map((level) => (
                           <button key={level.id} onClick={() => setSeverity(level.id)}
                             style={{ padding: '12px 0', borderRadius: 12, textAlign: 'center', fontFamily: INTER, fontSize: 13, fontWeight: 600, cursor: 'pointer',
@@ -310,7 +321,7 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
                     </div>
 
                     {/* Unit Number + Person Involved */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div style={{ display:'grid',gridTemplateColumns:isPhone?'1fr':'1fr 1fr',gap:12 }}>
                       <div>
                         <h3 style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 10 }}>Unit Number</h3>
                         <input
@@ -341,6 +352,7 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
                         <MicButton onTranscript={t => setDescription(p => p ? p + ' ' + t : t)} />
                       </div>
                     </div>
+                    </section>
                     <div>
                       <h3 style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em', marginBottom: 12 }}>Actions Taken</h3>
                       <div style={{ position: 'relative' }}>
@@ -376,7 +388,7 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
                       <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <span style={{ color: MUTED, fontSize: 12, fontWeight: 700 }}>i</span>
                       </div>
-                      <p style={{ color: MUTED, fontSize: 13, lineHeight: 1.7 }}>Include full names and their relationship to the patient if applicable (e.g., "John Smith - Family Visitor", "Jane Doe - Nurse on duty")</p>
+                      <p style={{ color: MUTED, fontSize: 13, lineHeight: 1.7 }}>Include full names and their connection to the event when relevant (for example, “John Smith — Visitor” or “Jane Doe — Vendor representative”).</p>
                     </div>
                     <button onClick={() => setNoWitnesses(!noWitnesses)}
                       style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
@@ -501,24 +513,25 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
             </div>
 
             {/* Footer */}
-            <div style={{ flexShrink: 0, padding: '12px 20px 20px', background: CARD, borderTop: `1px solid ${BORDER}` }} data-testid="incident-footer">
+            <div style={{ flexShrink:0,padding:'14px 28px 20px',background:CARD,borderTop:`1px solid ${BORDER}`,boxShadow:'0 -8px 24px rgba(0,0,0,.04)' }} data-testid="incident-footer">
+              {submitError && <p role="alert" style={{ margin: '0 0 10px', padding: '10px 12px', border: `1px solid ${RED}55`, borderRadius: 10, color: RED, fontFamily: INTER, fontSize: 13, lineHeight: 1.45 }}>{submitError}</p>}
               <div style={{ display: 'flex', gap: 12 }}>
                 {step > 1 && (
                   <button onClick={handleBack}
-                    style={{ flex: 1, padding: '16px 0', ...glass(), borderRadius: 14, fontFamily: INTER, fontSize: 16, fontWeight: 600, color: TEXT, cursor: 'pointer' }}
+                    style={{ flex:1,minHeight:48,...glass(),borderRadius:14,fontFamily:INTER,fontSize:14,fontWeight:700,color:TEXT,cursor:'pointer' }}
                     data-testid="incident-back-btn">
                     Back
                   </button>
                 )}
                 {step < 5 ? (
                   <button onClick={handleNext} disabled={isNextDisabled()}
-                    style={{ flex: 1, padding: '16px 0', background: isNextDisabled() ? CARD2 : RED, border: isNextDisabled() ? `1px solid ${BORDER}` : 'none', borderRadius: 14, fontFamily: INTER, fontSize: 16, fontWeight: 700, color: isNextDisabled() ? MUTED : 'white', cursor: isNextDisabled() ? 'not-allowed' : 'pointer', boxShadow: isNextDisabled() ? 'none' : `0 8px 24px rgba(239,68,68,0.3)` }}
+                    style={{ flex:1,minHeight:48,background:isNextDisabled()?CARD2:BLUE,border:isNextDisabled()?`1px solid ${BORDER}`:'none',borderRadius:999,fontFamily:INTER,fontSize:14,fontWeight:750,color:isNextDisabled()?MUTED:'white',cursor:isNextDisabled()?'not-allowed':'pointer',boxShadow:isNextDisabled()?'none':`0 7px 22px ${BLUE}28` }}
                     data-testid="incident-next-btn">
                     Continue
                   </button>
                 ) : (
                   <button onClick={handleSubmit} disabled={isSubmitting}
-                    style={{ flex: 1, padding: '16px 0', background: RED, border: 'none', borderRadius: 14, fontFamily: INTER, fontSize: 16, fontWeight: 700, color: 'white', cursor: isSubmitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: `0 8px 24px rgba(239,68,68,0.3)` }}
+                    style={{ flex:1,minHeight:48,background:BLUE,border:'none',borderRadius:999,fontFamily:INTER,fontSize:14,fontWeight:750,color:'white',cursor:isSubmitting?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,boxShadow:`0 7px 22px ${BLUE}28` }}
                     data-testid="incident-submit-btn">
                     {isSubmitting ? (
                       <>
@@ -538,30 +551,28 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
 
   // ── History View ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: BG, paddingBottom: 32, fontFamily: INTER }}>
+    <div style={{ flex:1,minHeight:0,display:'flex',flexDirection:'column',background:BG,fontFamily:INTER }}>
+      <EditorialHeader propertyName={patientName} title="Incident reports" description="Create structured property records with clear actions, evidence, and escalation context." onClose={onClose}/>
 
-      <div style={{ padding: '16px 20px 20px' }}>
+      <div style={{ flex:1,minHeight:0,overflowY:'auto',padding:isPhone?18:'20px 28px 30px' }}>
         <button onClick={() => { window.scrollTo(0, 0); setActiveView('new'); }}
-          style={{ width: '100%', padding: 20, background: RED, borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', boxShadow: `0 8px 24px rgba(239,68,68,0.3)` }}
+          style={{ width:'100%',minHeight:64,padding:'12px 16px',background:BLUE,borderRadius:16,border:'none',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',boxShadow:`0 7px 22px ${BLUE}28`,marginBottom:20 }}
           data-testid="new-incident-btn">
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ width: 56, height: 56, background: 'rgba(255,255,255,0.2)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Plus size={28} color="white" />
+            <div style={{ width:38,height:38,background:'rgba(255,255,255,.17)',borderRadius:11,display:'flex',alignItems:'center',justifyContent:'center' }}>
+              <Plus size={20} color="white" />
             </div>
             <div>
-              <p style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.01em' }}>New Property Incident</p>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>Document an incident now</p>
+              <p style={{ fontFamily:INTER,fontSize:14,fontWeight:750,color:'white',margin:'0 0 3px' }}>New incident report</p>
+              <p style={{ fontFamily:INTER,fontSize:11,color:'rgba(255,255,255,.72)',margin:0 }}>Document an incident now</p>
             </div>
           </div>
-          <ChevronRight size={24} color="rgba(255,255,255,0.7)" />
+          <ChevronRight size={18} color="rgba(255,255,255,.75)" />
         </button>
-      </div>
-
-      <div style={{ padding: '0 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <FileText size={20} color={MUTED} />
-            <h2 style={{ fontWeight: 700, color: TEXT, fontSize: 17 }}>Past Reports</h2>
+              <h2 style={{ fontFamily:INTER,fontWeight:800,color:TEXT,fontSize:16,margin:0 }}>Past reports</h2>
           </div>
           <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED }}>
             {incidents.length}
@@ -574,9 +585,9 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
               const type = INCIDENT_TYPES.find(t => t.id === incident.type);
               const sev  = SEVERITY_LEVELS.find(s => s.id === incident.severity);
               return (
-                <div key={incident.id} style={{ ...glassCard, padding: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ width: 48, height: 48, background: 'rgba(239,68,68,0.1)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {type && <type.icon size={24} color={RED} />}
+                <div key={incident.id} style={{ ...glassCard,padding:16,display:'grid',gridTemplateColumns:'44px 1fr auto',alignItems:'center',gap:13,boxShadow:SHADOW }}>
+                  <div style={{ width:44,height:44,background:'rgba(255,56,92,.09)',borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center' }}>
+                    {type && <type.icon size={20} color={BLUE} />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontWeight: 700, color: TEXT, fontSize: 16 }}>{type?.label || 'Incident'}</p>
@@ -600,12 +611,12 @@ export const IncidentReportPage = ({ patientName = 'The Greystone at Midtown', i
             })}
           </div>
         ) : (
-          <div style={{ ...glassCard, padding: 40, textAlign: 'center' }}>
-            <div style={{ width: 80, height: 80, background: CARD2, borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <AlertTriangle size={40} color={MUTED} />
+          <div style={{ ...glassCard,padding:'38px 20px',textAlign:'center',boxShadow:SHADOW }}>
+            <div style={{ width:50,height:50,background:CARD2,borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px' }}>
+              <AlertTriangle size={22} color={MUTED} />
             </div>
-            <p style={{ fontWeight: 700, color: TEXT, fontSize: 17, marginBottom: 6 }}>No incidents reported</p>
-            <p style={{ fontSize: 14, color: MUTED }}>Tap the button above to report a new incident</p>
+            <p style={{ fontFamily:INTER,fontWeight:800,color:TEXT,fontSize:15,margin:'0 0 4px' }}>No incidents reported</p>
+            <p style={{ fontFamily:INTER,fontSize:12,color:MUTED,margin:0 }}>New incident records will appear here.</p>
           </div>
         )}
       </div>

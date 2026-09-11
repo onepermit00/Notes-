@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
-/* ADLTrack App Styles */
+/* Noted application styles */
 
 .hero-heading {
   background: linear-gradient(180deg, #0C0C0C 0%, #646973 100%);
@@ -743,7 +743,7 @@ button:focus {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   ADLTRACK MICRO-INTERACTIONS & POLISH
+   NOTED MICRO-INTERACTIONS & POLISH
 ═══════════════════════════════════════════════════════════════ */
 
 /* ── Button press feedback — depresses on tap/click ── */

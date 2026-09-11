@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { UserRole } from '../types';
-import { authApi } from '../services/authApi';
+import { authApi, classifyAuthError } from '../services/authApi';
 
 const ACCENT = '#FF385C';
 
@@ -10,16 +10,22 @@ const ROLES = [
   { label: 'Manager', value: UserRole.MANAGER },
 ];
 
-export const SignIn = ({ onSignIn, onGoToSignUp, onBack }) => {
+export const SignIn = ({ onSignIn, onGoToSignUp, onForgotPassword, onBack }) => {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState(UserRole.CONCIERGE);
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.email || !form.password) { setError('Please fill in all fields.'); return; }
+    const nextErrors = {};
+    if (!form.email.trim()) nextErrors.email = 'Enter your email address.';
+    else if (!/^\S+@\S+\.\S+$/.test(form.email)) nextErrors.email = 'Enter a valid email address.';
+    if (!form.password) nextErrors.password = 'Enter your password.';
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) { setError('Check the highlighted fields.'); return; }
     setError('');
     setLoading(true);
     try {
@@ -27,7 +33,7 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onBack }) => {
       const user = await authApi.signIn(apiRole, form.email, form.password);
       onSignIn(role, user);
     } catch (err) {
-      setError(err?.response?.data?.detail || err.message || 'Sign in failed. Please check your credentials.');
+      setError(classifyAuthError(err).message);
     } finally {
       setLoading(false);
     }
@@ -41,7 +47,7 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onBack }) => {
       {/* ── Left — editorial narrative (desktop only) ─────────────────────── */}
       <aside className="hidden w-[42%] shrink-0 flex-col justify-between bg-[#0b0b0b] p-12 text-white lg:flex" aria-hidden="true">
         <button onClick={onBack} className="self-start text-left text-[12px] font-extrabold uppercase tracking-[0.24em] text-white" data-testid="signin-brand-back">
-          ✦ Notes
+          ✦ Noted
         </button>
 
         <div>
@@ -74,7 +80,7 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onBack }) => {
         <div className="w-full max-w-[420px]">
 
           <button onClick={onBack} className="mb-10 flex min-h-11 items-center text-[12px] font-extrabold uppercase tracking-[0.24em] text-[#222] lg:hidden" data-testid="signin-mobile-back">
-            ✦ Notes
+            ✦ Noted
           </button>
 
           <div className="flex items-center gap-3">
@@ -137,16 +143,19 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onBack }) => {
                 autoComplete="email"
                 placeholder="you@example.com"
                 value={form.email}
-                onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                onChange={(e) => { setForm((p) => ({ ...p, email: e.target.value })); setFieldErrors((p) => ({ ...p, email: '' })); }}
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={fieldErrors.email ? 'signin-email-error' : undefined}
                 data-testid="signin-email-input"
                 className="min-h-12 w-full rounded-xl border border-[#ebebeb] bg-[#f7f7f7] px-4 text-base text-[#222] placeholder:text-[#9b9b9b] focus:border-[#ff385c] focus:outline-none"
               />
+              {fieldErrors.email && <p id="signin-email-error" className="mt-1.5 text-[12px] font-semibold text-[#c22a20]">{fieldErrors.email}</p>}
             </div>
 
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <label htmlFor="signin-password" className="text-[13px] font-semibold">Password</label>
-                <button type="button" className="text-[12px] font-bold text-[#ff385c]">Forgot password?</button>
+                <button type="button" onClick={onForgotPassword} className="min-h-11 px-1 text-[12px] font-bold text-[#ff385c]">Forgot password?</button>
               </div>
               <div className="relative">
                 <input
@@ -155,7 +164,9 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onBack }) => {
                   autoComplete="current-password"
                   placeholder="••••••••"
                   value={form.password}
-                  onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+                  onChange={(e) => { setForm((p) => ({ ...p, password: e.target.value })); setFieldErrors((p) => ({ ...p, password: '' })); }}
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  aria-describedby={fieldErrors.password ? 'signin-password-error' : undefined}
                   data-testid="signin-password-input"
                   className="min-h-12 w-full rounded-xl border border-[#ebebeb] bg-[#f7f7f7] px-4 pr-12 text-base text-[#222] placeholder:text-[#9b9b9b] focus:border-[#ff385c] focus:outline-none"
                 />
@@ -167,6 +178,7 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onBack }) => {
                   {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
+              {fieldErrors.password && <p id="signin-password-error" className="mt-1.5 text-[12px] font-semibold text-[#c22a20]">{fieldErrors.password}</p>}
             </div>
 
             {error && (
