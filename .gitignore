@@ -7,6 +7,8 @@ build/
 .DS_Store
 .localdev/
 .playwright-mcp/
+.playwright-cli/
+frontend/node_modules.previous/
 
 # Python
 __pycache__/

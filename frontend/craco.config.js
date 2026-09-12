@@ -80,6 +80,9 @@ if (config.enableVisualEdits && babelMetadataPlugin) {
 webpackConfig.devServer = (devServerConfig) => {
   // Allow preview/proxy hosts (fixes "Invalid Host header")
   devServerConfig.allowedHosts = "all";
+  // Serve index.html for client-side React Router URLs such as /app/today.
+  // Without this, opening or refreshing a dashboard route returns a 404.
+  devServerConfig.historyApiFallback = true;
 
   // Apply visual edits dev server setup only if enabled
   if (config.enableVisualEdits && setupDevServer) {

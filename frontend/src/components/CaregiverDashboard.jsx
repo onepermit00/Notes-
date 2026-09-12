@@ -2111,6 +2111,30 @@ export const CaregiverDashboard = ({
           </div>
         </div>
 
+        {/* Appearance */}
+        <div>
+          {sectionLabel('Appearance')}
+          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:20, display:'flex', alignItems:'center', gap:16, boxShadow:'0 2px 8px rgba(0,0,0,0.04)' }}>
+            <div style={{ width:52, height:52, borderRadius:14, background:`${BLUE}12`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              {isDarkMode ? <Moon size={22} color={BLUE} /> : <Sun size={22} color={BLUE} />}
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 3px' }}>Dark mode</p>
+              <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>{isDarkMode ? 'Dark appearance is on' : 'Light appearance is on'}</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isDarkMode}
+              aria-label="Dark mode"
+              onClick={toggleTheme}
+              style={{ width:48, height:28, padding:3, border:0, borderRadius:999, background:isDarkMode?BLUE:BORDER, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:isDarkMode?'flex-end':'flex-start', transition:'background 150ms', flexShrink:0 }}
+            >
+              <span aria-hidden="true" style={{ width:22, height:22, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 4px rgba(0,0,0,.22)', display:'block' }} />
+            </button>
+          </div>
+        </div>
+
         {/* Teams & Conditions */}
         <div>
           {sectionLabel('Teams & Conditions')}
@@ -2788,8 +2812,9 @@ export const CaregiverDashboard = ({
       <div role="status" aria-live="polite" aria-atomic="true" style={{ position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>
         {srAnnounce}
       </div>
-      {/* ── Full-width desktop header ────────────────────────────────────── */}
-      {!isMobile && (
+      {/* The desktop workspace header was removed to give dashboard content
+          the full available height. Navigation remains in the sidebar. */}
+      {false && !isMobile && (
         <header style={{ height:72, background:CARD, borderBottom:`1px solid ${BORDER}`, display:'flex', alignItems:'center', padding:'0 24px', flexShrink:0, gap:16, zIndex:20, boxShadow:'0 2px 10px rgba(0,0,0,.03)' }}>
           <button onClick={() => setSidebarCollapsed(c => !c)} aria-label={sidebarCollapsed ? 'Expand workspace navigation' : 'Collapse workspace navigation'} style={{ width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}><Menu size={18} color={TEXT} /></button>
           <button onClick={() => handleTabChange('home')} style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, border:'none', padding:0, background:'transparent', cursor:'pointer', textAlign:'left', flexShrink:0 }}>
@@ -3023,10 +3048,6 @@ export const CaregiverDashboard = ({
                 <button aria-label={showSearch ? 'Close search' : 'Open search'} onClick={() => { setShowSearch(s => !s); setSearchQuery(''); }}
                   style={{ width:40, height:40, borderRadius:12, border:`1px solid ${showSearch?BLUE:BORDER}`, background:showSearch?`${BLUE}10`:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
                   {showSearch ? <X size={18} color={BLUE} /> : <Search size={18} color={TEXT} />}
-                </button>
-                <button aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'} onClick={toggleTheme}
-                  style={{ width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:isDarkMode?'rgba(255,214,10,.12)':CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
-                  {isDarkMode ? <Sun size={17} color="#FFD60A" /> : <Moon size={17} color={MUTED} />}
                 </button>
               </div>
               {/* Mobile search row */}
