@@ -52,6 +52,17 @@ const BLUE    = '#FF385C';
 const RED     = '#FF3B30';
 const ORANGE  = '#FF9500';
 
+const ROUTE_TO_TAB = {
+  today: 'home', handoff: 'home', knowledge: 'sops', tasks: 'requests',
+  incidents: 'incident', visitors: 'guests', vendors: 'vendors', packages: 'packages',
+  history: 'shift-history', profile: 'profile', settings: 'settings',
+};
+const TAB_TO_ROUTE = {
+  home: 'today', sops: 'knowledge', requests: 'tasks',
+  incident: 'incidents', guests: 'visitors', vendors: 'vendors', packages: 'packages',
+  'shift-history': 'history', profile: 'profile', settings: 'settings',
+};
+
 function Ghost({ label }) { return null; }
 function SectionLabel({ children }) {
   const { colors } = useTheme();
@@ -380,6 +391,14 @@ export const CaregiverDashboard = ({
   const [isMobile,      setIsMobile]      = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (t ? 1366 : 768); });
   const [isPhone,       setIsPhone]       = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return t && window.innerWidth < 768; });
 
+  const handleTabChange = useCallback((id) => {
+    if (id !== 'home') setShowHandover(false);
+    setSectionWorkflow(false);
+    setActiveTab(id);
+    const route = TAB_TO_ROUTE[id];
+    if (route && location.pathname !== `/app/${route}`) navigate(`/app/${route}`);
+  }, [location.pathname, navigate]);
+
   // Escape closes the topmost open drawer/modal (accessibility)
   useEffect(() => {
     const onEsc = (e) => {
@@ -398,7 +417,7 @@ export const CaregiverDashboard = ({
     };
     window.addEventListener('keydown', onEsc);
     return () => window.removeEventListener('keydown', onEsc);
-  }, [showSearch, showSummary, showHandover, showPreviousDar, selectedTask, showNewTask, showContacts, showPkgAudit, showAmenities, showModels, activeTab]);
+  }, [showSearch, showSummary, showHandover, showPreviousDar, selectedTask, showNewTask, showContacts, showPkgAudit, showAmenities, showModels, activeTab, handleTabChange]);
 
 
   // Load real data + shift state on mount
@@ -676,24 +695,6 @@ export const CaregiverDashboard = ({
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const dayLabel = today.toDateString() === new Date().toDateString() ? 'Today' : `${monthNames[today.getMonth()]} ${today.getDate()}`;
 
-  const ROUTE_TO_TAB = {
-    today: 'home', handoff: 'home', knowledge: 'sops', tasks: 'requests',
-    incidents: 'incident', visitors: 'guests', vendors: 'vendors', packages: 'packages',
-    history: 'shift-history', profile: 'profile', settings: 'settings',
-  };
-  const TAB_TO_ROUTE = {
-    home: 'today', sops: 'knowledge', requests: 'tasks',
-    incident: 'incidents', guests: 'visitors', vendors: 'vendors', packages: 'packages',
-    'shift-history': 'history', profile: 'profile', settings: 'settings',
-  };
-  const handleTabChange = useCallback((id) => {
-    if (id !== 'home') setShowHandover(false);
-    setSectionWorkflow(false);
-    setActiveTab(id);
-    const route = TAB_TO_ROUTE[id];
-    if (route && location.pathname !== `/app/${route}`) navigate(`/app/${route}`);
-  }, [location.pathname, navigate]);
-
   useEffect(() => {
     const route = location.pathname.split('/').filter(Boolean)[1] || 'today';
     setSectionWorkflow(false);
@@ -768,7 +769,7 @@ export const CaregiverDashboard = ({
     setShowSummary(true);
   };
 
-  const handleActivityLogged = ({ title, category = '', notes = '', evidenceUrls = [], sourceSection = '' }) => {
+  const handleActivityLogged = useCallback(({ title, category = '', notes = '', evidenceUrls = [], sourceSection = '' }) => {
     const t = nowStr();
     const resolvedSource = sourceSection || inferDarSource({ title, category });
     const local = { id: Date.now(), title, category, notes, evidenceUrls, location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed', _source: resolvedSource };
@@ -782,7 +783,7 @@ export const CaregiverDashboard = ({
       dueTime: t,
       sourceSection: resolvedSource,
     }).then(saved => setTasks(p => [saved, ...p])).catch(() => {});
-  };
+  }, [authUser]);
 
   const handleSectionActivityLogged = (entry) => {
     handleActivityLogged(entry);
@@ -813,7 +814,7 @@ export const CaregiverDashboard = ({
       setDarReceipt({ title: task.title, detail: 'Request accepted · now in progress' });
       setTimeout(() => setDarReceipt(null), 4200);
     } catch {}
-  }, []);
+  }, [handleActivityLogged, handleTabChange]);
 
   const handleDeclineRequest = useCallback(async (taskId, reason = '') => {
     try {
@@ -824,7 +825,7 @@ export const CaregiverDashboard = ({
       setDarReceipt({ title: 'Request updated', detail: 'Decision recorded in the operational record' });
       setTimeout(() => setDarReceipt(null), 4200);
     } catch {}
-  }, []);
+  }, [handleActivityLogged, handleTabChange]);
 
   const displayTasks    = tasks.filter(t => t.status !== TaskStatus.PROPOSED);
   const pendingTasks    = displayTasks.filter(t => t.status !== TaskStatus.COMPLETED);
