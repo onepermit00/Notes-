@@ -50,6 +50,9 @@ function normalizeTask(t) {
     createdBy:       t.created_by_name || '',
     createdByType:   t.created_by_type || 'concierge',
     sourceSection:   t.source_section || '',
+    completionNote:  t.completion_note || '',
+    evidenceUrl:     t.evidence_url || '',
+    evidenceUrls:    Array.isArray(t.evidence_urls) ? t.evidence_urls : (t.evidence_url ? [t.evidence_url] : []),
   };
 }
 
@@ -67,6 +70,7 @@ function normalizeIncident(i) {
     status:          i.status || 'new',
     unit_number:     i.unit_number || '',
     person_involved: i.person_involved || '',
+    evidenceUrls:    Array.isArray(i.evidence_urls) ? i.evidence_urls : [],
   };
 }
 
@@ -314,13 +318,18 @@ export const authApi = {
       notes:                   form.notes || '',
       category:                form.category || 'Administrative',
       priority:                form.priority || 'Standard',
-      recurrence:              form.recurrence || 'shift_start',
-      scheduled_hour:          form.scheduledHour || 8,
+      recurrence:              'daily',
+      scheduled_hour:          Number((form.scheduledTime || '08:00').split(':')[0]),
       shift_window:            form.shiftWindow || 'all',
       assigned_concierge_id:   form.assignedConciergeId || '',
       assigned_concierge_name: form.assignedConciergeName || '',
       assigned_to:             form.assignedConciergeName || '',
       assigned_to_id:          form.assignedConciergeId || '',
+      start_date:              form.startDate,
+      end_date:                form.endDate,
+      scheduled_time:          form.scheduledTime,
+      days_of_week:            form.daysOfWeek,
+      active:                  form.active !== false,
     });
     return data;
   },
@@ -366,6 +375,7 @@ export const authApi = {
       notes:            form.notes || form.actionsTaken || '',
       unit_number:      form.unitNumber || '',
       person_involved:  form.personInvolved || '',
+      evidence_urls:    (form.photos || []).map(photo => photo?.url).filter(Boolean),
     });
     return normalizeIncident(data);
   },

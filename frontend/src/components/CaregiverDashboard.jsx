@@ -42,15 +42,23 @@ import { useTheme } from '../context/ThemeContext';
 import { useSharedData } from '../context/SharedDataContext';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { SignaturePad } from './SignaturePad';
+import { KnowledgeStatusBadge } from './knowledge/KnowledgeUI';
+import {
+  DASHBOARD_ACCENT, DASHBOARD_ACTIVE_NAV, DASHBOARD_DANGER, DASHBOARD_FONT,
+  DASHBOARD_SIDEBAR_COLLAPSED, DASHBOARD_SIDEBAR_EXPANDED,
+  DASHBOARD_SUCCESS, DASHBOARD_WARNING,
+  DashboardCard as Card, DashboardEyebrow as SectionLabel,
+  DashboardPage, DashboardSectionTitle as SectionTitle, DailyActivityReport,
+} from './dashboard';
 
 // ─── Static / brand tokens (theme-independent) ────────────────────────────────
-const INTER      = `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+const INTER      = DASHBOARD_FONT;
 const SF_DISPLAY = INTER;
 const SF_TEXT    = INTER;
-const GREEN   = '#34C759';
-const BLUE    = '#FF385C';
-const RED     = '#FF3B30';
-const ORANGE  = '#FF9500';
+const GREEN   = DASHBOARD_SUCCESS;
+const BLUE    = DASHBOARD_ACCENT;
+const RED     = DASHBOARD_DANGER;
+const ORANGE  = DASHBOARD_WARNING;
 
 const ROUTE_TO_TAB = {
   today: 'home', handoff: 'home', knowledge: 'sops', tasks: 'requests',
@@ -64,24 +72,43 @@ const TAB_TO_ROUTE = {
 };
 
 function Ghost({ label }) { return null; }
-function SectionLabel({ children }) {
-  const { colors } = useTheme();
-  return <span style={{ fontFamily: INTER, fontSize: 11, fontWeight: 600, color: colors.MUTED, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{children}</span>;
-}
-function SectionTitle({ children, style = {} }) {
-  const { colors } = useTheme();
-  return <span style={{ fontFamily: INTER, fontSize: 'clamp(1.1rem,3vw,1.4rem)', fontWeight: 700, color: colors.TEXT, letterSpacing: '-0.01em', lineHeight: 1.2, ...style }}>{children}</span>;
-}
-function Card({ children, style = {}, onClick, testId }) {
-  const { colors } = useTheme();
-  const gc = { background: colors.CARD, boxShadow: colors.SHADOW, borderRadius: 24, overflow: 'hidden' };
+
+function MediaCarouselCard({ item, isPhone, colors, fontFamily, onOpen }) {
+  const { CARD, CARD2, BORDER, TEXT, MUTED, BLUE, SHADOW } = colors;
+  const urls = Array.isArray(item?.urls) ? item.urls.filter(Boolean) : [];
+  const imageCount = urls.length;
+  const itemTime = typeof item?.time === 'string' ? item.time : String(item?.time || '');
+  const itemTitle = typeof item?.title === 'string' ? item.title : String(item?.title || 'Shift evidence');
+  const completedLabel = itemTime
+    ? (/completed/i.test(itemTime) ? itemTime : `Completed at ${itemTime}`)
+    : 'Completed this shift';
+
+  if (!imageCount) return null;
+
   return (
-    <div data-testid={testId} onClick={onClick} style={{ ...gc, cursor: onClick ? 'pointer' : undefined, ...style }}>
-      {children}
-    </div>
+    <article style={{ minWidth:0, border:`1px solid ${BORDER}`, borderRadius:20, overflow:'hidden', background:CARD, boxShadow:SHADOW }}>
+      <div style={{ position:'relative', width:'100%', background:CARD2 }}>
+        <div style={{ display:'flex', width:'100%', aspectRatio:'16 / 9', overflowX:'auto', overflowY:'hidden', scrollSnapType:'x mandatory', WebkitOverflowScrolling:'touch', scrollbarWidth:'none', overscrollBehaviorX:'contain' }}>
+          {urls.map((url, imageIndex) => <button
+            type="button"
+            key={`${imageIndex}-${url.slice(0, 80)}`}
+            onClick={() => onOpen(imageIndex)}
+            aria-label={`Open photo ${imageIndex + 1} of ${imageCount} for ${itemTitle}`}
+            style={{ minWidth:'100%', width:'100%', height:'100%', padding:0, border:0, background:CARD2, cursor:'pointer', scrollSnapAlign:'start', scrollSnapStop:'always' }}
+          ><img src={url} alt={`${itemTitle}, photo ${imageIndex + 1}`} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} /></button>)}
+        </div>
+        {imageCount > 1 && <div aria-label={`${imageCount} photos. Swipe to view more.`} style={{ position:'absolute', right:10, top:10, padding:'5px 8px', borderRadius:999, background:'rgba(20,20,22,.62)', color:'white', fontFamily, fontSize:10, fontWeight:800, letterSpacing:'.04em', backdropFilter:'blur(8px)', pointerEvents:'none' }}>1/{imageCount} · Swipe</div>}
+      </div>
+
+      <div style={{ padding:'7px 11px 8px' }}>
+        <div style={{ fontFamily, fontSize:7, fontWeight:800, color:BLUE, letterSpacing:'.12em', textTransform:'uppercase', marginBottom:2, lineHeight:1.15 }}>{String(item.category || 'Shift activity')}</div>
+        <h3 style={{ fontFamily, fontSize:12, fontWeight:800, color:TEXT, lineHeight:1.18, letterSpacing:'-.01em', margin:0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{itemTitle}</h3>
+        {item.notes && <p style={{ fontFamily, fontSize:10, color:TEXT, lineHeight:1.25, margin:'2px 0 0', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{String(item.notes)}</p>}
+        <div style={{ display:'flex', alignItems:'center', gap:4, fontFamily, fontSize:9, fontWeight:600, color:MUTED, marginTop:3, lineHeight:1.1 }}><Clock size={10} strokeWidth={2}/>{completedLabel}</div>
+      </div>
+    </article>
   );
 }
-
 
 const statusLabel = (status) => {
   if (status === 'open')    return 'Open';
@@ -371,6 +398,7 @@ export const CaregiverDashboard = ({
   const [showSummary,      setShowSummary]      = useState(false);
   const [showHandover,      setShowHandover]      = useState(false);
   const [showPreviousDar,    setShowPreviousDar]    = useState(false);
+  const [showMedia,          setShowMedia]          = useState(false);
   const [handoverNotes,     setHandoverNotes]     = useState('');
   const [handoverItems,     setHandoverItems]     = useState('');
   const [handoverSaving,    setHandoverSaving]    = useState(false);
@@ -389,10 +417,13 @@ export const CaregiverDashboard = ({
     (() => { try { return JSON.parse(localStorage.getItem('_incPhotos') || '{}'); } catch { return {}; } })()
   );
   const [isMobile,      setIsMobile]      = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (t ? 1366 : 768); });
-  const [isPhone,       setIsPhone]       = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return t && window.innerWidth < 768; });
+  const [isPhone,       setIsPhone]       = useState(() => window.innerWidth < 768);
 
   const handleTabChange = useCallback((id) => {
-    if (id !== 'home') setShowHandover(false);
+    if (id !== 'home') {
+      setShowHandover(false);
+      setShowMedia(false);
+    }
     setSectionWorkflow(false);
     setActiveTab(id);
     const route = TAB_TO_ROUTE[id];
@@ -499,7 +530,7 @@ export const CaregiverDashboard = ({
   }, [authUser]);
 
   useEffect(() => {
-    const onResize = () => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; setIsMobile(window.innerWidth < (t ? 1366 : 768)); setIsPhone(t && window.innerWidth < 768); };
+    const onResize = () => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; setIsMobile(window.innerWidth < (t ? 1366 : 768)); setIsPhone(window.innerWidth < 768); };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -832,9 +863,14 @@ export const CaregiverDashboard = ({
   const filteredTasks   = searchQuery
     ? pendingTasks.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : pendingTasks;
-  const managerRequests = tasks.filter(t => (t.createdByType || t.created_by_type) === 'manager');
-  const pendingRequests = managerRequests.filter(t => t.status !== 'completed' && t.status !== TaskStatus.COMPLETED && t.status !== 'in_progress');
-  const handledRequests = managerRequests.filter(t => !pendingRequests.some(p => (p.id || p.task_id) === (t.id || t.task_id)));
+  const requestTimeMinutes = task => {
+    const raw = task.dueTime || task.due_time || task.scheduledTime || '23:59';
+    const match = String(raw).match(/^(\d{1,2}):(\d{2})/);
+    return match ? Number(match[1]) * 60 + Number(match[2]) : 1439;
+  };
+  const managerRequests = tasks.filter(t => (t.createdByType || t.created_by_type) === 'manager').sort((a,b) => requestTimeMinutes(a)-requestTimeMinutes(b));
+  const pendingRequests = managerRequests.filter(t => t.status !== 'completed' && t.status !== TaskStatus.COMPLETED);
+  const handledRequests = managerRequests.filter(t => t.status === 'completed' || t.status === TaskStatus.COMPLETED);
   const completedCount  = displayTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
   const totalCount      = displayTasks.length;
   const progressPct     = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
@@ -1150,6 +1186,7 @@ export const CaregiverDashboard = ({
   const renderHomeContent = () => {
     const viewingPreviousDar = showPreviousDar;
     const viewingHandoff = showHandover;
+    const viewingMedia = showMedia;
     const currentDar = isShiftActive ? {
       concierge: { name: authUser?.name || 'Concierge' },
       clockIn:   shiftStartTime,
@@ -1184,6 +1221,39 @@ export const CaregiverDashboard = ({
     const selfTaskActs = viewingPreviousDar
       ? (activeShift?.activities || []).map(t=>({ id:`previous-${t.id}`, time:t.time||t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t.sourceSection || inferDarSource(t) }))
       : selfTasks.filter(t=>isToday(t.completedAt)).map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t._source || inferDarSource(t) }));
+    const rawMediaSources = [
+      ...completedTaskActs,
+      ...selfTaskActs,
+      ...(Array.isArray(activeShift?.incidents) ? activeShift.incidents : []),
+    ];
+    const mediaItems = Array.from(rawMediaSources.reduce((groups, source) => {
+      if (!source || typeof source !== 'object') return groups;
+      const evidence = Array.isArray(source.evidenceUrls)
+        ? source.evidenceUrls
+        : source.evidenceUrl
+          ? [source.evidenceUrl]
+          : [];
+      const urls = Array.from(new Set(evidence.filter(url => typeof url === 'string' && url.trim())));
+      if (!urls.length) return groups;
+      const title = String(source.title || source.text || 'Shift evidence');
+      const time = String(source.time || source.completedAt || '');
+      const category = String(source.category || (source.text ? 'Incident' : 'Shift activity'));
+      const groupKey = `${category}|${time}|${title}`;
+      const existing = groups.get(groupKey);
+      if (existing) {
+        existing.urls = Array.from(new Set([...existing.urls, ...urls]));
+      } else {
+        groups.set(groupKey, {
+          key: groupKey,
+          urls,
+          title,
+          time,
+          notes: String(source.notes || source.completionNote || source.description || ''),
+          category,
+        });
+      }
+      return groups;
+    }, new Map()).values());
     // dashboardActs = sub-dashboard inputs (Guests, Vendors, Loaners, Lockout, etc.)
     // wizardActs = Log New Task wizard entries — always go to Tasks Completed
     const dashboardActs = selfTaskActs.filter(a => !['new-task', 'requests'].includes(a._source));
@@ -1283,7 +1353,7 @@ export const CaregiverDashboard = ({
     };
 
     return (
-    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding: isMobile ? '64px 14px 32px' : '24px 28px 40px', overscrollBehavior:'contain' }}>
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding: isMobile ? '12px 14px 32px' : '24px 28px 40px', overscrollBehavior:'contain' }}>
 
       <AnimatePresence>
         {darReceipt && (
@@ -1304,24 +1374,22 @@ export const CaregiverDashboard = ({
 
       {isShiftActive && <section aria-label="DAR shift continuity" style={{ maxWidth: 1280, margin: '0 auto 18px', border:`1px solid ${BORDER}`, borderRadius: 20, background: '#fff', overflow: 'hidden', boxShadow: SHADOW }}>
         <div style={{ padding: isPhone ? '20px 20px 15px' : '26px 30px 19px', display: 'flex', alignItems:'flex-start', justifyContent: 'space-between', gap: 16 }}>
-          <div style={{minWidth:0}}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}><span style={{ width: 24, height: 2, background: BLUE }} /><span style={{ fontFamily: INTER, fontSize: 9, fontWeight: 800, color: BLUE, letterSpacing: '.22em', textTransform: 'uppercase' }}>{propertyName}</span></div>
-            <h1 style={{ fontFamily: INTER, fontSize: isPhone ? 28 : 34, fontWeight: 800, color: '#222', letterSpacing: '-.045em', lineHeight: .98, margin: 0 }}>{viewingHandoff?'Prepare the handoff':viewingPreviousDar?'Previous shift':'Today’s shift'}</h1>
-            <p style={{fontFamily:INTER,fontSize:12,color:'#717171',margin:'9px 0 0',lineHeight:1.5}}>{viewingHandoff?'Leave clear context for the next concierge.':viewingPreviousDar?'Review the completed record from the prior shift.':`Live Daily Activity Report · ${authUser?.name || 'Concierge'}`}</p>
+          <div style={{minWidth:0,marginLeft:8}}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 11 }}><span style={{ fontFamily: INTER, fontSize: 9, fontWeight: 800, color: BLUE, letterSpacing: '.22em', textTransform: 'uppercase' }}>{propertyName}</span></div>
+            <h1 style={{ fontFamily: INTER, fontSize: isPhone ? 28 : 34, fontWeight: 800, color: '#222', letterSpacing: '-.045em', lineHeight: .98, margin: 0 }}>{viewingHandoff?'Prepare the handoff':viewingMedia?'Shift media':viewingPreviousDar?'Previous shift':'Today’s shift'}</h1>
+            {(viewingHandoff || viewingPreviousDar) && <p style={{fontFamily:INTER,fontSize:12,color:'#717171',margin:'9px 0 0',lineHeight:1.5}}>{viewingHandoff?'Leave clear context for the next concierge.':'Review the completed record from the prior shift.'}</p>}
           </div>
           <div style={{display:'flex',gap:8,flexShrink:0}}>
-            {!viewingHandoff && <button onClick={() => window.print()} aria-label="Export DAR" className="touch-target" style={{ width:44, height:44, padding:0, borderRadius:999, border:`1px solid ${BORDER}`, background:CARD2, color:'#222', display:'inline-flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><Printer size={17}/></button>}
-            {(viewingHandoff || viewingPreviousDar) && <button type="button" onClick={() => {setShowHandover(false);setShowPreviousDar(false);}} aria-label="Close workflow" className="touch-target" style={{width:44,height:44,borderRadius:999,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><X size={19} color="#222"/></button>}
+            {!viewingHandoff && !viewingMedia && <button onClick={() => window.print()} aria-label="Export DAR" className="touch-target" style={{ width:44, height:44, padding:0, borderRadius:999, border:`1px solid ${BORDER}`, background:CARD2, color:'#222', display:'inline-flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><Printer size={17}/></button>}
           </div>
         </div>
         <nav aria-label="Daily activity report views" style={{padding:isPhone?'0 14px 16px':'0 24px 20px'}}><div style={{display:'flex',padding:4,background:'#f7f7f7',border:`1px solid ${BORDER}`,borderRadius:14}}>
           {[
-            { n: '01', label: 'Previous DAR', detail: previousShiftData ? 'Completed shift record' : 'No previous shift', done: !!previousShiftData, current: viewingPreviousDar, disabled: !previousShiftData, action: () => { if (previousShiftData) { setShowHandover(false); setShowPreviousDar(true); } }, aria: 'Show the previous shift DAR' },
-            { n: '02', label: 'Current DAR', detail: `Recording since ${shiftStartTime || 'clock-in'}`, current: !viewingPreviousDar && !viewingHandoff, action: () => { setShowHandover(false); setShowPreviousDar(false); }, aria: 'Show the current shift DAR' },
-            { n: '03', label: 'Next handoff', detail: 'Prepared at shift end', current: viewingHandoff, action: () => { setShowPreviousDar(false); setShowHandover(true); }, aria: 'Prepare the next shift handoff' },
-          ].map((step) => <button type="button" key={step.n} onClick={step.action} disabled={step.disabled} aria-label={step.aria} aria-current={step.current ? 'page' : undefined} className="touch-target" style={{flex:1,minHeight:46,padding:isPhone?'8px 6px':'8px 12px',borderRadius:11,border:step.current?`1px solid ${BORDER}`:'1px solid transparent',background:step.current?'rgba(255,56,92,.055)':'transparent',boxShadow:step.current?'0 2px 8px rgba(0,0,0,.07)':'none',minWidth:0,textAlign:'center',cursor:step.disabled?'not-allowed':'pointer',opacity:step.disabled ? .46 : 1,font:'inherit',transition:'all 160ms'}}>
-            <div style={{fontFamily:INTER,fontSize:isPhone?10:11,fontWeight:750,color:'#222',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{step.label}<span style={{fontSize:8,color:step.current?BLUE:'#8a8a8a',marginLeft:6}}>{step.done?'✓':step.n}</span></div>
-            {!isPhone&&<div style={{fontFamily:INTER,fontSize:9,color:'#717171',marginTop:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{step.detail}</div>}
+            { label: 'Previous DAR', current: viewingPreviousDar, disabled: !previousShiftData, action: () => { if (previousShiftData) { setShowHandover(false); setShowMedia(false); setShowPreviousDar(true); } }, aria: 'Show the previous shift DAR' },
+            { label: 'Current DAR', current: !viewingPreviousDar && !viewingHandoff && !viewingMedia, action: () => { setShowHandover(false); setShowMedia(false); setShowPreviousDar(false); }, aria: 'Show the current shift DAR' },
+            { label: 'Media', current: viewingMedia, action: () => { setShowHandover(false); setShowPreviousDar(false); setShowMedia(true); }, aria: 'Show shift media' },
+          ].map((step) => <button type="button" key={step.label} onClick={step.action} disabled={step.disabled} aria-label={step.aria} aria-current={step.current ? 'page' : undefined} className="touch-target" style={{flex:1,minHeight:46,padding:isPhone?'8px 6px':'8px 12px',borderRadius:11,border:step.current?`1px solid ${BORDER}`:'1px solid transparent',background:step.current?'rgba(255,56,92,.055)':'transparent',boxShadow:step.current?'0 2px 8px rgba(0,0,0,.07)':'none',minWidth:0,textAlign:'center',cursor:step.disabled?'not-allowed':'pointer',opacity:step.disabled ? .46 : 1,font:'inherit',transition:'all 160ms'}}>
+            <div style={{fontFamily:INTER,fontSize:isPhone?10:11,fontWeight:750,color:'#222',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{step.label}</div>
           </button>)}
         </div></nav>
       </section>}
@@ -1330,91 +1398,7 @@ export const CaregiverDashboard = ({
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
 
         {/* Left: Daily Activity Report */}
-        <div className="dar-print-target" style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0, boxShadow:SHADOW }}>
-          {!activeShift ? (
-            <div style={{ padding:40, textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
-              <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0 }}>No active shift today</p>
-              <button onClick={handleClockIn} style={{ padding:'11px 28px', background:GREEN, border:'none', borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer', boxShadow:`0 4px 16px ${GREEN}40` }}>
-                Start Shift
-              </button>
-            </div>
-          ) : (
-            <>
-              <style>{`
-                @keyframes dar-onduty-pulse {
-                  0%,100% { box-shadow: 0 0 0 3px rgba(52,199,89,0.25); }
-                  50%      { box-shadow: 0 0 0 7px rgba(52,199,89,0.06); }
-                }
-                .dar-onduty-dot { animation: dar-onduty-pulse 2.6s ease-in-out infinite; }
-                .dar-print-only { display: none; }
-                @media print {
-                  body > *:not(.dar-print-target) { display: none !important; }
-                  .dar-print-target {
-                    position: static !important; box-shadow: none !important;
-                    border: none !important; border-radius: 0 !important;
-                    max-width: none !important; width: 100% !important;
-                    margin: 0 !important; padding: 0 !important;
-                    background: white !important; overflow: visible !important;
-                  }
-                  .dar-screen-only { display: none !important; }
-                  .dar-print-only  { display: block !important; }
-                  .dar-print-name {
-                    font-family: 'Playfair Display', Georgia, 'Times New Roman', serif !important;
-                    font-size: 36pt !important; font-style: italic !important;
-                    font-weight: 400 !important; color: #0d1117 !important;
-                  }
-                  .dar-print-label {
-                    font-family: 'Inter', sans-serif !important;
-                    font-size: 8pt !important; font-weight: 600 !important;
-                    letter-spacing: 0.14em !important; text-transform: uppercase !important;
-                    color: rgba(0,0,0,0.4) !important;
-                  }
-                  .dar-print-date {
-                    font-family: 'Playfair Display', Georgia, serif !important;
-                    font-size: 11pt !important; font-style: italic !important; color: #0d1117 !important;
-                  }
-                  .dar-print-sect {
-                    font-family: 'Inter', sans-serif !important;
-                    font-size: 9pt !important; font-weight: 700 !important;
-                    letter-spacing: 0.12em !important; color: #0d1117 !important;
-                  }
-                  .dar-print-sub-sect {
-                    font-family: 'Inter', sans-serif !important;
-                    font-size: 7.5pt !important; font-weight: 500 !important;
-                    letter-spacing: 0.10em !important; color: #7a9ec0 !important;
-                  }
-                  .dar-print-entry {
-                    font-family: 'Inter', sans-serif !important;
-                    font-size: 11pt !important; font-weight: 400 !important;
-                    line-height: 1.7 !important; color: #1a1a1a !important;
-                  }
-                  .dar-print-sect-bar {
-                    background: transparent !important;
-                    border-top: 1.5pt solid #0d1117 !important;
-                    padding: 4pt 0 3pt !important;
-                    margin-top: 10pt !important;
-                    display: flex !important;
-                    align-items: baseline !important;
-                  }
-                  .dar-print-footer-cols {
-                    display: grid !important;
-                    grid-template-columns: 1fr 1fr 1fr !important;
-                    gap: 20pt !important;
-                    padding-top: 14pt !important;
-                    border-top: 1.5pt solid #0d1117 !important;
-                    margin-top: 18pt !important;
-                    page-break-inside: avoid !important;
-                  }
-                  .dar-screen-grid { display: block !important; background: white !important; padding: 0 32px !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; }
-                  .dar-screen-grid > header { display: none !important; }
-                  .dar-category-block { border: 0 !important; border-radius: 0 !important; border-top: 1.5pt solid #0d1117 !important; margin-top: 10pt !important; padding: 0 !important; break-inside: avoid; background: white !important; }
-                  .dar-category-block > div:first-child { background: white !important; border-bottom: 0 !important; padding: 4pt 0 3pt !important; min-height: 0 !important; }
-                  .dar-category-block > div:last-child { padding: 2pt 0 5pt !important; min-height: 0 !important; }
-                  @page { margin: 0.75in; }
-                }
-              `}</style>
-
-              {viewingHandoff && (
+        {viewingHandoff ? (
                 <section className="dar-screen-only" aria-label="Next shift handoff" style={{ minHeight: isMobile ? 'auto' : 560, padding: isMobile ? '18px 16px 24px' : '28px 32px 32px', background: BG, display: 'flex', flexDirection: 'column' }}>
                   <div style={{ width: '100%', maxWidth: 820, margin: '0 auto' }}>
                     <div style={{ padding: isMobile ? '18px 16px' : '22px', border: `1px solid ${BORDER}`, borderRadius: 16, background: CARD, boxShadow:SHADOW }}>
@@ -1438,127 +1422,36 @@ export const CaregiverDashboard = ({
                     </div>
                   </div>
                 </section>
-              )}
-
-              {!viewingHandoff && <>
-              {/* ── Print-only: premium document header ─────────────────────────── */}
-              <div className="dar-print-only" style={{ padding:'28px 32px 0' }}>
-                {/* Masthead: property name + document title */}
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', paddingBottom:10, borderBottom:'2px solid #0d1117', marginBottom:14 }}>
-                  <div>
-                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:700, letterSpacing:'0.18em', textTransform:'uppercase', color:'rgba(0,0,0,0.35)', marginBottom:4 }}>
-                      The Hannah · Philadelphia
-                    </div>
-                    <div style={{ fontFamily:"'Playfair Display',Georgia,'Times New Roman',serif", fontSize:30, fontWeight:700, letterSpacing:'0.04em', textTransform:'uppercase', color:'#0d1117', lineHeight:1.1 }}>
-                      Daily Shift Notes
-                    </div>
-                  </div>
-                  <div style={{ textAlign:'right' }}>
-                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:600, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(0,0,0,0.35)', marginBottom:3 }}>
-                      Daily Activity Report
-                    </div>
-                    <div style={{ fontFamily:INTER, fontSize:9, color:'rgba(0,0,0,0.4)', lineHeight:1.5 }}>
-                      1306 Callowhill Street<br />Philadelphia PA 19123
-                    </div>
-                  </div>
-                </div>
-                {/* 3-column meta row: Date | Shift | Concierge */}
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16, paddingBottom:14, borderBottom:'1px solid rgba(0,0,0,0.12)', marginBottom:2 }}>
-                  <div>
-                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:600, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.4)', marginBottom:4 }}>Date</div>
-                    <div className="dar-print-date" style={{ fontFamily:"'Playfair Display',Georgia,serif", fontSize:12, fontStyle:'italic', color:'#0d1117' }}>
-                      {activeShift.dateLabel || new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:600, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.4)', marginBottom:4 }}>Shift</div>
-                    <div className="dar-print-date" style={{ fontFamily:"'Playfair Display',Georgia,serif", fontSize:12, fontStyle:'italic', color:'#0d1117' }}>
-                      {activeShift.clockIn} – {activeShift.clockOut || 'Present'}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:600, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.4)', marginBottom:4 }}>Concierge</div>
-                    <div style={{ fontFamily:"'Playfair Display',Georgia,serif", fontSize:13, fontStyle:'italic', color:'#0d1117', fontWeight:400 }}>
-                      {activeShift.concierge.name}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              {/* ── End print header ─────────────────────────────────────────────── */}
-
-              <div className="dar-screen-grid" style={{ background:CARD, margin:isMobile?'12px':'16px', border:`1px solid ${isDarkMode ? 'rgba(255,56,92,.30)' : 'rgba(180,35,60,.20)'}`, borderRadius:16, overflow:'hidden', display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,minmax(0,1fr))' }}>
-
-                <DarBlock index={1} title="Packages" activities={[...incoming, ...pickups]} />
-
-                <DarBlock index={2} title="Guests" activities={guests} rightColumn />
-
-                <DarBlock index={3} title="Today's Tasks" activities={taskEntries} populated={!!activeShift.note || taskEntries.length > 0} wide>
-                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                  {activeShift.note && (
-                    <p style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:TEXT, lineHeight:1.65, margin:0 }}>
-                      {activeShift.note}
-                    </p>
-                  )}
-                  {taskEntries.length > 0 && <SectionRow activities={taskEntries} last />}
-                  {!activeShift.note && taskEntries.length === 0 && (
-                    <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED }}>No activity recorded</span>
-                  )}
-                </div>
-                </DarBlock>
-
-                <DarBlock index={4} title="Loaners" activities={loaners} />
-
-                <DarBlock index={5} title="Lockouts" activities={lockouts} rightColumn />
-
-                <DarBlock index={6} title="Vendors" activities={vends} />
-
-                <DarBlock index={7} title="Tours" activities={tours} rightColumn />
-
-                <DarBlock index={8} title="Security & Rounds" activities={rounds} wide />
-
-                <DarBlock index={9} title="Incidents Filed" strings={activeShift.incidents} emptyLabel="No incidents this shift." critical wide />
-
-              </div>
-
-
-              {/* ── Print-only 3-column handover footer ─────────────────────────── */}
-              <div className="dar-print-only" style={{ padding:'0 32px 36px' }}>
-                <div className="dar-print-footer-cols">
-                  {/* Col 1: Handover Notes */}
-                  <div>
-                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.45)', marginBottom:10 }}>Handover Notes</div>
-                    {[0,1,2,3,4].map(i => (
-                      <div key={i} style={{ borderBottom:'1px solid rgba(0,0,0,0.18)', height:24, marginBottom:8 }} />
-                    ))}
-                  </div>
-                  {/* Col 2: End of Shift Checklist */}
-                  <div>
-                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.45)', marginBottom:10 }}>End of Shift</div>
-                    {['Package log complete','Keys secured & logged','All incidents filed','Incoming concierge briefed','Rounds completed'].map((item,i) => (
-                      <div key={i} style={{ display:'flex', alignItems:'center', gap:7, marginBottom:9 }}>
-                        <div style={{ width:10, height:10, border:'1px solid rgba(0,0,0,0.35)', borderRadius:2, flexShrink:0 }} />
-                        <span style={{ fontFamily:INTER, fontSize:9, color:'#1a1a1a' }}>{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Col 3: Sign-Off */}
-                  <div>
-                    <div style={{ fontFamily:INTER, fontSize:8, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(0,0,0,0.45)', marginBottom:10 }}>Sign-Off</div>
-                    <div style={{ fontFamily:INTER, fontSize:8, color:'rgba(0,0,0,0.45)', marginBottom:4 }}>Concierge Signature</div>
-                    <div style={{ borderBottom:'1px solid #0d1117', height:32, marginBottom:12 }} />
-                    <div style={{ fontFamily:INTER, fontSize:8, color:'rgba(0,0,0,0.45)', marginBottom:4 }}>Shift End Time</div>
-                    <div style={{ borderBottom:'1px solid #0d1117', height:22, marginBottom:12 }} />
-                    <div style={{ fontFamily:INTER, fontSize:8, color:'rgba(0,0,0,0.45)', marginBottom:4 }}>Printed</div>
-                    <div style={{ fontFamily:INTER, fontSize:9, color:'#0d1117' }}>
-                      {new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              </>}
-            </>
-          )}
-        </div>
+        ) : viewingMedia ? (
+          <section aria-label="Shift media" style={{background:'transparent'}}>
+            {mediaItems.length ? <div style={{display:'grid',gridTemplateColumns:isPhone?'minmax(0,1fr)':'repeat(2,minmax(0,1fr))',gap:isPhone?14:18,width:'100%',margin:0}}>
+              {mediaItems.map(item => <MediaCarouselCard
+                key={item.key}
+                item={item}
+                isPhone={isPhone}
+                fontFamily={INTER}
+                colors={{CARD,CARD2,BORDER,TEXT,MUTED,BLUE,SHADOW}}
+                onOpen={(imageIndex)=>setGallery({urls:item.urls,idx:imageIndex})}
+              />)}
+            </div> : <div style={{minHeight:220,background:CARD,border:`1px solid ${BORDER}`,borderRadius:20,boxShadow:SHADOW,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24}}>
+              <Image size={28} color={MUTED}/><h3 style={{fontFamily:INTER,fontSize:17,fontWeight:800,color:TEXT,margin:'12px 0 6px'}}>No shift media yet</h3><p style={{fontFamily:INTER,fontSize:13,color:MUTED,margin:0,lineHeight:1.5}}>Photos and other evidence added during this shift will appear here.</p>
+            </div>}
+          </section>
+        ) : (
+          <DailyActivityReport
+            mode="concierge"
+            shift={activeShift}
+            editable={!viewingPreviousDar}
+            showConciergeIdentity
+            propertyName={propertyName}
+            taskEntries={taskEntries}
+            incidents={activeShift?.incidents}
+            emptyAction={handleClockIn}
+            onOpenEvidence={(urls) => setGallery({ urls, idx:0 })}
+            colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER, shadow:SHADOW }}
+            style={{ order:isMobile ? 1 : 0 }}
+          />
+        )}
 
         {/* Right column */}
         <div hidden>
@@ -1691,7 +1584,7 @@ export const CaregiverDashboard = ({
 
         {requestQueueTab === 'inbox' && (pendingRequests.length > 0 ? (
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            {pendingRequests.map(task => <TaskRequestCard key={task.id || task.task_id} task={{ ...task, scheduledTime:task.dueTime || task.due_time || 'Today', proposedBy:task.createdBy || task.created_by || 'Management', description:task.notes }} onAccept={() => handleAcceptRequest(task)} onDecline={(_, reason) => handleDeclineRequest(task.id || task.task_id, reason)} />)}
+            {pendingRequests.map(task => { const now=new Date(); const timingLabel=requestTimeMinutes(task)>now.getHours()*60+now.getMinutes()?'Upcoming':'Pending'; return <TaskRequestCard key={task.id || task.task_id} task={{ ...task, scheduledTime:task.dueTime || task.due_time || 'Today', proposedBy:task.createdBy || task.created_by || 'Management', description:task.notes, timingLabel }} onAccept={() => handleAcceptRequest(task)} onComplete={() => handleStartTask(task)} onDecline={(_, reason) => handleDeclineRequest(task.id || task.task_id, reason)} />; })}
           </div>
         ) : (
           <div style={{ minHeight:240,background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:'34px 20px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',boxShadow:SHADOW }}>
@@ -1703,7 +1596,7 @@ export const CaregiverDashboard = ({
 
         {requestQueueTab === 'handled' && (handledRequests.length ? (
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {handledRequests.map(task => <div key={task.id || task.task_id} style={{ padding:'13px 15px',background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,display:'grid',gridTemplateColumns:'40px 1fr auto',alignItems:'center',gap:12,boxShadow:SHADOW }}><div style={{width:40,height:40,borderRadius:11,background:`${GREEN}10`,display:'flex',alignItems:'center',justifyContent:'center'}}><Check size={18} color={GREEN}/></div><div style={{minWidth:0}}><div style={{fontFamily:INTER,fontSize:13,fontWeight:750,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{task.title}</div><div style={{marginTop:4,fontFamily:INTER,fontSize:10,color:MUTED}}>{task.createdBy || task.created_by || 'Property management'}</div></div><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:task.status==='in_progress'?BLUE:GREEN,background:task.status==='in_progress'?`${BLUE}10`:`${GREEN}10`,borderRadius:999,padding:'5px 8px',textTransform:'uppercase',letterSpacing:'.06em'}}>{task.status==='in_progress'?'In progress':'Closed'}</span></div>)}
+            {handledRequests.map(task => <div key={task.id || task.task_id} style={{ padding:'13px 15px',background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,display:'grid',gridTemplateColumns:'40px 1fr auto',alignItems:'center',gap:12,boxShadow:SHADOW }}><div style={{width:40,height:40,borderRadius:11,background:`${GREEN}10`,display:'flex',alignItems:'center',justifyContent:'center'}}><Check size={18} color={GREEN}/></div><div style={{minWidth:0}}><div style={{fontFamily:INTER,fontSize:13,fontWeight:750,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{task.title}</div><div style={{marginTop:4,fontFamily:INTER,fontSize:10,color:MUTED}}>{task.dueTime || 'Scheduled request'} · {task.createdBy || task.created_by || 'Property management'}</div></div><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:GREEN,background:`${GREEN}10`,borderRadius:999,padding:'5px 8px',textTransform:'uppercase',letterSpacing:'.06em'}}>Completed</span></div>)}
           </div>
         ) : <div style={{ minHeight:180, background:CARD, border:`1px solid ${BORDER}`, borderRadius:18, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:24 }}><CheckCircle size={26} color={GREEN} /><div style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT, marginTop:12 }}>No handled requests yet</div><div style={{ fontFamily:INTER, fontSize:13, color:MUTED, marginTop:5 }}>Accepted and closed requests will appear here.</div></div>)}
       </div>
@@ -2326,7 +2219,7 @@ export const CaregiverDashboard = ({
               <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, textTransform:'uppercase', letterSpacing:'0.14em', margin:'0 0 6px' }}>{item.category}</p>
                 <p style={{ fontFamily:INTER, fontWeight:800, color:TEXT, fontSize:14, lineHeight:1.3, margin:'0 0 9px' }}>{item.title}</p>
-                <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontFamily:INTER, fontSize:10, fontWeight:650, color:done?GREEN:MUTED }}><TypeIcon size={12}/>{done?'Reviewed':typeLabel}</span>
+                <span style={{ display:'inline-flex', alignItems:'center', gap:7, fontFamily:INTER, fontSize:10, fontWeight:650, color:done?GREEN:MUTED }}><TypeIcon size={12}/>{typeLabel}{done&&<KnowledgeStatusBadge status="reviewed" colors={{accent:BLUE,success:GREEN,warning:ORANGE,muted:MUTED,surface:CARD2}}/>}</span>
               </div>
               <ChevronRight size={18} color={MUTED} style={{ flexShrink:0 }} />
             </button>
@@ -2377,6 +2270,7 @@ export const CaregiverDashboard = ({
     { id: 'tours',         Icon: Users,          label: 'Tours'               },
     { id: 'loaners',       Icon: ShoppingCart,   label: 'Loaners'             },
     { id: 'incident',      Icon: AlertTriangle,  label: 'Incident'            },
+    { id: 'handoff',       Icon: LogOut,         label: 'Next handoff', action: () => { handleTabChange('home'); setShowPreviousDar(false); setShowMedia(false); setShowHandover(true); } },
     { id: 'sops',          Icon: BookOpen,       label: 'SOPs'                },
     { id: 'training',      Icon: GraduationCap,  label: 'Training'            },
     { id: 'calendar',      Icon: Calendar,       label: 'Shifts'              },
@@ -2384,7 +2278,7 @@ export const CaregiverDashboard = ({
     { id: 'emergency',     Icon: Phone,          label: 'Emergency Contacts', action: () => setShowContacts(true) },
   ];
   const NAV_GROUPS = [
-    { label: 'Shift record', ids: ['home', 'new-task', 'requests'] },
+    { label: 'Shift record', ids: ['home', 'new-task', 'requests', 'handoff'] },
     { label: 'Front desk', ids: ['packages', 'guests', 'lockout', 'vendors', 'tours', 'loaners', 'incident'] },
     { label: 'Property guide', ids: ['sops', 'training'] },
     { label: 'Account & support', ids: ['calendar', 'settings', 'emergency'] },
@@ -2444,103 +2338,11 @@ export const CaregiverDashboard = ({
       );
     };
 
-    const shiftDARBody = (s, dateLabel) => {
-      const acts     = s.activities;
-      const toStr    = arr => arr.length > 0 ? arr.map(a => `${a.time}: ${a.title}${a.notes ? ' · ' + a.notes : ''}`).join('\n') : 'N/A';
-      const delivery = acts.filter(a => a.category === 'Delivery');
-      const security = acts.filter(a => a.category === 'Safety / Security');
-      const resident = acts.filter(a => a.category === 'Resident Assist');
-      const vendors  = acts.filter(a => a.category === 'Vendor / Contractor');
-      const amenity  = acts.filter(a => a.category === 'Amenity');
-      const audit    = acts.find(a => a.category === 'Administrative' && a.title.toLowerCase().includes('audit'));
-      const loaners  = amenity.filter(a => a.title.toLowerCase().includes('loaner'));
-      const guests   = resident.filter(a => a.title.toLowerCase().includes('guest') || a.title.toLowerCase().includes('arrival'));
-      const tours    = resident.filter(a => a.title.toLowerCase().includes('tour') || a.title.toLowerCase().includes('move'));
-      const pickups  = delivery.filter(a => a.title.toLowerCase().includes('pickup'));
-      const incoming = delivery.filter(a => !a.title.toLowerCase().includes('pickup'));
-      const lockouts = security.filter(a => a.title.toLowerCase().includes('lockout'));
-      const rounds   = security.filter(a => !a.title.toLowerCase().includes('lockout'));
-      const Sect = ({ title, accent=BLUE }) => (
-        <div style={{ background:'transparent', borderTop:`1px solid ${BORDER}`, padding: isMobile ? '18px 16px 5px' : '20px 24px 5px', marginTop:4 }}>
-          <span style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:accent, letterSpacing:'0.18em', textTransform:'uppercase' }}>{title}</span>
-        </div>
-      );
-      const Field = ({ label, value, sub, last }) => (
-        <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', alignItems:'flex-start', gap: isMobile ? 4 : 20, padding: isMobile ? '11px 16px' : '13px 24px', borderBottom:last?'none':`1px solid ${BORDER}` }}>
-          <div style={{ width: isMobile ? '100%' : 220, flexShrink:0, fontFamily:INTER, fontSize: isMobile ? 10 : 13, fontWeight:750, color:MUTED, lineHeight:1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.08em' : 'normal' }}>{label}</div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontFamily:INTER, fontSize: isMobile ? 14 : 14, color:TEXT, lineHeight:1.6, whiteSpace:'pre-line' }}>{value}</div>
-            {sub && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:3 }}>{sub}</div>}
-          </div>
-        </div>
-      );
-      return (
-        <>
-          <div style={{ background:CARD2, borderBottom:`1px solid ${BORDER}`, padding:isMobile?'18px 16px':'20px 24px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-              <div>
-                <div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:7 }}>Daily Activity Report</div>
-                <div style={{ fontFamily:INTER, fontSize:isMobile?19:22, fontWeight:800, color:TEXT, letterSpacing:'-.025em', marginBottom:5 }}>{s.concierge.name}</div>
-                <div style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>
-                  {dateLabel} · {s.clockIn}{s.clockOut ? ` – ${s.clockOut}` : ' – Present'}
-                </div>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
-                <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:s.status==='active'?'rgba(52,199,89,0.12)':CARD, border:`1px solid ${s.status==='active'?'rgba(52,199,89,.2)':BORDER}`, borderRadius:999, padding:'6px 11px' }}>
-                  <div style={{ width:6, height:6, borderRadius:'50%', background:s.status==='active'?GREEN:MUTED }} />
-                  <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:s.status==='active'?GREEN:MUTED, textTransform:'uppercase', letterSpacing:'.08em' }}>
-                    {s.status==='active' ? 'On Duty' : 'Completed'}
-                  </span>
-                </div>
-                <div style={{ fontFamily:INTER, fontSize:11, color:MUTED }}>{s.duration}</div>
-              </div>
-            </div>
-          </div>
-          <div>
-            <Sect title="Start of Shift Package Audit" />
-            <Field label="Package Audit Completed" value="Yes" />
-            <Field label="Keys Found at Start of Shift" value="Yes" />
-            {audit && <Field label="Package Room Count" value={audit.notes} last />}
-            <Sect title="Packages" />
-            <Field label="Delivered by Couriers" value={toStr(incoming)} />
-            <Field label="Picked Up by Residents" value={toStr(pickups)} last />
-            <Sect title="Guests" />
-            <Field label="Guest Arrivals / Check-ins" value={toStr(guests)} last />
-            <Sect title="Tours" />
-            <Field label="Scheduled & Walk-in Tours" value={toStr(tours)} last />
-            <Sect title="Loaners" />
-            <Field label="Checkouts & Returns" value={toStr(loaners)} last />
-            <Sect title="Lockouts" />
-            <Field label="Keys & Access Requests" value={toStr(lockouts)} last />
-            <Sect title="Vendors" />
-            {vendors.length > 0
-              ? vendors.map((a, i, arr) => <Field key={a.id} label={a.title} value={a.time} sub={a.notes} last={i===arr.length-1} />)
-              : <Field label="Vendor Activity" value="N/A" last />
-            }
-            {rounds.length > 0 && (
-              <>
-                <Sect title="Security & Rounds" />
-                {rounds.map((a, i, arr) => <Field key={a.id} label={a.title} value={a.time} sub={a.notes} last={i===arr.length-1} />)}
-              </>
-            )}
-            {s.note && (
-              <>
-                <Sect title="Shift Notes" />
-                <div style={{ padding:'16px 28px 20px' }}>
-                  <p style={{ fontFamily:INTER, fontSize:16, color:TEXT, lineHeight:1.7, margin:0 }}>{s.note}</p>
-                </div>
-              </>
-            )}
-            {s.incidents.length > 0 && (
-              <>
-                <Sect title="Incidents Filed" accent={RED} />
-                {s.incidents.map((inc, i, arr) => <Field key={i} label={`Incident ${i+1}`} value={inc} last={i===arr.length-1} />)}
-              </>
-            )}
-          </div>
-        </>
-      );
-    };
+    const shiftDARBody = (shift, reportDate) => (
+      <DailyActivityReport mode="concierge" shift={shift} editable={false} showConciergeIdentity
+        propertyName={propertyName} dateLabel={reportDate}
+        colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER, shadow:SHADOW }} />
+    );
 
     const monthShifts = [...shiftDatesSet].filter(d=>d.startsWith(prefix)).sort((a,b)=>b.localeCompare(a));
     const totalPages  = Math.ceil(monthShifts.length / 5);
@@ -2548,7 +2350,6 @@ export const CaregiverDashboard = ({
 
     return (
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'minmax(0,1fr) minmax(320px,400px)', gap: isMobile ? 14 : 18, alignItems: isMobile ? 'stretch' : 'start', width:'100%', maxWidth:1440, margin:'0 auto', boxSizing:'border-box', padding: isMobile ? '16px 16px 48px' : '22px 28px 48px' }}>
-
         {/* DAR — top on mobile, left column on desktop */}
         <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, overflow:'hidden', boxShadow:SHADOW, order: isMobile ? 2 : 0, gridColumn: 1, gridRow: '1 / 3', minWidth:0 }}>
           {selectedShift ? (
@@ -2737,10 +2538,7 @@ export const CaregiverDashboard = ({
           {!collapsed && (
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: INTER, fontSize: 14, fontWeight: 700, color: TEXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.01em' }}>{(authUser?.name || 'Concierge')}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: isShiftActive ? GREEN : MUTED, flexShrink: 0 }} />
-                <span style={{ fontFamily: INTER, fontSize: 12, color: MUTED }}>{isShiftActive ? 'On Shift' : 'Off Shift'}</span>
-              </div>
+              <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 2 }}>{authUser?.title || 'Concierge'}</div>
             </div>
           )}
         </button>
@@ -2783,7 +2581,7 @@ export const CaregiverDashboard = ({
                       width:'100%', minHeight:44, padding:collapsed?'4px':'4px 8px', marginBottom:2,
                     border: urgent && !active ? `1px solid ${RED}28` : '1px solid transparent',
                     borderRadius:10, cursor:'pointer', textAlign:'left', position:'relative',
-                      background:active?(isDarkMode?'rgba(255,255,255,.12)':'#222222'):urgent?`${RED}08`:'transparent',
+                      background:active?(isDarkMode?'rgba(255,255,255,.12)':DASHBOARD_ACTIVE_NAV):urgent?`${RED}08`:'transparent',
                       transition:'background 120ms ease, border-color 120ms ease',
                     }}>
                     {active && <span aria-hidden="true" style={{ position:'absolute', left:0, top:10, bottom:10, width:3, borderRadius:'0 3px 3px 0', background:'rgba(255,255,255,.88)' }} />}
@@ -2799,6 +2597,8 @@ export const CaregiverDashboard = ({
           ))}
         </nav>
 
+        {!isDrawer && profileSection}
+
         {/* Bottom branding */}
         <div style={{ flexShrink: 0, padding: collapsed ? '12px 0' : '20px 20px 0', paddingBottom: 'max(24px, env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start' }}>
           {!collapsed && <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: MUTED, letterSpacing: '0.24em', textTransform: 'uppercase' }}>Noted</span>}
@@ -2808,225 +2608,17 @@ export const CaregiverDashboard = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', fontFamily: INTER, background: BG }}>
+    <DashboardPage>
       {/* Screen-reader live region — announces task completions and status changes */}
       <div role="status" aria-live="polite" aria-atomic="true" style={{ position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>
         {srAnnounce}
       </div>
-      {/* The desktop workspace header was removed to give dashboard content
-          the full available height. Navigation remains in the sidebar. */}
-      {false && !isMobile && (
-        <header style={{ height:72, background:CARD, borderBottom:`1px solid ${BORDER}`, display:'flex', alignItems:'center', padding:'0 24px', flexShrink:0, gap:16, zIndex:20, boxShadow:'0 2px 10px rgba(0,0,0,.03)' }}>
-          <button onClick={() => setSidebarCollapsed(c => !c)} aria-label={sidebarCollapsed ? 'Expand workspace navigation' : 'Collapse workspace navigation'} style={{ width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}><Menu size={18} color={TEXT} /></button>
-          <button onClick={() => handleTabChange('home')} style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, border:'none', padding:0, background:'transparent', cursor:'pointer', textAlign:'left', flexShrink:0 }}>
-            <div style={{ width:36, height:36, borderRadius:11, background:'#222222', display:'flex', alignItems:'center', justifyContent:'center' }}><Building2 size={17} color="white" /></div>
-            <div style={{ minWidth:0 }}><div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, letterSpacing:'.18em', textTransform:'uppercase', marginBottom:2 }}>Noted workspace</div><div style={{ fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:210 }}>{propertyName}</div></div>
-          </button>
-
-          {/* Search — fills all remaining space */}
-          <div style={{ flex:1, maxWidth:640, position:'relative', margin:'0 auto' }}>
-            <Search size={15} color={MUTED} style={{ position: 'absolute', left:14, top:'50%', transform:'translateY(-50%)', pointerEvents:'none', zIndex:1 }} />
-            <input
-              ref={searchInputRef}
-              value={searchQuery}
-              onChange={e => { setSearchQuery(e.target.value); setShowSearch(true); setDdIdx(-1); }}
-              onFocus={() => setShowSearch(true)}
-              onBlur={() => { setTimeout(() => setShowSearch(false), 150); setDdIdx(-1); }}
-              onKeyDown={e => {
-                if (e.key === 'Escape') { setSearchQuery(''); setShowSearch(false); setDdIdx(-1); }
-                if (e.key === 'ArrowDown') { e.preventDefault(); setDdIdx(i => Math.min(i + 1, (ddItemsRef.current.length || 1) - 1)); }
-                if (e.key === 'ArrowUp')   { e.preventDefault(); setDdIdx(i => Math.max(0, i - 1)); }
-                if (e.key === 'Enter' && ddIdx >= 0 && ddItemsRef.current[ddIdx]) {
-                  e.preventDefault();
-                  ddItemsRef.current[ddIdx].action();
-                  setShowSearch(false); setSearchQuery(''); setDdIdx(-1);
-                }
-              }}
-              placeholder="Search or jump to a section… (⌘K)"
-              style={{ width:'100%', height:44, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, paddingLeft:40, paddingRight:searchQuery?34:14, fontFamily:INTER, fontSize:13, color:TEXT, outline:'none', boxSizing:'border-box' }}
-            />
-            {searchQuery && (
-              <button aria-label="Clear search" onClick={() => { setSearchQuery(''); setShowSearch(false); }}
-                style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:2, display:'flex' }}>
-                <X size={13} color="#717171" />
-              </button>
-            )}
-            {/* Unified search + command dropdown */}
-            {showSearch && (() => {
-              const q = searchQuery.toLowerCase().trim();
-              const ALL_CMDS = [
-                { id:'go-home',      group:'Navigate', label:"Today's Tasks",    Icon:Home,          action:()=>handleTabChange('home'),                        keywords:['dashboard','shift'] },
-                { id:'go-requests',  group:'Navigate', label:'Requests',         Icon:Bell,          action:()=>handleTabChange('requests'),                    keywords:['management','tasks'] },
-                { id:'go-packages',  group:'Navigate', label:'Packages',         Icon:Package,       action:()=>handleTabChange('packages'),                    keywords:['delivery','mail'] },
-                { id:'go-guests',    group:'Navigate', label:'Guests',           Icon:UserCheck,     action:()=>handleTabChange('guests'),                      keywords:['visitor','access'] },
-                { id:'go-lockout',   group:'Navigate', label:'Lockouts',         Icon:Lock,          action:()=>handleTabChange('lockout'),                     keywords:['key','locked'] },
-                { id:'go-vendors',   group:'Navigate', label:'Vendors',          Icon:Wrench,        action:()=>handleTabChange('vendors'),                     keywords:['contractor','maintenance'] },
-                { id:'go-tours',     group:'Navigate', label:'Tours',            Icon:Users,         action:()=>handleTabChange('tours'),                       keywords:['showing','prospect'] },
-                { id:'go-loaners',   group:'Navigate', label:'Loaners',          Icon:ShoppingCart,  action:()=>handleTabChange('loaners'),                     keywords:['cart','item'] },
-                { id:'go-incident',  group:'Navigate', label:'Incident Report',  Icon:AlertTriangle, action:()=>handleTabChange('incident'),                    keywords:['report','safety'] },
-                { id:'go-sops',      group:'Navigate', label:'Building SOPs',    Icon:BookOpen,      action:()=>handleTabChange('sops'),                        keywords:['procedure','document'] },
-                { id:'go-training',  group:'Navigate', label:'Training',         Icon:GraduationCap, action:()=>handleTabChange('training'),                    keywords:['learn','video'] },
-                { id:'go-calendar',  group:'Navigate', label:'Shift Calendar',   Icon:Calendar,      action:()=>handleTabChange('calendar'),                    keywords:['schedule','shifts'] },
-                { id:'go-messages',  group:'Navigate', label:'Messages',         Icon:MessageSquare, action:()=>handleTabChange('messages'),                    keywords:['chat','team'] },
-                { id:'go-settings',  group:'Navigate', label:'Settings',         Icon:Settings,      action:()=>handleTabChange('settings'),                    keywords:['preferences'] },
-                { id:'log-task',     group:'Actions',  label:'Log a Task',       Icon:Plus,          action:()=>{ handleTabChange('home'); setShowNewTask(true); }, keywords:['new','create','activity'] },
-                { id:'go-copilot',   group:'Actions',  label:'Open AI Copilot',  Icon:Sparkles,      action:()=>setShowCopilot(true),                           keywords:['ai','assistant','help'] },
-                { id:'emergency',    group:'Actions',  label:'Emergency Contacts', Icon:Phone,       action:()=>setShowContacts(true),                          keywords:['call','contact'] },
-                ...(!isShiftActive ? [{ id:'clock-in',  group:'Actions', label:'Clock In',  Icon:Clock, action:handleClockIn,  keywords:['start','shift'] }] : []),
-                ...(isShiftActive  ? [{ id:'clock-out', group:'Actions', label:'Clock Out', Icon:Clock, action:handleClockOut, keywords:['end','finish','shift'] }] : []),
-              ];
-              const matchCmd = c => !q || c.label.toLowerCase().includes(q) || c.group.toLowerCase().includes(q) || (c.keywords||[]).some(k=>k.includes(q));
-              const matchTask = t => (t.title||'').toLowerCase().includes(q) || (t.notes||'').toLowerCase().includes(q) || (t.category||'').toLowerCase().includes(q);
-              const matchInc  = i => (i.title||'').toLowerCase().includes(q) || (i.type||'').toLowerCase().includes(q) || (i.location||'').toLowerCase().includes(q);
-              const matchAct  = a => (a.title||'').toLowerCase().includes(q) || (a.notes||'').toLowerCase().includes(q) || (a.category||'').toLowerCase().includes(q);
-              const cmdHits  = ALL_CMDS.filter(matchCmd);
-              const mgmtHits = q ? tasks.filter(t => t.createdByType === 'manager' && matchTask(t)).slice(0,4) : [];
-              const actHits  = q ? selfTasks.filter(matchAct).slice(0,4) : [];
-              const incHits  = q ? incidents.filter(matchInc).slice(0,4) : [];
-              const hasContent = mgmtHits.length + actHits.length + incHits.length > 0;
-
-              // Group commands
-              const navigateCmds = cmdHits.filter(c => c.group === 'Navigate');
-              const actionCmds   = cmdHits.filter(c => c.group === 'Actions');
-
-              // Flat list for arrow-key navigation
-              const flatCmds = [...navigateCmds, ...actionCmds];
-              ddItemsRef.current = flatCmds.map(c => ({ action: () => { c.action(); } }));
-
-              return (
-                <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, right:0, background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, boxShadow:'0 8px 32px rgba(0,0,0,0.14)', zIndex:200, overflow:'hidden', maxHeight:460, overflowY:'auto' }}>
-                  {/* Content results (only when query typed) */}
-                  {hasContent && (
-                    <>
-                      {mgmtHits.length > 0 && (
-                        <>
-                          <div style={{ padding:'8px 14px 4px', fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'0.10em' }}>Assigned Tasks</div>
-                          {mgmtHits.map(t => (
-                            <button key={t.id} onMouseDown={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('requests'); }}
-                              style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', borderBottom:`1px solid ${BORDER}` }}>
-                              <div style={{ width:32, height:32, borderRadius:9, background:`${ORANGE}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><ClipboardList size={15} color={ORANGE} /></div>
-                              <div style={{ flex:1, minWidth:0 }}>
-                                <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.title}</p>
-                                <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>{t.category} · Due {t.dueTime} · from {t.createdBy}</p>
-                              </div>
-                              <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:t.status==='in_progress'?ORANGE:BLUE, background:t.status==='in_progress'?`${ORANGE}14`:`${BLUE}14`, borderRadius:6, padding:'2px 7px', flexShrink:0, textTransform:'uppercase' }}>{t.status==='in_progress'?'In Progress':'Pending'}</span>
-                            </button>
-                          ))}
-                        </>
-                      )}
-                      {actHits.length > 0 && (
-                        <>
-                          <div style={{ padding:'8px 14px 4px', fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'0.10em' }}>My Activities</div>
-                          {actHits.map((a, i) => (
-                            <button key={a.id||i} onMouseDown={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('new-task'); }}
-                              style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', borderBottom:`1px solid ${BORDER}` }}>
-                              <div style={{ width:32, height:32, borderRadius:9, background:`${GREEN}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><CheckCircle size={15} color={GREEN} /></div>
-                              <div style={{ flex:1, minWidth:0 }}>
-                                <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.title}</p>
-                                <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>{a.category}{a.completedAt?` · ${a.completedAt}`:''}</p>
-                              </div>
-                              <CheckCircle size={14} color={GREEN} style={{ flexShrink:0 }} />
-                            </button>
-                          ))}
-                        </>
-                      )}
-                      {incHits.length > 0 && (
-                        <>
-                          <div style={{ padding:'8px 14px 4px', fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'0.10em' }}>Incidents</div>
-                          {incHits.map(inc => (
-                            <button key={inc.id} onMouseDown={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('incident'); }}
-                              style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', borderBottom:`1px solid ${BORDER}` }}>
-                              <div style={{ width:32, height:32, borderRadius:9, background:`${RED}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><AlertTriangle size={15} color={RED} /></div>
-                              <div style={{ flex:1, minWidth:0 }}>
-                                <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{inc.title}</p>
-                                <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>{inc.type}{inc.location?` · ${inc.location}`:''} · {inc.filedAt}</p>
-                              </div>
-                              <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:RED, background:`${RED}12`, borderRadius:6, padding:'2px 7px', flexShrink:0, textTransform:'uppercase' }}>{inc.severity}</span>
-                            </button>
-                          ))}
-                        </>
-                      )}
-                      {cmdHits.length > 0 && <div style={{ height:1, background:BORDER, margin:'4px 0' }} />}
-                    </>
-                  )}
-                  {/* Commands */}
-                  {navigateCmds.length > 0 && (
-                    <>
-                      <div style={{ padding:'8px 14px 4px', fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'0.10em' }}>Navigate</div>
-                      {navigateCmds.map((cmd, relIdx) => {
-                        const CmdIcon = cmd.Icon;
-                        const flatIdx = relIdx;
-                        const isActive = ddIdx === flatIdx;
-                        return (
-                          <button key={cmd.id}
-                            onMouseDown={() => { cmd.action(); setShowSearch(false); setSearchQuery(''); setDdIdx(-1); }}
-                            onMouseEnter={() => setDdIdx(flatIdx)}
-                            style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'9px 14px', background: isActive ? `${BLUE}12` : 'none', border:'none', cursor:'pointer', textAlign:'left', transition:'background 80ms' }}>
-                            <div style={{ width:30, height:30, borderRadius:8, background: isActive ? `${BLUE}18` : CARD2, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 80ms' }}>
-                              <CmdIcon size={14} color={isActive ? BLUE : MUTED} />
-                            </div>
-                            <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color: isActive ? BLUE : TEXT }}>{cmd.label}</span>
-                          </button>
-                        );
-                      })}
-                    </>
-                  )}
-                  {actionCmds.length > 0 && (
-                    <>
-                      <div style={{ padding:'8px 14px 4px', fontFamily:INTER, fontSize:10, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'0.10em' }}>Actions</div>
-                      {actionCmds.map((cmd, relIdx) => {
-                        const CmdIcon = cmd.Icon;
-                        const flatIdx = navigateCmds.length + relIdx;
-                        const isActive = ddIdx === flatIdx;
-                        return (
-                          <button key={cmd.id}
-                            onMouseDown={() => { cmd.action(); setShowSearch(false); setSearchQuery(''); setDdIdx(-1); }}
-                            onMouseEnter={() => setDdIdx(flatIdx)}
-                            style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'9px 14px', background: isActive ? `${BLUE}12` : 'none', border:'none', cursor:'pointer', textAlign:'left', transition:'background 80ms' }}>
-                            <div style={{ width:30, height:30, borderRadius:8, background: isActive ? `${BLUE}18` : `${BLUE}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 80ms' }}>
-                              <CmdIcon size={14} color={BLUE} />
-                            </div>
-                            <span style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color: isActive ? BLUE : TEXT }}>{cmd.label}</span>
-                          </button>
-                        );
-                      })}
-                    </>
-                  )}
-                  {!hasContent && cmdHits.length === 0 && q && (
-                    <div style={{ padding:'24px 16px', textAlign:'center' }}>
-                      <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>No results</p>
-                      <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>Nothing matched "{searchQuery}"</p>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:8, flexShrink:0 }}>
-            <span style={{ minHeight:34, padding:'0 11px', borderRadius:999, background:CARD2, border:`1px solid ${BORDER}`, display:'inline-flex', alignItems:'center', gap:7, fontFamily:INTER, fontSize:11, fontWeight:700, color:TEXT }}><span style={{ width:7, height:7, borderRadius:'50%', background:isShiftActive?GREEN:MUTED, boxShadow:isShiftActive?'0 0 0 3px rgba(52,199,89,.12)':'none' }} />{isShiftActive?'On shift':'Off shift'}</span>
-            <button aria-label="View notifications" title="Notifications" style={{ position:'relative', width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><Bell size={17} color={TEXT} />{pendingRequests.length > 0 && <span aria-label={`${pendingRequests.length} pending requests`} style={{ position:'absolute', top:7, right:7, width:7, height:7, borderRadius:'50%', background:RED }} />}</button>
-            <button
-              onClick={toggleTheme}
-              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              style={{ flexShrink:0, width:40, height:40, borderRadius:12, background:CARD, border:`1px solid ${BORDER}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'background 150ms' }}
-              onMouseEnter={e => e.currentTarget.style.background = CARD2}
-              onMouseLeave={e => e.currentTarget.style.background = CARD}
-            >
-              {isDarkMode
-                ? <Sun size={17} color="#D18A00" />
-                : <Moon size={17} color={MUTED} />}
-            </button>
-          </div>
-        </header>
-      )}
-
       {/* ── Body row: sidebar + content ─────────────────────────────────── */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
 
       {/* ── DESKTOP SIDEBAR — persistent, always visible ≥768px ─────────── */}
       {!isMobile && (
-        <aside aria-label="Concierge workspace navigation" style={{ width:sidebarCollapsed?80:272, minWidth:sidebarCollapsed?80:272, background:BG, borderRight:`1px solid ${BORDER}`, padding:12, display:'flex', flexDirection:'column', overflow:'hidden', zIndex:10, flexShrink:0, height:'100%', transition:'width 220ms ease, min-width 220ms ease' }}>
+        <aside aria-label="Concierge workspace navigation" style={{ width:sidebarCollapsed?DASHBOARD_SIDEBAR_COLLAPSED:DASHBOARD_SIDEBAR_EXPANDED, minWidth:sidebarCollapsed?DASHBOARD_SIDEBAR_COLLAPSED:DASHBOARD_SIDEBAR_EXPANDED, background:'transparent', display:'flex', flexDirection:'column', overflow:'hidden', zIndex:10, flexShrink:0, height:'100%', transition:'width 220ms ease, min-width 220ms ease' }}>
           <div style={{ minHeight:0, flex:1, display:'flex', flexDirection:'column', background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, boxShadow:'0 2px 8px rgba(0,0,0,.035)', overflow:'hidden' }}>{renderSidebarContent(false)}</div>
         </aside>
       )}
@@ -3034,89 +2626,15 @@ export const CaregiverDashboard = ({
       {/* ── MOBILE DRAWER — overlay, <768px ──────────────────────────────── */}
       {isMobile && (
         <>
-          {/* Mobile header */}
+          {/* Standalone navigation trigger — no mobile/tablet dashboard header */}
           {!sidebarOpen && (
-            <div style={{ position:'fixed', top:0, left:0, right:0, background:CARD, borderBottom:`1px solid ${BORDER}`, boxShadow:'0 2px 10px rgba(0,0,0,.03)', zIndex:48 }}>
-              {/* Top row */}
-              <div style={{ height:64, display:'flex', alignItems:'center', padding:'0 14px', gap:10 }}>
-              <button aria-label="Open navigation menu" onClick={() => setSidebarOpen(true)}
-                  style={{ width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
-                  <Menu size={20} color={TEXT} />
-                </button>
-                <div style={{ flex:1, minWidth:0, textAlign:'center', fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, letterSpacing:'-.01em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                  {propertyName}
-                </div>
-                <button aria-label={showSearch ? 'Close search' : 'Open search'} onClick={() => { setShowSearch(s => !s); setSearchQuery(''); }}
-                  style={{ width:40, height:40, borderRadius:12, border:`1px solid ${showSearch?BLUE:BORDER}`, background:showSearch?`${BLUE}10`:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
-                  {showSearch ? <X size={18} color={BLUE} /> : <Search size={18} color={TEXT} />}
-                </button>
-              </div>
-              {/* Mobile search row */}
-              {showSearch && (
-                <div style={{ padding: '0 14px 10px', position: 'relative' }}>
-                  <Search size={14} color={MUTED} style={{ position:'absolute', left:26, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
-                  <input
-                    autoFocus
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Escape') { setSearchQuery(''); setShowSearch(false); } }}
-                    placeholder="Search tasks, incidents, activities…"
-                    style={{ width:'100%', height:38, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, paddingLeft:36, paddingRight:14, fontFamily:INTER, fontSize:13, color:TEXT, outline:'none', boxSizing:'border-box' }}
-                  />
-                  {/* Mobile results */}
-                  {searchQuery.trim().length > 0 && (() => {
-                    const q = searchQuery.toLowerCase().trim();
-                    const matchTask = t => (t.title||'').toLowerCase().includes(q) || (t.notes||'').toLowerCase().includes(q) || (t.category||'').toLowerCase().includes(q);
-                    const matchInc  = i => (i.title||'').toLowerCase().includes(q) || (i.type||'').toLowerCase().includes(q);
-                    const matchAct  = a => (a.title||'').toLowerCase().includes(q) || (a.category||'').toLowerCase().includes(q);
-                    const mgmtHits  = tasks.filter(t => t.createdByType === 'manager' && matchTask(t)).slice(0, 3);
-                    const actHits   = selfTasks.filter(matchAct).slice(0, 3);
-                    const incHits   = incidents.filter(matchInc).slice(0, 3);
-                    const total     = mgmtHits.length + actHits.length + incHits.length;
-                    return (
-                      <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, boxShadow:'0 8px 24px rgba(0,0,0,0.10)', marginTop:6, overflow:'hidden', maxHeight:340, overflowY:'auto' }}>
-                        {total === 0 ? (
-                          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, padding:'16px 14px', margin:0 }}>No results for "{searchQuery}"</p>
-                        ) : (
-                          <>
-                            {mgmtHits.map(t => (
-                              <button key={t.id} onClick={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('requests'); }}
-                                style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'11px 14px', background:'none', border:'none', borderBottom:`1px solid ${BORDER}`, cursor:'pointer', textAlign:'left' }}>
-                                <ClipboardList size={15} color={ORANGE} style={{ flexShrink:0 }} />
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.title}</p>
-                                  <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>Task · {t.dueTime}</p>
-                                </div>
-                              </button>
-                            ))}
-                            {incHits.map(inc => (
-                              <button key={inc.id} onClick={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('incident'); }}
-                                style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'11px 14px', background:'none', border:'none', borderBottom:`1px solid ${BORDER}`, cursor:'pointer', textAlign:'left' }}>
-                                <AlertTriangle size={15} color={RED} style={{ flexShrink:0 }} />
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{inc.title}</p>
-                                  <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>Incident · {inc.type}</p>
-                                </div>
-                              </button>
-                            ))}
-                            {actHits.map((a, i) => (
-                              <button key={a.id||i} onClick={() => { setShowSearch(false); setSearchQuery(''); handleTabChange('new-task'); }}
-                                style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'11px 14px', background:'none', border:'none', borderBottom:`1px solid ${BORDER}`, cursor:'pointer', textAlign:'left' }}>
-                                <CheckCircle size={15} color={GREEN} style={{ flexShrink:0 }} />
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <p style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.title}</p>
-                                  <p style={{ fontFamily:INTER, fontSize:11, color:MUTED, margin:0 }}>Activity · {a.category}</p>
-                                </div>
-                              </button>
-                            ))}
-                          </>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
+            <button
+              aria-label="Open navigation menu"
+              onClick={() => setSidebarOpen(true)}
+              style={{ position:'fixed', top:12, left:12, zIndex:48, width:40, height:40, padding:0, border:'none', background:'transparent', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}
+            >
+              <Menu size={20} color={TEXT} />
+            </button>
           )}
           <AnimatePresence>
             {sidebarOpen && (
@@ -3129,7 +2647,7 @@ export const CaregiverDashboard = ({
                 <motion.div key="sb-panel"
                   initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}
                   transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                  style={{ position:'fixed', left:0, top:0, bottom:0, width:272, padding:12, background:BG, borderRight:`1px solid ${BORDER}`, zIndex:55, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+                  style={{ position:'fixed', left:0, top:0, bottom:0, width:DASHBOARD_SIDEBAR_EXPANDED, background:'transparent', zIndex:55, display:'flex', flexDirection:'column', overflow:'hidden' }}>
                   <div style={{ minHeight:0, flex:1, display:'flex', flexDirection:'column', background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, boxShadow:'0 8px 30px rgba(0,0,0,.12)', overflow:'hidden' }}>{renderSidebarContent(true)}</div>
                 </motion.div>
               </>
@@ -4580,7 +4098,7 @@ export const CaregiverDashboard = ({
       )}
 
 
-    </div>
+    </DashboardPage>
   );
 };
 

@@ -3,9 +3,9 @@ import { Check, X, Clock, User, Bell } from 'lucide-react';
 import { DECLINE_REASONS } from '../services/mockData';
 import { useTheme } from '../context/ThemeContext';
 
-export const TaskRequestCard = ({ task, onAccept, onDecline }) => {
+export const TaskRequestCard = ({ task, onAccept, onDecline, onComplete }) => {
   const { colors } = useTheme();
-  const { CARD, BORDER, TEXT, MUTED, BLUE, RED, INTER } = colors;
+  const { CARD, CARD2, BORDER, TEXT, MUTED, BLUE, RED, INTER } = colors;
 
   const [showDeclineForm, setShowDeclineForm] = useState(false);
   const [selectedReason, setSelectedReason]   = useState('');
@@ -26,8 +26,9 @@ export const TaskRequestCard = ({ task, onAccept, onDecline }) => {
             <Bell size={19} color={BLUE} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ marginBottom:5 }}>
-              <span style={{ fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,background:'rgba(255,56,92,.09)',borderRadius:999,padding:'4px 8px',textTransform:'uppercase',letterSpacing:'.08em' }}>Management request</span>
+            <div style={{ marginBottom:5,display:'flex',gap:6,alignItems:'center',flexWrap:'wrap' }}>
+              <span style={{ fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,background:'rgba(255,56,92,.09)',borderRadius:999,padding:'4px 8px',textTransform:'uppercase',letterSpacing:'.08em' }}>{task.sourceSection === 'scheduled' ? 'Scheduled request' : 'Management request'}</span>
+              {task.timingLabel&&<span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:task.timingLabel==='Upcoming'?MUTED:BLUE,background:CARD2,borderRadius:999,padding:'4px 8px',textTransform:'uppercase',letterSpacing:'.08em'}}>{task.timingLabel}</span>}
             </div>
             <h3 style={{ fontFamily:INTER,fontSize:14,fontWeight:800,color:TEXT,margin:0,lineHeight:1.35 }}>{task.title}</h3>
           </div>
@@ -70,6 +71,8 @@ export const TaskRequestCard = ({ task, onAccept, onDecline }) => {
               </button>
             </div>
           </div>
+        ) : task.status === 'in_progress' ? (
+          <button onClick={() => onComplete(task)} style={{width:'100%',minHeight:44,background:BLUE,border:0,borderRadius:999,fontFamily:INTER,fontSize:12,fontWeight:750,color:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:7}}><Check size={16}/>Mark Completed</button>
         ) : (
           <div style={{ display:'flex',gap:8,paddingTop:13,borderTop:`1px solid ${BORDER}` }}>
             <button onClick={() => onAccept(task)} data-testid={`accept-request-${task.id}`}

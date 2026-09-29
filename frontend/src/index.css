@@ -52,6 +52,25 @@ body {
     color: var(--noted-color-text);
 }
 
+/* One predictable focus treatment across manager and concierge workspaces. */
+:where(button, a, input, select, textarea, [role="button"], [role="switch"]):focus-visible {
+    outline: 3px solid rgba(255, 56, 92, 0.42) !important;
+    outline-offset: 2px;
+}
+
+:where(button, a, input, select, textarea):disabled {
+    cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
 h1, h2, h3, h4 {
     letter-spacing: -0.02em;
 }

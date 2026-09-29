@@ -10,7 +10,7 @@ import {
   Upload, FileText, Eye, EyeOff, Image,
   GraduationCap, Video, Play, Trash2,
   Printer, BarChart2, UserCog,
-  ClipboardCheck, RefreshCw, Activity,
+  ClipboardCheck, RefreshCw, Activity, Pencil,
 } from 'lucide-react';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
@@ -18,14 +18,21 @@ import { authApi } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
 import { useSharedData } from '../context/SharedDataContext';
 import MicButton from './MicButton';
+import { KnowledgeCard, KnowledgeEmpty, KnowledgeFilters, KnowledgeProgress, KnowledgeStatusBadge } from './knowledge/KnowledgeUI';
 import { toNarrative } from '../lib/toNarrative';
+import {
+  DASHBOARD_ACCENT, DASHBOARD_ACTIVE_NAV, DASHBOARD_DANGER, DASHBOARD_FONT,
+  DASHBOARD_SIDEBAR_COLLAPSED, DASHBOARD_SIDEBAR_EXPANDED,
+  DASHBOARD_SUCCESS, DASHBOARD_WARNING, DashboardCard, DashboardEyebrow,
+  DashboardPage, DashboardSectionTitle, DashboardSidebar, DashboardStatusBadge, DailyActivityReport,
+} from './dashboard';
 
 /* ─── Static brand tokens ────────────────────────────────────────────────────── */
-const GREEN  = '#34C759';
-const BLUE   = '#FF385C';
-const RED    = '#FF3B30';
-const ORANGE = '#FF9500';
-const INTER  = `'Inter','Plus Jakarta Sans',sans-serif`;
+const GREEN  = DASHBOARD_SUCCESS;
+const BLUE   = DASHBOARD_ACCENT;
+const RED    = DASHBOARD_DANGER;
+const ORANGE = DASHBOARD_WARNING;
+const INTER  = DASHBOARD_FONT;
 const MUTED  = '#717171'; // module-level fallback for static array icon colors
 
 /* ─── Calendar helpers ───────────────────────────────────────────────────────── */
@@ -270,13 +277,28 @@ const NAV = [
   { id:'team',        Icon:Users,         label:'Team'                },
   { id:'residents',   Icon:UserCog,       label:'Residents'           },
   { id:'analytics',   Icon:BarChart2,     label:'Analytics'           },
-  { id:'scheduled',   Icon:ClipboardCheck,label:'Scheduled Tasks'     },
+  { id:'scheduled',   Icon:ClipboardCheck,label:'Requests'           },
   { id:'more',        Icon:BookOpen,      label:'SOPs'                },
   { id:'training',    Icon:GraduationCap, label:'Training'            },
   { id:'sections',    Icon:Sliders,       label:'Shift Sections'      },
   { id:'emergency',   Icon:Phone,         label:'Emergency Contacts', action:'emergency' },
   { id:'settings',    Icon:Settings,      label:'Settings'            },
 ];
+
+const MANAGER_NAV_GROUPS = [
+  { label:'Command center', ids:['home', 'tasks', 'assign-task'] },
+  { label:'People & coverage', ids:['shifts', 'team', 'residents'] },
+  { label:'Operations setup', ids:['scheduled', 'sections'] },
+  { label:'Property guide', ids:['more', 'training'] },
+  { label:'Insights', ids:['analytics'] },
+  { label:'Account & support', ids:['settings', 'emergency'] },
+].map(group => ({
+  ...group,
+  items: group.ids.map(id => {
+    const item = NAV.find(navItem => navItem.id === id);
+    return id === 'emergency' ? { ...item, urgent:true } : item;
+  }),
+}));
 
 const EMPTY_ADD  = { name:'', email:'', phone:'', title:'Concierge', co:'Maverick Concierge Services', access:'Full Access' };
 const EMPTY_TASK = { title:'', notes:'', category:'', priority:'Standard', assignedTo:'', toId:'', dueTime:'ASAP' };
@@ -295,10 +317,12 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const MUTED  = colors.MUTED;
   const SHADOW = colors.SHADOW;
   const SIDEBAR = colors.SIDEBAR;
-  const propertyName = authUser?.property_name || propertyName;
+  const propertyName = authUser?.property_name || BUILDING_PROFILE.name;
   // ───────────────────────────────────────────────────────────────────────────
 
   const [tab,       setTab]       = useState('home');
+  const [managerSummaryView, setManagerSummaryView] = useState('dar');
+  const [managerMedia, setManagerMedia] = useState(null);
   const [calView,      setCalView]      = useState('month');
   const [calDate,      setCalDate]      = useState(new Date());
   const [shiftDay,     setShiftDay]     = useState(TODAY_STR);
@@ -322,14 +346,22 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [taskTitleInterim, setTaskTitleInterim] = useState('');
   const [taskNotesInterim, setTaskNotesInterim] = useState('');
   const [taskLoading, setTaskLoading] = useState(false);
+  const [taskSubmitError, setTaskSubmitError] = useState('');
+  const [taskSuccess, setTaskSuccess] = useState('');
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError,   setTasksError]   = useState(false);
+  const [taskSearch,   setTaskSearch]   = useState('');
+  const [taskFilter,   setTaskFilter]   = useState('open');
+  const [taskAssignee, setTaskAssignee] = useState('all');
   const [incidentsError, setIncidentsError] = useState(false);
   const [successIncidentId, setSuccessIncidentId] = useState(null);
   const [srAnnounce,   setSrAnnounce]   = useState('');
   const searchInputRef = useRef(null);
   const taskModalRef   = useRef(null);
+  const taskOpenerRef  = useRef(null);
   const leasingModalRef = useRef(null);
+  const contactsPanelRef = useRef(null);
+  const contactsOpenerRef = useRef(null);
   const [conOpen,         setConOpen]         = useState(false);
   const [customContacts,  setCustomContacts]  = useState([]);
   const [showAddContact,  setShowAddContact]  = useState(false);
@@ -344,12 +376,21 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [uploadForm,       setUploadForm]       = useState({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
   const [fullscreenDoc,    setFullscreenDoc]    = useState(null);
   const [sopStep,          setSopStep]          = useState(1);
+  const [editingSopId,     setEditingSopId]     = useState(null);
   const uploadFileRef = useRef(null);
   const [expandedTrainingId,  setExpandedTrainingId]  = useState(null);
   const [trainingUploadOpen,  setTrainingUploadOpen]  = useState(false);
   const [trainingForm,        setTrainingForm]        = useState({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
   const [fullscreenTraining,  setFullscreenTraining]  = useState(null);
   const [trainingStep,        setTrainingStep]        = useState(1);
+  const [sopSearch, setSopSearch] = useState('');
+  const [sopFilter, setSopFilter] = useState('All');
+  const [trainingSearch, setTrainingSearch] = useState('');
+  const [trainingFilter, setTrainingFilter] = useState('All');
+  const [knowledgeStatus, setKnowledgeStatus] = useState({});
+  const [sectionSaved, setSectionSaved] = useState('');
+  const [sectionsLoading, setSectionsLoading] = useState(true);
+  const [sectionsError, setSectionsError] = useState(false);
   const trainingFileRef = useRef(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
@@ -358,8 +399,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [editInfoMgr,      setEditInfoMgr]      = useState({ name:'', email:'', phone:'' });
   const [pwFormMgr,        setPwFormMgr]        = useState({ current:'', next:'', confirm:'' });
   const [pwStatusMgr,      setPwStatusMgr]      = useState('');
+  const [profileSaveState, setProfileSaveState] = useState('saved');
   const [isMobile,         setIsMobile]         = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (t ? 1366 : 768); });
-  const [isPhone,          setIsPhone]          = useState(() => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return t && window.innerWidth < 768; });
+  const [isPhone,          setIsPhone]          = useState(() => window.innerWidth < 768);
   const [searchQuery,      setSearchQuery]      = useState('');
 
   const [todayShift,  setTodayShift]  = useState(null); // live DAR from active shift
@@ -368,7 +410,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
   // Converts backend shift data to the shape the DAR renderer expects.
   // Only includes activities logged today so overnight shifts don't bleed yesterday's entries.
-  const shiftToDAR = (s) => {
+  const shiftToDAR = (s, onlyToday = true) => {
     if (!s) return null;
     const todayStr = new Date().toLocaleDateString();
     return {
@@ -378,22 +420,30 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       note:      '',
       incidents: (s.incidents || []).filter(i => {
         if (!i.created_at) return true;
-        return new Date(i.created_at).toLocaleDateString() === todayStr;
+        return !onlyToday || new Date(i.created_at).toLocaleDateString() === todayStr;
       }).map(i => {
         const tod = i.created_at
           ? new Date(i.created_at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }).replace(/\s*(AM|PM)$/i, (_, m) => m.toLowerCase())
           : '';
-        return `${tod ? tod + ' — ' : ''}${i.type || ''}: ${i.description || ''}`;
+        return {
+          id: i.incident_id,
+          text: `${tod ? tod + ' — ' : ''}${i.type || ''}: ${i.description || ''}`,
+          title: i.description || i.type || 'Incident',
+          time: tod,
+          category: 'Incident',
+          evidenceUrls: Array.isArray(i.evidence_urls) ? i.evidence_urls : [],
+        };
       }),
       activities: (s.activities || []).filter(t => {
-        if (!t.created_at) return false;
-        return new Date(t.created_at).toLocaleDateString() === todayStr;
+        if (!t.created_at) return !onlyToday;
+        return !onlyToday || new Date(t.created_at).toLocaleDateString() === todayStr;
       }).map(t => ({
         id:       t.task_id,
         time:     new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
         title:    t.title,
         notes:    t.notes || '',
         category: t.category || 'Other',
+        evidenceUrls: Array.isArray(t.evidence_urls) ? t.evidence_urls : (t.evidence_url ? [t.evidence_url] : []),
       })),
     };
   };
@@ -402,9 +452,11 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   useEffect(() => {
     authApi.getConcierges().then(list => {
       setTeam(list);
+      setSectionsLoading(false);
+      setSectionsError(false);
       if (list.length > 0) setSetupConcierge(list[0].id);
       setSectionAccess(Object.fromEntries(list.map(c => [c.id, { ...DEFAULT_SECTIONS }])));
-    }).catch(() => {});
+    }).catch(() => { setSectionsLoading(false); setSectionsError(true); });
     authApi.getTasks()
       .then(list => { setTasks(list); setTasksLoading(false); setTasksError(false); })
       .catch(() => { setTasksLoading(false); setTasksError(true); });
@@ -418,6 +470,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   useEffect(() => {
     const loadShift = async () => {
       const res = await authApi.getActiveShift();
+      authApi.getShiftHistory().then(history => setAllShifts(history?.shifts || [])).catch(() => {});
       if (res?.shifts?.length > 0) {
         const shift = res.shifts[0];
         const todayStr = new Date().toLocaleDateString();
@@ -474,7 +527,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   }, [authUser]);
 
   useEffect(() => {
-    const onResize = () => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; setIsMobile(window.innerWidth < (t ? 1366 : 768)); setIsPhone(t && window.innerWidth < 768); };
+    const onResize = () => { const t = 'ontouchstart' in window || navigator.maxTouchPoints > 0; setIsMobile(window.innerWidth < (t ? 1366 : 768)); setIsPhone(window.innerWidth < 768); };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -518,7 +571,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     const el = taskModalRef.current;
     const getFocusable = () => Array.from(el.querySelectorAll('button,input,select,textarea,a[href],[tabindex]:not([tabindex="-1"])'));
     const focusable = getFocusable();
-    focusable[0]?.focus();
+    (el.querySelector('[data-autofocus="true"]') || focusable[0])?.focus();
     const trap = (e) => {
       if (e.key !== 'Tab') return;
       const nodes = getFocusable();
@@ -561,10 +614,37 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     return () => el.removeEventListener('keydown', trap);
   }, [leasingOpen]);
 
+  // Keep keyboard focus inside the emergency directory and return it to the
+  // control that opened the drawer when the directory closes.
+  useEffect(() => {
+    if (!conOpen || !contactsPanelRef.current) return undefined;
+    contactsOpenerRef.current = document.activeElement;
+    const panel = contactsPanelRef.current;
+    const getFocusable = () => Array.from(panel.querySelectorAll('button,input,select,textarea,a[href],[tabindex]:not([tabindex="-1"])'));
+    getFocusable()[0]?.focus();
+    const trap = event => {
+      if (event.key !== 'Tab') return;
+      const nodes = getFocusable();
+      const first = nodes[0]; const last = nodes[nodes.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    panel.addEventListener('keydown', trap);
+    return () => {
+      panel.removeEventListener('keydown', trap);
+      requestAnimationFrame(() => contactsOpenerRef.current?.focus?.());
+    };
+  }, [conOpen]);
+
   const nowStr = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   const closeAdd  = () => { setAddOpen(false);  setAddStep(1);  setAddForm(EMPTY_ADD); setAddError(''); };
-  const closeTask = () => { setTaskOpen(false); setTaskStep(1); setTaskForm(EMPTY_TASK); };
+  const openTask = () => { taskOpenerRef.current = document.activeElement; setTaskSubmitError(''); setTaskOpen(true); };
+  const closeTask = () => {
+    setTaskOpen(false); setTaskStep(1); setTaskForm(EMPTY_TASK); setTaskSubmitError('');
+    requestAnimationFrame(() => taskOpenerRef.current?.focus?.());
+  };
 
   const submitAdd = async () => {
     if (!addForm.name.trim() || !addForm.email.trim()) return;
@@ -594,14 +674,16 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   const submitTask = async () => {
-    if (!taskForm.title.trim()) return;
-    setTaskLoading(true);
+    if (!taskForm.title.trim() || !taskForm.toId) return;
+    setTaskLoading(true); setTaskSubmitError('');
     try {
       const newTask = await authApi.createTask(taskForm);
       setTasks(p => [newTask, ...p]);
+      setTaskSuccess(`“${taskForm.title.trim()}” was assigned.`);
       closeTask();
-    } catch {
-      // keep modal open so user can retry
+      window.setTimeout(() => setTaskSuccess(''), 5000);
+    } catch (err) {
+      setTaskSubmitError(err?.response?.data?.detail || 'The task could not be assigned. Check your connection and try again.');
     } finally {
       setTaskLoading(false);
     }
@@ -807,19 +889,27 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const renderConciergeSetup = () => {
     const glassCard  = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
     const baseInput  = { width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box' };
-    const access     = sectionAccess[setupConcierge] || {};
+    const activeConcierge = setupConcierge || team[0]?.id || null;
+    const access     = sectionAccess[activeConcierge] || {};
     const allSections = [...CONCIERGE_SECTIONS, ...customSections];
     const toggleSection = (sectionId) => {
       setSectionAccess(prev => ({
         ...prev,
-        [setupConcierge]: { ...prev[setupConcierge], [sectionId]: !prev[setupConcierge][sectionId] },
+        [activeConcierge]: { ...prev[activeConcierge], [sectionId]: !(prev[activeConcierge]?.[sectionId] !== false) },
       }));
+      setSectionSaved('Saving…');
+      window.setTimeout(()=>setSectionSaved('Saved'), 250);
     };
 
     const canSubmit = !!newSectionDraft.label.trim();
 
     return (
       <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
+
+        <div style={{ ...glassCard, padding:18, marginBottom:16 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12 }}><div><p style={{ margin:'0 0 3px', fontSize:16, fontWeight:800, color:TEXT }}>Choose a concierge</p><p style={{ margin:0, fontSize:12, color:MUTED }}>Each person gets their own DAR workspace access.</p></div>{sectionSaved&&<KnowledgeStatusBadge status={sectionSaved==='Saved'?'published':'review'} label={sectionSaved} colors={{accent:BLUE,success:GREEN,warning:ORANGE,muted:MUTED,surface:CARD2}}/>}</div>
+          {sectionsLoading ? <div role="status" style={{ padding:24,borderRadius:14,background:CARD2,color:MUTED,textAlign:'center',fontSize:13 }}><RefreshCw size={18} style={{ marginBottom:8 }}/> <div>Loading concierge access…</div></div> : sectionsError ? <KnowledgeEmpty icon={AlertTriangle} title="Concierge access could not be loaded" description="Check your connection and reopen Shift Sections to try again." colors={{accent:BLUE,success:GREEN,warning:ORANGE,card:CARD,surface:CARD2,border:BORDER,text:TEXT,muted:MUTED,shadow:SHADOW}}/> : team.length===0 ? <KnowledgeEmpty icon={Users} title="No concierges to configure" description="Add a concierge to the property before assigning shift sections." colors={{accent:BLUE,success:GREEN,warning:ORANGE,card:CARD,surface:CARD2,border:BORDER,text:TEXT,muted:MUTED,shadow:SHADOW}}/> : <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:2 }}>{team.map(person=>{const selected=person.id===activeConcierge; const enabledCount=allSections.filter(section=>section.required||sectionAccess[person.id]?.[section.id]!==false).length; return <button key={person.id} onClick={()=>{setSetupConcierge(person.id);setSectionSaved('');}} style={{ minWidth:180,padding:13,borderRadius:13,border:`1.5px solid ${selected?BLUE:BORDER}`,background:selected?`${BLUE}08`:CARD2,textAlign:'left',cursor:'pointer' }}><span style={{ display:'block',fontSize:13,fontWeight:800,color:TEXT }}>{person.name}</span><span style={{ display:'block',fontSize:10,color:MUTED,marginTop:4 }}>{enabledCount} of {allSections.length} sections accessible</span></button>})}</div>}
+        </div>
 
         {/* CTA — full-width incident-style */}
         <div style={{ paddingBottom:20 }}>
@@ -945,10 +1035,13 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [resAddOpen,     setResAddOpen]     = useState(false);
   const [resEditId,      setResEditId]      = useState(null);
   const [resSaving,      setResSaving]      = useState(false);
+  const [resSearch,      setResSearch]      = useState('');
+  const [resError,       setResError]       = useState(false);
+  const [teamSearch,     setTeamSearch]     = useState('');
 
   useEffect(() => {
     setResLoading(true);
-    authApi.getResidents().then(list => { setResidents(list); setResLoading(false); }).catch(() => setResLoading(false));
+    authApi.getResidents().then(list => { setResidents(list); setResError(false); setResLoading(false); }).catch(() => { setResError(true); setResLoading(false); });
   }, []);
 
   const saveResident = async () => {
@@ -979,6 +1072,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     const glassCard = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
     const baseInput = { width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box' };
     const valid = resForm.name.trim() && resForm.unit.trim();
+    const residentQuery = resSearch.trim().toLowerCase();
+    const filteredResidents = residents.filter(r => !residentQuery || [r.name, r.unit, r.phone, r.email, r.notes].some(value => String(value || '').toLowerCase().includes(residentQuery)));
 
     /* ── Add / Edit form view ── */
     if (resAddOpen) {
@@ -1012,7 +1107,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             </h3>
 
             {/* Name + Unit row */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'1fr 1fr', gap:12 }}>
               <div>
                 <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Full Name *</h3>
                 <input value={resForm.name} onChange={e => setResForm(p => ({ ...p, name:e.target.value }))} placeholder="e.g. Maria Lopez"
@@ -1026,7 +1121,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             </div>
 
             {/* Phone + Email row */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'1fr 1fr', gap:12 }}>
               <div>
                 <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Phone</h3>
                 <input value={resForm.phone} onChange={e => setResForm(p => ({ ...p, phone:e.target.value }))} placeholder="(555) 000-0000" type="tel"
@@ -1097,9 +1192,18 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           </span>
         </div>
 
+        <label style={{ position:'relative', marginBottom:14 }}>
+          <span className="sr-only">Search residents</span>
+          <Search size={17} color={MUTED} style={{ position:'absolute', left:14, top:13 }} />
+          <input value={resSearch} onChange={e => setResSearch(e.target.value)} placeholder="Search by resident, unit, phone, email, or notes" aria-label="Search residents"
+            style={{ width:'100%', minHeight:44, boxSizing:'border-box', padding:'0 14px 0 42px', border:`1px solid ${BORDER}`, borderRadius:12, background:CARD, color:TEXT, fontFamily:INTER, fontSize:13, outline:'none' }} />
+        </label>
+
         {/* Loading */}
         {resLoading ? (
-          <div style={{ textAlign:'center', padding:'40px 0', color:MUTED, fontSize:14 }}>Loading…</div>
+          <div aria-label="Loading residents" style={{ display:'flex', flexDirection:'column', gap:8 }}>{[1,2,3].map(i => <div key={i} style={{ height:76, borderRadius:14, background:CARD2, border:`1px solid ${BORDER}`, opacity:1-i*.15 }} />)}</div>
+        ) : resError ? (
+          <div role="alert" style={{ ...glassCard, padding:32, textAlign:'center' }}><AlertTriangle size={28} color={RED} /><p style={{fontWeight:700,color:TEXT,margin:'12px 0 5px'}}>Residents couldn’t load</p><p style={{fontSize:13,color:MUTED,margin:0}}>Refresh the page to try the directory again.</p></div>
         ) : residents.length === 0 ? (
           /* Empty state — exact incident pattern: 80×80 icon */
           <div style={{ ...glassCard, padding:40, textAlign:'center' }}>
@@ -1109,13 +1213,15 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>No residents yet</p>
             <p style={{ fontSize:14, color:MUTED }}>Add residents so concierges can look them up by name or unit</p>
           </div>
+        ) : filteredResidents.length === 0 ? (
+          <div style={{ ...glassCard, padding:32, textAlign:'center' }}><Search size={28} color={MUTED}/><p style={{fontWeight:700,color:TEXT,margin:'12px 0 5px'}}>No residents match</p><p style={{fontSize:13,color:MUTED,margin:0}}>Try a different name, unit, or contact detail.</p></div>
         ) : (
           /* Resident cards — exact incident history card pattern */
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {residents.map(r => {
-              const initials = r.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+            {filteredResidents.map(r => {
+              const initials = String(r.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
               return (
-                <div key={r.resident_id} style={{ ...glassCard, padding:20, display:'flex', alignItems:'center', gap:16 }}>
+                <div key={r.resident_id} style={{ ...glassCard, padding:isMobile?14:18, display:'grid', gridTemplateColumns:isMobile?'42px minmax(0,1fr)':'48px minmax(0,1fr) auto', alignItems:'center', gap:isMobile?12:16 }}>
 
                   {/* 48×48 avatar, borderRadius:14 — matches incident icon container */}
                   <div style={{ width:48, height:48, background:`${BLUE}12`, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
@@ -1125,10 +1231,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   {/* Content — flex:1, matches incident card info block */}
                   <div style={{ flex:1, minWidth:0 }}>
                     <p style={{ fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.name}</p>
-                    <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:3 }}>
+                    <div style={{ display:'flex', gap:7, flexWrap:'wrap', marginTop:4, minWidth:0 }}>
                       {r.phone && <span style={{ fontSize:12, color:MUTED }}>{r.phone}</span>}
                       {r.email && <span style={{ fontSize:12, color:MUTED }}>· {r.email}</span>}
-                      {r.notes && <span style={{ fontSize:12, color:MUTED, fontStyle:'italic' }}>· {r.notes}</span>}
+                      {r.notes && <span title={r.notes} style={{ fontSize:12, color:MUTED, fontStyle:'italic', maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>· {r.notes}</span>}
                     </div>
                     {/* Action buttons — small, inside info block, no divider */}
                     <div style={{ display:'flex', gap:6, marginTop:10 }}>
@@ -1144,7 +1250,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   </div>
 
                   {/* Unit badge — exact severity badge pill pattern */}
-                  <span style={{ padding:'6px 14px', borderRadius:10, fontSize:12, fontWeight:700, background:BLUE, color:'white', flexShrink:0 }}>
+                  <span title={`Unit ${r.unit}`} style={{ gridColumn:isMobile?'2':'auto', justifySelf:isMobile?'start':'auto', maxWidth:isMobile?'100%':180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', padding:'6px 12px', borderRadius:10, fontSize:11, fontWeight:750, background:`${BLUE}14`, color:BLUE, border:`1px solid ${BLUE}28`, flexShrink:0 }}>
                     UNIT {r.unit}
                   </span>
                 </div>
@@ -1159,15 +1265,17 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   /* ── Analytics ─────────────────────────────────────────────────────────────── */
   const [analyticsData,    setAnalyticsData]    = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError,   setAnalyticsError]   = useState('');
   const [analyticsRange,   setAnalyticsRange]   = useState('all');
   const [analyticsFrom,    setAnalyticsFrom]    = useState('');
   const [analyticsTo,      setAnalyticsTo]      = useState('');
 
   const loadAnalytics = (fromDate = null, toDate = null) => {
     setAnalyticsLoading(true);
+    setAnalyticsError('');
     authApi.getAnalytics(fromDate, toDate)
       .then(d => { setAnalyticsData(d); setAnalyticsLoading(false); })
-      .catch(() => setAnalyticsLoading(false));
+      .catch(() => { setAnalyticsError('Analytics could not be loaded. Check your connection and try again.'); setAnalyticsLoading(false); });
   };
 
   const applyRange = (range, from = analyticsFrom, to = analyticsTo) => {
@@ -1205,10 +1313,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
     /* Shared bar row component */
     const BarRow = ({ label, count, max, color }) => (
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:10 }}>
-        <div style={{ width:120, flexShrink:0, fontFamily:INTER, fontSize:13, color:TEXT, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</div>
+      <div style={{ display:'grid', gridTemplateColumns:isPhone?'minmax(82px, 1fr) minmax(100px, 2fr) 28px':'120px minmax(120px, 1fr) 28px', alignItems:'center', gap:isPhone?8:12, marginBottom:12 }}>
+        <div title={label} style={{ minWidth:0, fontFamily:INTER, fontSize:13, color:TEXT, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</div>
         <div style={{ flex:1, background:CARD2, borderRadius:BAR_H/2, height:BAR_H, overflow:'hidden' }}>
-          <div style={{ width:`${Math.round(count/max*100)}%`, height:BAR_H, background:color, borderRadius:BAR_H/2, transition:'width 500ms ease' }} />
+          <div style={{ width:`${Math.round(count/max*100)}%`, minWidth:count?4:0, height:BAR_H, background:color, borderRadius:BAR_H/2, transition:'width 500ms ease' }} />
         </div>
         <div style={{ width:28, flexShrink:0, fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, textAlign:'right' }}>{count}</div>
       </div>
@@ -1231,12 +1339,23 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
     /* Loading state — exact incident empty state pattern */
     if (analyticsLoading) return (
-      <div style={{ ...glassCard, padding:40, textAlign:'center' }}>
+      <div role="status" aria-live="polite" style={{ ...glassCard, padding:40, textAlign:'center' }}>
         <div style={{ width:80, height:80, background:CARD2, borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
           <Activity size={40} color={MUTED} strokeWidth={1.5} />
         </div>
         <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>Loading analytics…</p>
         <p style={{ fontSize:14, color:MUTED }}>Crunching the numbers for you</p>
+      </div>
+    );
+
+    if (analyticsError) return (
+      <div role="alert" style={{ ...glassCard, padding:isPhone?24:40, textAlign:'center' }}>
+        <div style={{ width:64, height:64, background:`${RED}10`, borderRadius:18, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
+          <AlertTriangle size={30} color={RED} strokeWidth={1.7} />
+        </div>
+        <p style={{ fontWeight:700, color:TEXT, fontSize:17, margin:'0 0 6px' }}>Analytics unavailable</p>
+        <p style={{ fontSize:14, lineHeight:1.5, color:MUTED, margin:'0 auto 18px', maxWidth:360 }}>{analyticsError}</p>
+        <button type="button" onClick={() => applyRange(analyticsRange)} style={{ minHeight:44, padding:'0 18px', border:0, borderRadius:12, background:BLUE, color:'#fff', fontWeight:700, cursor:'pointer' }}>Try again</button>
       </div>
     );
 
@@ -1260,10 +1379,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         <div style={{ ...glassCard, padding:20 }}>
           <SecHead Icon={Calendar} title="Date Range" />
           {/* Range chips — severity-button style from incident report step 2 */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8, marginBottom: analyticsRange === 'custom' ? 16 : 0 }}>
+          <div role="group" aria-label="Analytics date range" style={{ display:'grid', gridTemplateColumns:isPhone?'repeat(2,minmax(0,1fr))':'repeat(5,minmax(0,1fr))', gap:8, marginBottom: analyticsRange === 'custom' ? 16 : 0 }}>
             {RANGES.map(r => (
-              <button key={r.id} onClick={() => applyRange(r.id)}
-                style={{ padding:'12px 0', borderRadius:12, textAlign:'center', fontFamily:INTER, fontSize:13, fontWeight:600, cursor:'pointer',
+              <button key={r.id} type="button" aria-pressed={analyticsRange === r.id} onClick={() => applyRange(r.id)}
+                style={{ minHeight:44, padding:'10px 8px', borderRadius:12, textAlign:'center', fontFamily:INTER, fontSize:13, fontWeight:600, cursor:'pointer',
                   background: analyticsRange === r.id ? BLUE : CARD2,
                   border:     analyticsRange === r.id ? 'none' : `1px solid ${BORDER}`,
                   color:      analyticsRange === r.id ? 'white' : MUTED,
@@ -1273,15 +1392,15 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             ))}
           </div>
           {analyticsRange === 'custom' && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:10, alignItems:'flex-end' }}>
+            <div style={{ display:'grid', gridTemplateColumns:isPhone?'1fr':'1fr 1fr auto', gap:10, alignItems:'flex-end' }}>
               <div>
-                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:8 }}>From</h3>
-                <input type="date" value={analyticsFrom} onChange={e => setAnalyticsFrom(e.target.value)}
+                <label htmlFor="analytics-from" style={{ display:'block', fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, marginBottom:8 }}>From</label>
+                <input id="analytics-from" type="date" value={analyticsFrom} onChange={e => setAnalyticsFrom(e.target.value)}
                   style={{ width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, border:analyticsFrom?`1.5px solid ${BLUE}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, outline:'none', boxSizing:'border-box' }} />
               </div>
               <div>
-                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:8 }}>To</h3>
-                <input type="date" value={analyticsTo} onChange={e => setAnalyticsTo(e.target.value)}
+                <label htmlFor="analytics-to" style={{ display:'block', fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, marginBottom:8 }}>To</label>
+                <input id="analytics-to" type="date" min={analyticsFrom || undefined} value={analyticsTo} onChange={e => setAnalyticsTo(e.target.value)}
                   style={{ width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, border:analyticsTo?`1.5px solid ${BLUE}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:14, color:TEXT, outline:'none', boxSizing:'border-box' }} />
               </div>
               <button onClick={() => applyRange('custom', analyticsFrom, analyticsTo)} disabled={!analyticsFrom}
@@ -1295,20 +1414,20 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         {/* ── KPI tiles — 3-col grid with icon + number + label ── */}
         <div>
           <SecHead Icon={BarChart2} title="Overview" />
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(142px,1fr))', gap:10 }}>
             {[
-              { label:'Total Activities', value:totals.tasks,                    color:BLUE,   Icon:Activity      },
-              { label:'Completed',        value:totals.completed_tasks,           color:GREEN,  Icon:CheckCircle   },
-              { label:'Completion Rate',  value:`${totals.completion_rate}%`,     color:GREEN,  Icon:Check         },
-              { label:'Incidents',        value:totals.incidents,                 color:ORANGE, Icon:AlertTriangle },
-              { label:'Open Incidents',   value:totals.open_incidents,            color:RED,    Icon:Clock         },
-              { label:'Total Shifts',     value:totals.shifts,                    color:BLUE,   Icon:Calendar      },
+              { label:'Total Activities', value:totals.tasks ?? 0,                    color:BLUE,   Icon:Activity      },
+              { label:'Completed',        value:totals.completed_tasks ?? 0,          color:GREEN,  Icon:CheckCircle   },
+              { label:'Completion Rate',  value:`${totals.completion_rate ?? 0}%`,    color:GREEN,  Icon:Check         },
+              { label:'Incidents',        value:totals.incidents ?? 0,                color:ORANGE, Icon:AlertTriangle },
+              { label:'Open Incidents',   value:totals.open_incidents ?? 0,           color:RED,    Icon:Clock         },
+              { label:'Total Shifts',     value:totals.shifts ?? 0,                    color:BLUE,   Icon:Calendar      },
             ].map(({ label, value, color, Icon }) => (
               <div key={label} style={{ ...glassCard, padding:'16px 10px', textAlign:'center' }}>
                 <div style={{ width:36, height:36, borderRadius:10, background:`${color}12`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
                   <Icon size={18} color={color} />
                 </div>
-                <div style={{ fontFamily:INTER, fontSize:24, fontWeight:800, color, letterSpacing:'-0.02em', lineHeight:1, marginBottom:5 }}>{value}</div>
+                <div style={{ fontFamily:INTER, fontSize:'clamp(1.25rem,5vw,1.5rem)', fontWeight:800, color, letterSpacing:'-0.02em', lineHeight:1, marginBottom:5, overflowWrap:'anywhere' }}>{value}</div>
                 <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, fontWeight:600, lineHeight:1.3 }}>{label}</div>
               </div>
             ))}
@@ -1349,8 +1468,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         {hourly_activity?.length > 0 && (
           <div>
             <SecHead Icon={Clock} title={`Activity by Hour — ${RANGES.find(r => r.id === analyticsRange)?.label || 'All Time'}`} />
-            <div style={{ ...glassCard, padding:20 }}>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(12,1fr)', gap:4 }}>
+            <div style={{ ...glassCard, padding:20, overflowX:'auto' }}>
+              <div role="img" aria-label="Activity count for each hour of the day" style={{ display:'grid', gridTemplateColumns:'repeat(24,minmax(38px,1fr))', gap:5, minWidth:912 }}>
                 {Array.from({length:24}).map((_,h) => {
                   const entry     = hourly_activity.find(x => x.hour === h);
                   const cnt       = entry?.count || 0;
@@ -1383,27 +1502,43 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   /* ── Scheduled Tasks ──────────────────────────────────────────────────────── */
   const [schedTasks,    setSchedTasks]    = useState([]);
   const [schedLoading,  setSchedLoading]  = useState(false);
-  const [schedForm,     setSchedForm]     = useState({ title:'', notes:'', category:'Administrative', priority:'Standard', recurrence:'shift_start', scheduledHour:8, shiftWindow:'all', assignedConciergeId:'', assignedConciergeName:'' });
+  const localDateInput = (offsetDays = 0) => { const d = new Date(); d.setDate(d.getDate() + offsetDays); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+  const defaultSchedForm = () => ({ title:'', notes:'', category:'Administrative', priority:'Standard', recurrence:'daily', scheduledHour:8, scheduledTime:'08:00', startDate:localDateInput(), endDate:localDateInput(30), daysOfWeek:[0,1,2,3,4,5,6], active:true, shiftWindow:'all', assignedConciergeId:'', assignedConciergeName:'' });
+  const [schedForm,     setSchedForm]     = useState(defaultSchedForm);
   const [schedAddOpen,  setSchedAddOpen]  = useState(false);
   const [schedSaving,   setSchedSaving]   = useState(false);
   const [schedStep,     setSchedStep]     = useState(1);
+  const [schedEditingId,setSchedEditingId]= useState(null);
+  const [schedError,    setSchedError]    = useState('');
+  const [schedSuccess,  setSchedSuccess]  = useState('');
 
   useEffect(() => {
     setSchedLoading(true);
-    authApi.getScheduledTasks().then(list => { setSchedTasks(list); setSchedLoading(false); }).catch(() => setSchedLoading(false));
+    authApi.getScheduledTasks().then(list => { setSchedTasks(list); setSchedError(''); setSchedLoading(false); }).catch(() => { setSchedError('Scheduled tasks could not be loaded.'); setSchedLoading(false); });
   }, []);
 
-  const EMPTY_SCHED_FORM = { title:'', notes:'', category:'Administrative', priority:'Standard', recurrence:'shift_start', scheduledHour:8, shiftWindow:'all', assignedConciergeId:'', assignedConciergeName:'' };
+  const EMPTY_SCHED_FORM = defaultSchedForm();
 
   const saveScheduled = async () => {
-    if (!schedForm.title.trim()) return;
-    setSchedSaving(true);
+    if (!schedForm.title.trim() || !schedForm.startDate || !schedForm.endDate || !schedForm.scheduledTime || !schedForm.daysOfWeek.length) return;
+    if (schedForm.endDate < schedForm.startDate) { setSchedError('End date must be on or after the start date.'); return; }
+    setSchedSaving(true); setSchedError('');
     try {
-      const created = await authApi.createScheduledTask(schedForm);
-      setSchedTasks(prev => [created, ...prev]);
+      if (schedEditingId) {
+        const patch = { title:schedForm.title, notes:schedForm.notes, category:schedForm.category, priority:schedForm.priority, recurrence:'daily', scheduled_hour:Number((schedForm.scheduledTime||'08:00').split(':')[0]), scheduled_time:schedForm.scheduledTime, start_date:schedForm.startDate, end_date:schedForm.endDate, days_of_week:schedForm.daysOfWeek, active:schedForm.active, shift_window:schedForm.shiftWindow, assigned_concierge_id:schedForm.assignedConciergeId, assigned_concierge_name:schedForm.assignedConciergeName, assigned_to:schedForm.assignedConciergeName, assigned_to_id:schedForm.assignedConciergeId };
+        const updated = await authApi.updateScheduledTask(schedEditingId, patch);
+        setSchedTasks(prev => prev.map(t => t.scheduled_task_id === schedEditingId ? updated : t));
+        setSchedSuccess('Scheduled task updated.');
+      } else {
+        const created = await authApi.createScheduledTask(schedForm);
+        setSchedTasks(prev => [created, ...prev]);
+        setSchedSuccess('Scheduled task created.');
+      }
       setSchedForm(EMPTY_SCHED_FORM);
+      setSchedEditingId(null);
       setSchedAddOpen(false);
-    } catch {} finally { setSchedSaving(false); }
+      window.setTimeout(() => setSchedSuccess(''), 5000);
+    } catch { setSchedError('The schedule could not be saved. Check the details and try again.'); } finally { setSchedSaving(false); }
   };
 
   const toggleSchedActive = async (taskId, currentActive) => {
@@ -1416,6 +1551,11 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       await authApi.deleteScheduledTask(id);
       setSchedTasks(prev => prev.filter(t => t.scheduled_task_id !== id));
     } catch {}
+  };
+
+  const editScheduled = task => {
+    setSchedForm({ title:task.title || '', notes:task.notes || '', category:task.category || 'Administrative', priority:task.priority || 'Standard', recurrence:'daily', scheduledHour:task.scheduled_hour ?? 8, scheduledTime:task.scheduled_time || `${String(task.scheduled_hour ?? 8).padStart(2,'0')}:00`, startDate:task.start_date || localDateInput(), endDate:task.end_date || localDateInput(30), daysOfWeek:Array.isArray(task.days_of_week) ? task.days_of_week : [0,1,2,3,4,5,6], active:task.active !== false, shiftWindow:task.shift_window || 'all', assignedConciergeId:task.assigned_concierge_id || task.assigned_to_id || '', assignedConciergeName:task.assigned_concierge_name || task.assigned_to || '' });
+    setSchedEditingId(task.scheduled_task_id); setSchedStep(1); setSchedError(''); setSchedAddOpen(true);
   };
 
   const RECURRENCE_LABELS = { shift_start: 'Every Shift Start', daily: 'Daily at Hour' };
@@ -1453,7 +1593,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       const handleNext = () => { if (schedStep < 3) setSchedStep(s => s + 1); };
       const handleBack = () => {
         if (schedStep > 1) setSchedStep(s => s - 1);
-        else { setSchedAddOpen(false); setSchedStep(1); setSchedForm(EMPTY_SCHED_FORM); }
+        else { setSchedAddOpen(false); setSchedEditingId(null); setSchedStep(1); setSchedForm(EMPTY_SCHED_FORM); }
       };
 
       return (
@@ -1463,10 +1603,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <div style={{ flexShrink:0, paddingBottom:14, borderBottom:`1px solid ${BORDER}`, marginBottom:24 }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
               <div>
-                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>New Scheduled Task</h2>
+                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>{schedEditingId ? 'Edit Preset Request' : 'New Preset Request'}</h2>
                 <p style={{ fontSize:13, color:MUTED, margin:'2px 0 0' }}>Step {schedStep} of 3</p>
               </div>
-              <button onClick={() => { setSchedAddOpen(false); setSchedStep(1); setSchedForm(EMPTY_SCHED_FORM); }}
+              <button onClick={() => { setSchedAddOpen(false); setSchedEditingId(null); setSchedStep(1); setSchedForm(EMPTY_SCHED_FORM); }}
                 style={{ padding:'10px 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontSize:14, fontWeight:600, color:TEXT, cursor:'pointer', fontFamily:INTER }}>
                 Cancel
               </button>
@@ -1594,33 +1734,27 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
               <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Schedule & Review</h3>
 
-              {/* Recurrence — severity-button style */}
-              <div>
-                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Recurrence</h3>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                  {[{val:'shift_start',label:'Every Shift Start'},{val:'daily',label:'Daily at Set Hour'}].map(r => {
-                    const sel = schedForm.recurrence === r.val;
-                    return (
-                      <button key={r.val} onClick={() => setSchedForm(p => ({ ...p, recurrence:r.val }))}
-                        style={{ padding:'14px 0', borderRadius:12, textAlign:'center', fontFamily:INTER, fontSize:13, fontWeight:600, cursor:'pointer',
-                          background: sel ? BLUE : CARD2,
-                          border:     sel ? 'none' : `1px solid ${BORDER}`,
-                          color:      sel ? 'white' : MUTED,
-                        }}>
-                        {r.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                {schedForm.recurrence === 'daily' && (
-                  <div style={{ marginTop:12 }}>
-                    <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>At Hour (24h)</h3>
-                    <input type="number" min={0} max={23} value={schedForm.scheduledHour}
-                      onChange={e => setSchedForm(p => ({ ...p, scheduledHour:parseInt(e.target.value)||8 }))}
-                      style={{ ...baseInput, border:`1.5px solid ${BLUE}`, width:120 }} />
-                  </div>
-                )}
+              <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:12}}>
+                <label style={{fontSize:13,fontWeight:700,color:TEXT}}>Start Date
+                  <input aria-label="Start Date" type="date" value={schedForm.startDate} onChange={e=>setSchedForm(p=>({...p,startDate:e.target.value}))} style={{...baseInput,border:`1.5px solid ${BORDER}`,marginTop:8}}/>
+                </label>
+                <label style={{fontSize:13,fontWeight:700,color:TEXT}}>End Date
+                  <input aria-label="End Date" type="date" min={schedForm.startDate} value={schedForm.endDate} onChange={e=>setSchedForm(p=>({...p,endDate:e.target.value}))} style={{...baseInput,border:`1.5px solid ${BORDER}`,marginTop:8}}/>
+                </label>
               </div>
+              <label style={{fontSize:13,fontWeight:700,color:TEXT}}>Scheduled Time
+                <input aria-label="Scheduled Time" type="time" value={schedForm.scheduledTime} onChange={e=>setSchedForm(p=>({...p,scheduledTime:e.target.value,scheduledHour:Number(e.target.value.split(':')[0])}))} style={{...baseInput,border:`1.5px solid ${BLUE}`,marginTop:8,maxWidth:220}}/>
+              </label>
+              <div>
+                <h3 style={{fontFamily:INTER,fontSize:'1rem',fontWeight:700,color:TEXT,margin:'0 0 10px'}}>Days</h3>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:6}}>
+                  {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((label,day)=>{const selected=schedForm.daysOfWeek.includes(day);return <button type="button" aria-pressed={selected} key={label} onClick={()=>setSchedForm(p=>({...p,daysOfWeek:selected?p.daysOfWeek.filter(d=>d!==day):[...p.daysOfWeek,day].sort()}))} style={{padding:'11px 2px',borderRadius:10,border:selected?'none':`1px solid ${BORDER}`,background:selected?BLUE:CARD2,color:selected?'white':MUTED,fontSize:11,fontWeight:700,cursor:'pointer'}}>{label}</button>;})}
+                </div>
+                {!schedForm.daysOfWeek.length&&<p style={{fontSize:12,color:RED,margin:'7px 0 0'}}>Select at least one day.</p>}
+              </div>
+              <label style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'14px 16px',background:CARD2,border:`1px solid ${BORDER}`,borderRadius:12,fontSize:14,fontWeight:700,color:TEXT}}>Active
+                <input aria-label="Active schedule" type="checkbox" checked={schedForm.active} onChange={e=>setSchedForm(p=>({...p,active:e.target.checked}))}/>
+              </label>
 
               {/* Review card — exact incident Step 5 summary card */}
               <div style={{ ...glassCard, padding:20 }}>
@@ -1640,7 +1774,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 {[
                   { label:'Task Title',    value:schedForm.title                                                    },
                   { label:'Shift Window',  value:windowMeta(schedForm.shiftWindow).label + ' · ' + windowMeta(schedForm.shiftWindow).hours },
-                  { label:'Recurrence',    value:schedForm.recurrence === 'daily' ? `Daily at ${schedForm.scheduledHour}:00` : 'Every Shift Start' },
+                  { label:'Schedule',      value:`${schedForm.scheduledTime} · ${schedForm.startDate} through ${schedForm.endDate}` },
+                  { label:'Days',          value:schedForm.daysOfWeek.map(d=>['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d]).join(', ') || 'None selected' },
+                  { label:'Status',        value:schedForm.active ? 'Active' : 'Inactive' },
                   { label:'Assigned To',   value:schedForm.assignedConciergeName || 'All Concierges'               },
                   { label:'Notes',         value:schedForm.notes || '—'                                             },
                 ].map(({ label, value }) => (
@@ -1652,6 +1788,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               </div>
             </div>
           )}
+
+          {schedError && <div role="alert" style={{marginTop:20,padding:'11px 13px',borderRadius:10,background:`${RED}10`,border:`1px solid ${RED}30`,color:RED,fontSize:13}}>{schedError}</div>}
 
           {/* Footer — exact incident Back + Continue/Submit pattern */}
           <div style={{ paddingTop:24, borderTop:`1px solid ${BORDER}`, marginTop:24 }}>
@@ -1668,7 +1806,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               ) : (
                 <button onClick={saveScheduled} disabled={schedSaving}
                   style={{ flex:2, padding:'16px 0', background:BLUE, border:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:schedSaving?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:`0 8px 24px ${BLUE}40` }}>
-                  {schedSaving ? 'Creating…' : 'Create Schedule'}
+                  {schedSaving ? 'Saving…' : schedEditingId ? 'Save Changes' : 'Create Schedule'}
                 </button>
               )}
             </div>
@@ -1680,6 +1818,17 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     /* ── List view ── */
     const active = schedTasks.filter(t => t.active !== false);
     const paused = schedTasks.filter(t => t.active === false);
+    const nextRunLabel = t => {
+      if (t.active === false) return 'Paused';
+      if (t.end_date && t.end_date < localDateInput()) return 'Expired';
+      const [hour, minute] = (t.scheduled_time || `${String(t.scheduled_hour ?? 8).padStart(2,'0')}:00`).split(':').map(Number);
+      const next = new Date();
+      if (next.getHours() > hour || (next.getHours() === hour && next.getMinutes() >= minute)) next.setDate(next.getDate() + 1);
+      next.setHours(hour, minute, 0, 0);
+      const allowed = Array.isArray(t.days_of_week) ? t.days_of_week : [0,1,2,3,4,5,6];
+      for (let i=0;i<7&&!allowed.includes((next.getDay()+6)%7);i++) next.setDate(next.getDate()+1);
+      return next.toLocaleString('en-US', { weekday:'short', hour:'numeric', minute:'2-digit' });
+    };
 
     const SchedCard = ({ t }) => {
       const wm    = windowMeta(t.shift_window || 'all');
@@ -1687,25 +1836,27 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       const CIcon = CAT_ICON[t.category] ?? ClipboardCheck;
       const tc    = CAT_COLOR[t.category] ?? MUTED;
       return (
-        <div style={{ ...glassCard, padding:20, display:'flex', alignItems:'center', gap:16, opacity: isOff ? 0.55 : 1, transition:'opacity 0.2s' }}>
-          {/* 48×48 icon — exact incident card icon */}
-          <div style={{ width:48, height:48, borderRadius:14, background:`${wm.color}12`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <CIcon size={24} color={isOff ? MUTED : wm.color} />
+        <div data-testid="scheduled-task-row" style={{ ...glassCard, padding:isMobile?15:18, display:'flex', alignItems:'flex-start', gap:13, opacity: isOff ? 0.68 : 1, transition:'opacity 0.2s', boxShadow:'none' }}>
+          <div style={{ width:40, height:40, borderRadius:12, background:`${tc}10`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <CIcon size={19} color={isOff ? MUTED : tc} />
           </div>
           {/* Content */}
           <div style={{ flex:1, minWidth:0 }}>
-            <p style={{ fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 2px' }}>{t.title}</p>
-            <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:3 }}>
-              <span style={{ fontSize:12, color:MUTED, fontWeight:600 }}>{wm.label} · {wm.hours}</span>
-              <span style={{ fontSize:12, color:MUTED }}>· {t.category}</span>
-              <span style={{ fontSize:12, color:MUTED }}>· {t.recurrence === 'daily' ? `Daily ${t.scheduled_hour}:00` : 'Every Shift'}</span>
+            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}><p style={{ fontWeight:700, color:TEXT, fontSize:15, margin:0 }}>{t.title}</p><DashboardStatusBadge color={isOff?MUTED:GREEN}>{isOff?'Paused':'Active'}</DashboardStatusBadge></div>
+            <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr 1fr':'repeat(4,minmax(0,1fr))', gap:'9px 16px', marginTop:12 }}>
+              {[
+                ['Time',t.scheduled_time || `${String(t.scheduled_hour ?? 8).padStart(2,'0')}:00`],
+                ['Date range',t.start_date&&t.end_date?`${t.start_date} – ${t.end_date}`:'Ongoing'],
+                ['Assignee',t.assigned_concierge_name || t.assigned_to || 'All concierges'],
+                ['Next run',nextRunLabel(t)],
+              ].map(([label,value])=><div key={label}><span style={{display:'block',fontSize:9,fontWeight:750,color:MUTED,textTransform:'uppercase',letterSpacing:'.09em'}}>{label}</span><span style={{display:'block',fontSize:12,color:TEXT,marginTop:3,lineHeight:1.35}}>{value}</span></div>)}
             </div>
-            {t.assigned_concierge_name && (
-              <p style={{ fontSize:12, color:BLUE, margin:'3px 0 0' }}>→ {t.assigned_concierge_name} only</p>
-            )}
-            {t.notes && <p style={{ fontSize:12, color:MUTED, fontStyle:'italic', margin:'3px 0 0' }}>"{t.notes}"</p>}
-            {/* Action buttons — small, inside info block */}
+            {t.notes && <p style={{ fontSize:12, color:MUTED, margin:'10px 0 0',lineHeight:1.5 }}>{t.notes}</p>}
             <div style={{ display:'flex', gap:6, marginTop:10 }}>
+              <button onClick={() => editScheduled(t)}
+                style={{ padding:'6px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:600, color:TEXT, cursor:'pointer' }}>
+                Edit
+              </button>
               <button onClick={() => toggleSchedActive(t.scheduled_task_id, t.active !== false)}
                 style={{ padding:'6px 12px', background: isOff ? `${BLUE}12` : 'rgba(255,149,0,0.10)', border:`1px solid ${isOff ? BLUE : ORANGE}`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:600, color: isOff ? BLUE : ORANGE, cursor:'pointer' }}>
                 {isOff ? 'Resume' : 'Pause'}
@@ -1716,10 +1867,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               </button>
             </div>
           </div>
-          {/* Status badge — exact severity badge pill */}
-          <span style={{ padding:'6px 14px', borderRadius:10, fontSize:12, fontWeight:700, background: isOff ? '#717171' : GREEN, color:'white', flexShrink:0 }}>
-            {isOff ? 'PAUSED' : 'ACTIVE'}
-          </span>
         </div>
       );
     };
@@ -1727,22 +1874,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     return (
       <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
 
-        {/* CTA — exact incident report button */}
-        <div style={{ padding:'0 0 20px' }}>
-          <button onClick={() => { setSchedForm(EMPTY_SCHED_FORM); setSchedStep(1); setSchedAddOpen(true); }}
-            style={{ width:'100%', padding:20, background:BLUE, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:`0 8px 24px ${BLUE}40` }}>
-            <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-              <div style={{ width:56, height:56, background:'rgba(255,255,255,0.2)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <Plus size={28} color="white" />
-              </div>
-              <div>
-                <p style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:0 }}>Create Scheduled Task</p>
-                <p style={{ fontSize:14, color:'rgba(255,255,255,0.7)', margin:0 }}>Auto-assign tasks at every shift start</p>
-              </div>
-            </div>
-            <ChevronRight size={24} color="rgba(255,255,255,0.7)" />
-          </button>
-        </div>
+        {schedSuccess&&<div role="status" style={{display:'flex',alignItems:'center',gap:9,padding:'11px 13px',marginBottom:16,border:`1px solid ${GREEN}40`,borderRadius:12,background:`${GREEN}10`,fontSize:13,color:TEXT}}><CheckCircle size={16} color={GREEN}/>{schedSuccess}</div>}
+        <div style={{display:'flex',alignItems:isMobile?'stretch':'center',flexDirection:isMobile?'column':'row',justifyContent:'space-between',gap:14,paddingBottom:20}}><div><DashboardEyebrow>Requests</DashboardEyebrow><DashboardSectionTitle as="h3" style={{margin:'5px 0 0'}}>Preset & scheduled requests</DashboardSectionTitle><p style={{fontSize:13,color:MUTED,margin:'6px 0 0'}}>Create recurring operational requests once; concierges receive them automatically on applicable days.</p></div><button onClick={() => { setSchedForm(defaultSchedForm()); setSchedEditingId(null); setSchedError(''); setSchedStep(1); setSchedAddOpen(true); }} style={{minHeight:44,padding:'0 16px',background:BLUE,color:'white',border:0,borderRadius:12,fontFamily:INTER,fontSize:13,fontWeight:750,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8}}><Plus size={17}/>New preset request</button></div>
 
         {schedLoading ? (
           <div style={{ ...glassCard, padding:40, textAlign:'center' }}>
@@ -1751,13 +1884,15 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             </div>
             <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>Loading…</p>
           </div>
+        ) : schedError ? (
+          <div role="alert" style={{ ...glassCard, padding:32, textAlign:'center' }}><AlertTriangle size={24} color={RED}/><p style={{fontWeight:700,color:TEXT,margin:'10px 0 5px'}}>Scheduled tasks couldn’t load</p><p style={{fontSize:13,color:MUTED,margin:0}}>{schedError}</p></div>
         ) : schedTasks.length === 0 ? (
           /* Empty state — exact incident pattern */
           <div style={{ ...glassCard, padding:40, textAlign:'center' }}>
             <div style={{ width:80, height:80, background:CARD2, borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
               <ClipboardCheck size={40} color={MUTED} strokeWidth={1.5} />
             </div>
-            <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>No scheduled tasks yet</p>
+            <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>No preset requests yet</p>
             <p style={{ fontSize:14, color:MUTED }}>Create tasks that auto-appear when a concierge starts their shift</p>
           </div>
         ) : (
@@ -1885,8 +2020,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   /* ── Settings ─────────────────────────────────────────────────────────────── */
   const renderSettings = () => {
     const toggle = (id) => setSettingExpMgr(e => e === id ? null : id);
-    const inputStyle = { fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, padding:'12px 14px', outline:'none', width:'100%', boxSizing:'border-box' };
+    const inputStyle = { fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, minHeight:44, padding:'10px 14px', outline:'none', width:'100%', boxSizing:'border-box' };
     const sectionLabel = (txt) => <p style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:MUTED, letterSpacing:'0.14em', textTransform:'uppercase', margin:'0 0 12px' }}>{txt}</p>;
+    const Field = ({ id, label, help, ...props }) => <div><label htmlFor={id} style={{display:'block',fontFamily:INTER,fontSize:13,fontWeight:700,color:TEXT,marginBottom:7}}>{label}</label><input id={id} style={inputStyle} {...props}/>{help&&<span style={{display:'block',fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.45,marginTop:6}}>{help}</span>}</div>;
+    const SwitchRow = ({ id, label, help, checked, onChange }) => <div style={{display:'flex',alignItems:'center',gap:16,padding:'16px 0',borderBottom:`1px solid ${BORDER}`}}><div style={{flex:1,minWidth:0}}><label htmlFor={id} style={{display:'block',fontFamily:INTER,fontSize:14,fontWeight:700,color:TEXT}}>{label}</label><span style={{display:'block',fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.45,marginTop:3}}>{help}</span></div><button id={id} type="button" role="switch" aria-checked={checked} onClick={()=>onChange(!checked)} style={{position:'relative',width:46,height:28,borderRadius:999,border:`1px solid ${checked?BLUE:BORDER}`,background:checked?BLUE:CARD2,cursor:'pointer',flexShrink:0}}><span aria-hidden="true" style={{position:'absolute',top:3,left:checked?21:3,width:20,height:20,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,.22)',transition:'left 160ms'}}/></button></div>;
     const row = (id, Icon, color, title, desc, extra) => (
       <div key={id} style={{ borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.04)' }}>
         <button onClick={() => toggle(id)} style={{ width:'100%', display:'flex', alignItems:'center', gap:16, padding:20, background:CARD, border:`1px solid ${settingExpMgr===id ? `${color}35` : BORDER}`, borderRadius: settingExpMgr===id ? '16px 16px 0 0' : 16, cursor:'pointer', textAlign:'left', transition:'all 150ms' }}>
@@ -1907,7 +2044,11 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       </div>
     );
     return (
-      <div style={{ display:'flex', flexDirection:'column', gap:28, padding:'28px 24px 40px' }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:28, padding:isPhone?'20px 16px 40px':'28px 24px 40px' }}>
+
+        <div role="status" aria-live="polite" style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',borderRadius:12,background:profileSaveState==='error'?`${RED}0D`:profileSaveState==='unsaved'?`${ORANGE}0D`:`${GREEN}0D`,border:`1px solid ${profileSaveState==='error'?RED:profileSaveState==='unsaved'?ORANGE:GREEN}26`}}>
+          {profileSaveState==='saving'?<RefreshCw size={16} color={BLUE}/>:profileSaveState==='unsaved'?<Pencil size={16} color={ORANGE}/>:profileSaveState==='error'?<AlertTriangle size={16} color={RED}/>:<CheckCircle size={16} color={GREEN}/>}<span style={{fontSize:13,fontWeight:700,color:profileSaveState==='error'?RED:profileSaveState==='unsaved'?ORANGE:profileSaveState==='saving'?BLUE:GREEN}}>{{saved:'All changes saved',saving:'Saving changes…',error:'Changes could not be saved',unsaved:'You have unsaved changes'}[profileSaveState]}</span>
+        </div>
 
         {/* Profile Hero */}
         <button onClick={() => setProfileOpen(true)}
@@ -1926,25 +2067,53 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <ChevronRight size={20} color={MUTED} style={{ marginLeft:'auto', flexShrink:0 }} />
         </button>
 
+        <section aria-labelledby="property-settings-heading">
+          <div id="property-settings-heading">{sectionLabel('Property')}</div>
+          <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:20}}>
+            <Field id="settings-property" label="Property name" value={propertyName} readOnly help="Property identity is managed by your organization administrator." />
+          </div>
+        </section>
+
+        <section aria-labelledby="appearance-settings-heading">
+          <div id="appearance-settings-heading">{sectionLabel('Appearance')}</div>
+          <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:'0 20px'}}>
+            <SwitchRow id="settings-dark-mode" label="Dark mode" help="Use the darker dashboard palette on this device." checked={isDarkMode} onChange={toggleTheme}/>
+            <div style={{padding:'13px 0',fontSize:12,color:MUTED}}>Theme changes are saved automatically.</div>
+          </div>
+        </section>
+
+        <section aria-labelledby="notification-settings-heading">
+          <div id="notification-settings-heading">{sectionLabel('Notifications')}</div>
+          <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:'0 20px'}}>
+            {[
+              ['push','Push notifications','Urgent activity and assigned work on this device.'],
+              ['email','Email summaries','Operational summaries sent to your account email.'],
+              ['shift','Shift updates','Clock-in, handoff, and shift completion updates.'],
+              ['incident','Incident alerts','New and updated property incident notices.'],
+            ].map(([id,label,help])=><SwitchRow key={id} id={`settings-${id}`} label={label} help={help} checked={notifMgr[id]} onChange={value=>setNotifMgr(current=>({...current,[id]:value}))}/>)}
+            <div style={{padding:'13px 0',fontSize:12,color:MUTED}}>Notification preferences apply immediately.</div>
+          </div>
+        </section>
+
         {/* My Profile */}
         <div>
           {sectionLabel('My Profile')}
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             {row('update-info', User, BLUE, 'Update Information', 'Edit your name, email and contact details',
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                <input style={inputStyle} value={editInfoMgr.name}  onChange={e => setEditInfoMgr(f=>({...f,name:e.target.value}))}  placeholder="Full name" />
-                <input style={inputStyle} value={editInfoMgr.email} onChange={e => setEditInfoMgr(f=>({...f,email:e.target.value}))} placeholder="Email address" />
-                <input style={inputStyle} value={editInfoMgr.phone} onChange={e => setEditInfoMgr(f=>({...f,phone:e.target.value}))} placeholder="Phone number" />
-                <button onClick={() => setSettingExpMgr(null)} style={{ marginTop:4, padding:'12px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer' }}>Save Changes</button>
+                <Field id="manager-name" label="Full name" value={editInfoMgr.name} onChange={e => {setEditInfoMgr(f=>({...f,name:e.target.value}));setProfileSaveState('unsaved');}} autoComplete="name" />
+                <Field id="manager-email" label="Email address" type="email" value={editInfoMgr.email} onChange={e => {setEditInfoMgr(f=>({...f,email:e.target.value}));setProfileSaveState('unsaved');}} autoComplete="email" />
+                <Field id="manager-phone" label="Phone number" type="tel" value={editInfoMgr.phone} onChange={e => {setEditInfoMgr(f=>({...f,phone:e.target.value}));setProfileSaveState('unsaved');}} autoComplete="tel" />
+                <button disabled={profileSaveState!=='unsaved'} onClick={() => {setProfileSaveState('saving');window.setTimeout(()=>{setProfileSaveState('saved');setSettingExpMgr(null);},350);}} style={{ minHeight:44, marginTop:4, padding:'0 16px', background:profileSaveState==='unsaved'?BLUE:CARD2, border:profileSaveState==='unsaved'?'none':`1px solid ${BORDER}`, borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:profileSaveState==='unsaved'?'white':MUTED, cursor:profileSaveState==='unsaved'?'pointer':'not-allowed' }}>{profileSaveState==='saving'?'Saving…':'Save Changes'}</button>
               </div>
             )}
             {row('change-pw', Lock, RED, 'Change Password', 'Update your account password securely',
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                <input style={inputStyle} type="password" value={pwFormMgr.current} onChange={e => { setPwFormMgr(f=>({...f,current:e.target.value})); setPwStatusMgr(''); }} placeholder="Current password" />
-                <input style={inputStyle} type="password" value={pwFormMgr.next}    onChange={e => { setPwFormMgr(f=>({...f,next:e.target.value}));    setPwStatusMgr(''); }} placeholder="New password (min 6 chars)" />
-                <input style={inputStyle} type="password" value={pwFormMgr.confirm} onChange={e => { setPwFormMgr(f=>({...f,confirm:e.target.value})); setPwStatusMgr(''); }} placeholder="Confirm new password" />
-                {pwStatusMgr.startsWith('error') && <p style={{ fontFamily:INTER, fontSize:13, color:RED, margin:0, fontWeight:600 }}>{pwStatusMgr.replace('error:','')}</p>}
-                {pwStatusMgr === 'success' && <p style={{ fontFamily:INTER, fontSize:13, color:GREEN, margin:0, fontWeight:600 }}>Password updated successfully.</p>}
+                <Field id="current-password" label="Current password" style={inputStyle} type="password" value={pwFormMgr.current} onChange={e => { setPwFormMgr(f=>({...f,current:e.target.value})); setPwStatusMgr(''); }} autoComplete="current-password" />
+                <Field id="new-password" label="New password" help="Use at least 6 characters." style={inputStyle} type="password" value={pwFormMgr.next} onChange={e => { setPwFormMgr(f=>({...f,next:e.target.value})); setPwStatusMgr(''); }} autoComplete="new-password" />
+                <Field id="confirm-password" label="Confirm new password" style={inputStyle} type="password" value={pwFormMgr.confirm} onChange={e => { setPwFormMgr(f=>({...f,confirm:e.target.value})); setPwStatusMgr(''); }} autoComplete="new-password" />
+                {pwStatusMgr.startsWith('error') && <p role="alert" style={{ fontFamily:INTER, fontSize:13, color:RED, margin:0, fontWeight:600 }}>{pwStatusMgr.replace('error:','')}</p>}
+                {pwStatusMgr === 'success' && <p role="status" style={{ fontFamily:INTER, fontSize:13, color:GREEN, margin:0, fontWeight:600 }}>Password updated successfully.</p>}
                 <button
                   disabled={pwStatusMgr === 'saving'}
                   onClick={async () => {
@@ -2008,6 +2177,80 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   /* ── Overview ──────────────────────────────────────────────────────────────── */
+  const renderManagerOverview = () => {
+    const rosterOnDuty = team.filter(m => m.status === 'on_shift');
+    const activeConcierge = todayShift?.concierge?.name
+      ? team.find(m => m.name === todayShift.concierge.name) || { id:'active-shift', name:todayShift.concierge.name, init:todayShift.concierge.name.split(/\s+/).map(part=>part[0]).join('').slice(0,2), clockIn:todayShift.clockIn }
+      : null;
+    const onDuty = activeConcierge && !rosterOnDuty.some(m => m.id === activeConcierge.id) ? [activeConcierge, ...rosterOnDuty] : rosterOnDuty;
+    const emptyDARConcierge = rosterOnDuty[0]?.name || team[0]?.name || BUILDING_CONTACTS.headConcierge.name;
+    const displayedDAR = todayShift || {
+      concierge: { name:emptyDARConcierge },
+      clockIn:'',
+      clockOut:null,
+      note:'',
+      activities:[],
+      incidents:[],
+      status:'not-started',
+    };
+    const previousRawShift = allShifts.find(shift => shift.status === 'completed' || !!shift.clock_out);
+    const previousDAR = previousRawShift ? shiftToDAR(previousRawShift, false) : null;
+    const mediaItems = Array.from(allShifts.reduce((items, shift) => {
+      const shiftLabel = [shift.concierge_name, shift.clock_in ? new Date(shift.clock_in).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : ''].filter(Boolean).join(' · ');
+      [...(shift.activities || []), ...(shift.incidents || [])].forEach(entry => {
+        const urls = Array.isArray(entry.evidence_urls) ? entry.evidence_urls : (entry.evidence_url ? [entry.evidence_url] : []);
+        if (!urls.length) return;
+        const title = entry.title || entry.description || entry.type || 'Shift evidence';
+        const key = `${shift.shift_id || shift.clock_in}|${entry.task_id || entry.incident_id || title}`;
+        items.set(key, { key, urls:[...new Set(urls)], title, notes:entry.completion_note || entry.notes || '', category:entry.category || entry.type || 'Shift activity', shiftLabel });
+      });
+      return items;
+    }, new Map()).values());
+    const card = { border:`1px solid ${BORDER}`, borderRadius:20, background:CARD, boxShadow:SHADOW };
+    const metrics = [
+      { id:'previous', label:'Previous DAR', aria:'Show the previous completed DAR', disabled:!previousDAR },
+      { id:'dar', label:'Current DAR', aria:`Current DAR: ${todayShift?(todayShift.clockOut?'complete':'live'):'not started'}` },
+      { id:'media', label:'Media', aria:`Show ${mediaItems.length} uploaded media item${mediaItems.length===1?'':'s'}` },
+    ];
+    return <main style={{width:'100%',maxWidth:1280,margin:'0 auto',display:'flex',flexDirection:'column',gap:isMobile?16:20}}>
+      <DashboardCard style={{...card}}>
+        <div style={{padding:isPhone?'20px 20px 15px':'26px 30px 19px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16}}>
+          <div style={{minWidth:0,marginLeft:8}}>
+            <div style={{display:'flex',alignItems:'center',marginBottom:11}}><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.22em',textTransform:'uppercase'}}>The Alexen</span></div>
+            <h1 style={{fontFamily:INTER,fontSize:isPhone?28:34,fontWeight:800,color:TEXT,letterSpacing:'-.045em',lineHeight:.98,margin:0}}>Today’s shift.</h1>
+          </div>
+          <button type="button" onClick={() => window.print()} aria-label="Export DAR as PDF" title="Export DAR as PDF" className="touch-target" style={{width:44,height:44,padding:0,borderRadius:999,border:`1px solid ${BORDER}`,background:CARD2,color:TEXT,display:'inline-flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>
+            <Printer size={17}/>
+          </button>
+        </div>
+        <nav aria-label="Operational summary" style={{padding:isPhone?'0 14px 16px':'0 24px 20px'}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:4,padding:4,background:CARD2,border:`1px solid ${BORDER}`,borderRadius:14}}>
+            {metrics.map((metric)=>{const current=managerSummaryView===metric.id;return <button type="button" key={metric.id} onClick={()=>!metric.disabled&&setManagerSummaryView(metric.id)} disabled={metric.disabled} aria-label={metric.aria} aria-current={current?'page':undefined} className="touch-target" style={{minWidth:0,minHeight:54,padding:isPhone?'9px 8px':'9px 12px',borderRadius:11,border:current?`1px solid ${BORDER}`:'1px solid transparent',background:current?'rgba(255,56,92,.055)':'transparent',boxShadow:current?'0 2px 8px rgba(0,0,0,.07)':'none',textAlign:'center',cursor:metric.disabled?'not-allowed':'pointer',opacity:metric.disabled ? .46 : 1,color:TEXT,font:'inherit',transition:'all 160ms'}}>
+              <div style={{fontFamily:INTER,fontSize:isPhone?10:11,fontWeight:750,color:TEXT,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{metric.label}</div>
+            </button>})}
+          </div>
+        </nav>
+      </DashboardCard>
+
+      <div id="manager-live-dar-section" style={{scrollMarginTop:20}}>
+        {managerSummaryView === 'media' ? (
+          mediaItems.length ? <section aria-label="Shift media" style={{display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:18}}>{mediaItems.map(item=><article key={item.key} style={{border:`1px solid ${BORDER}`,borderRadius:20,overflow:'hidden',background:CARD,boxShadow:SHADOW}}><button type="button" onClick={()=>setManagerMedia({urls:item.urls,index:0,title:item.title})} style={{display:'block',width:'100%',padding:0,border:0,background:CARD2,cursor:'pointer'}}><img src={item.urls[0]} alt={item.title} style={{display:'block',width:'100%',aspectRatio:'16 / 9',objectFit:'cover'}}/></button><div style={{padding:'14px 16px'}}><div style={{fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.12em',textTransform:'uppercase'}}>{item.category}{item.urls.length>1?` · ${item.urls.length} photos`:''}</div><h3 style={{fontSize:14,fontWeight:800,color:TEXT,margin:'5px 0 3px'}}>{item.title}</h3><p style={{fontSize:11,color:MUTED,margin:0}}>{item.shiftLabel}</p></div></article>)}</section> : <div style={{minHeight:220,background:CARD,border:`1px solid ${BORDER}`,borderRadius:20,boxShadow:SHADOW,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24}}><Image size={28} color={MUTED}/><h3 style={{fontSize:17,fontWeight:800,color:TEXT,margin:'12px 0 6px'}}>No shift media yet</h3><p style={{fontSize:13,color:MUTED,margin:0}}>Photos uploaded from concierge activities will appear here.</p></div>
+        ) : <DailyActivityReport
+          testId="manager-live-dar"
+          mode="manager"
+          shift={managerSummaryView === 'previous' ? previousDAR : displayedDAR}
+          editable={false}
+          showConciergeIdentity
+          propertyName={propertyName}
+          incidents={(managerSummaryView === 'previous' ? previousDAR : displayedDAR)?.incidents}
+          customSections={customSections}
+          colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER, shadow:SHADOW }}
+        />}
+      </div>
+      {managerMedia && <div role="dialog" aria-modal="true" aria-label={managerMedia.title} onClick={()=>setManagerMedia(null)} style={{position:'fixed',inset:0,zIndex:1000,background:'rgba(0,0,0,.88)',display:'grid',placeItems:'center',padding:24}}><button type="button" aria-label="Close media viewer" onClick={()=>setManagerMedia(null)} style={{position:'absolute',top:20,right:20,width:44,height:44,border:0,borderRadius:'50%',background:'rgba(255,255,255,.14)',color:'#fff',cursor:'pointer'}}><X size={22}/></button><img onClick={event=>event.stopPropagation()} src={managerMedia.urls[managerMedia.index]} alt={managerMedia.title} style={{maxWidth:'100%',maxHeight:'88vh',objectFit:'contain',borderRadius:12}}/></div>}
+    </main>;
+  };
+
   const renderHome = () => (
     <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
 
@@ -2027,188 +2270,23 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'1fr 460px', gap:24 }}>
 
         {/* Daily Activity Report */}
-        <div className="dar-print-target" style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
-          {!todayShift ? (
-            <div style={{ padding:40, textAlign:'center', fontFamily:INTER, fontSize:14, color:MUTED }}>No shift active today</div>
-          ) : (() => {
-            const deliveries = todayShift.activities.filter(a => a.category === 'Delivery');
-            const security   = todayShift.activities.filter(a => a.category === 'Safety / Security');
-            const residents  = todayShift.activities.filter(a => a.category === 'Resident Assist');
-            const vendors    = todayShift.activities.filter(a => a.category === 'Vendor / Contractor');
-            const amenities  = todayShift.activities.filter(a => a.category === 'Amenity');
-            const audit      = todayShift.activities.find(a => a.category === 'Administrative' && a.title.toLowerCase().includes('audit'));
-            const loaners    = amenities.filter(a => a.title.toLowerCase().includes('loaner'));
-            const guests     = residents.filter(a => a.title.toLowerCase().includes('guest') || a.title.toLowerCase().includes('arrival'));
-            const tours      = residents.filter(a => a.title.toLowerCase().includes('tour') || a.title.toLowerCase().includes('move'));
-            const pickups    = deliveries.filter(a => a.title.toLowerCase().includes('pickup'));
-            const incoming   = deliveries.filter(a => !a.title.toLowerCase().includes('pickup'));
-            const lockouts   = security.filter(a => a.title.toLowerCase().includes('lockout'));
-            const rounds     = security.filter(a => !a.title.toLowerCase().includes('lockout'));
-            // Tasks Completed: activities not claimed by any specific DAR section
-            const claimedDARIds = new Set([
-              ...guests.map(a=>a.id), ...tours.map(a=>a.id),
-              ...loaners.map(a=>a.id), ...lockouts.map(a=>a.id),
-              ...rounds.map(a=>a.id), ...vendors.map(a=>a.id),
-              ...incoming.map(a=>a.id), ...pickups.map(a=>a.id),
-              ...(audit ? [audit.id] : []),
-            ]);
-            const tasksDoneEntries = todayShift.activities.filter(a => !claimedDARIds.has(a.id));
-            return (
-              <>
-                {/* DAR Header */}
-                <style>{`
-                  @keyframes dar-onduty-pulse {
-                    0%,100% { box-shadow: 0 0 0 3px rgba(52,199,89,0.25); }
-                    50%      { box-shadow: 0 0 0 7px rgba(52,199,89,0.06); }
-                  }
-                  .dar-onduty-dot { animation: dar-onduty-pulse 2.6s ease-in-out infinite; }
-                `}</style>
-                <div style={{ background:'#0b0b0b', padding: isMobile ? '18px 20px' : '24px 28px 20px' }}>
-                  {isMobile ? (
-                    <>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                      <div>
-                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:7 }}>
-                          <span style={{ width:22, height:2, background:BLUE, display:'inline-block' }} />
-                          <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.55)', letterSpacing:'0.24em', textTransform:'uppercase' }}>DAR</span>
-                        </div>
-                        <div style={{ fontFamily:INTER, fontSize:17, fontWeight:800, color:'white', letterSpacing:'-0.02em', marginBottom:4 }}>{todayShift.concierge.name}</div>
-                        <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.50)' }}>
-                          {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · {todayShift.clockIn}{todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Now'}
-                        </div>
-                      </div>
-                      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
-                        {isPhone ? (
-                          <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'11px' }}>
-                            <div className="dar-onduty-dot" style={{ width:12, height:12, borderRadius:'50%', background:GREEN }} />
-                          </div>
-                        ) : (
-                          <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'5px 12px' }}>
-                            <div className="dar-onduty-dot" style={{ width:7, height:7, borderRadius:'50%', background:GREEN }} />
-                            <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
-                          </div>
-                        )}
-                        {isPhone ? (
-                          <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', padding:0, marginRight:7, background:'none', border:'none', cursor:'pointer' }}>
-                            <Printer size={16} color='rgba(255,255,255,0.6)' />
-                          </button>
-                        ) : (
-                          <button onClick={() => window.print()} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 10px', marginRight:8, marginTop:6, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
-                            <Printer size={12} /> Export
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    </>
-                  ) : (
-                    /* Desktop */
-                    <>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                      <div>
-                        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
-                          <span style={{ width:28, height:2, background:BLUE, display:'inline-block' }} />
-                          <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.55)', letterSpacing:'0.24em', textTransform:'uppercase' }}>Daily Activity Report</span>
-                        </div>
-                        <div style={{ fontFamily:INTER, fontSize:24, fontWeight:800, color:'white', letterSpacing:'-0.035em', marginBottom:6 }}>{todayShift.concierge.name}</div>
-                        <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.55)' }}>{propertyName} · {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
-                      </div>
-                      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
-                        <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(52,199,89,0.15)', borderRadius:999, padding:'5px 12px' }}>
-                          <div className="dar-onduty-dot" style={{ width:7, height:7, borderRadius:'50%', background:GREEN }} />
-                          <span style={{ fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN }}>On Duty</span>
-                        </div>
-                        <button onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', marginRight:4, marginTop:6, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:7, fontFamily:INTER, fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.75)', cursor:'pointer' }}>
-                          <Printer size={12} /> Export
-                        </button>
-                      </div>
-                    </div>
-                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:0, borderTop:'1px solid rgba(255,255,255,.13)', marginTop:20, paddingTop:13 }}>
-                      {[
-                        ['Shift window', `${todayShift.clockIn}${todayShift.clockOut ? ` – ${todayShift.clockOut}` : ' – Present'}`],
-                        ['Activity logged', `${todayShift.activities.length} entr${todayShift.activities.length === 1 ? 'y' : 'ies'}`],
-                        ['Report state', todayShift.clockOut ? 'Completed' : 'Live report'],
-                      ].map(([label, value], index) => <div key={label} style={{ paddingLeft:index ? 18 : 0, borderLeft:index ? '1px solid rgba(255,255,255,.13)' : 'none' }}><div style={{ fontFamily:INTER, fontSize:9, color:'rgba(255,255,255,.42)', fontWeight:800, letterSpacing:'.14em', textTransform:'uppercase', marginBottom:5 }}>{label}</div><div style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:'rgba(255,255,255,.88)' }}>{value}</div></div>)}
-                    </div>
-                    </>
-                  )}
-                </div>
-
-                {/* DAR body — matches concierge layout exactly */}
-                <div style={{ background:CARD }}>
-                  {(() => {
-                    const todayLabel = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
-                    const liveIncidents = incidents
-                      .filter(i => i.status !== 'resolved' && i.filedAt && i.filedAt.startsWith(todayLabel))
-                      .map(i => {
-                        const tod = (i.filedAt.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i) || [])[0]?.replace(/\s*(AM|PM)$/i, (_, m) => m.toLowerCase()) || '';
-                        return `${tod ? tod + ' — ' : ''}${i.type || ''}: ${i.title || ''}`;
-                      });
-                    const allIncidents = liveIncidents.length ? liveIncidents : todayShift.incidents;
-                    return (
-                      <>
-                        <DARSect title="Packages" />
-                        <DARSectionRow activities={[...incoming, ...pickups]} last />
-
-                        <DARSect title="Guests" />
-                        <DARSectionRow activities={guests} last />
-
-                        <DARSect title="Today's Tasks" />
-                        <div style={{ padding: isPhone ? '4px 4px' : '5px 6px', display:'flex', flexDirection:'column', gap:4 }}>
-                          {tasksDoneEntries.length > 0
-                            ? tasksDoneEntries.map((a, i) => {
-                                const text = toNarrative(a);
-                                const d = text.indexOf(' — ');
-                                return (
-                                  <div key={a.id||i} style={{ display:'flex', alignItems:'flex-start', gap:2 }}>
-                                    <span style={{ color:BLUE, fontSize:15, fontWeight:700, lineHeight:1.55, flexShrink:0, userSelect:'none' }}>•</span>
-                                    <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, lineHeight:1.55 }}>
-                                      {d !== -1
-                                        ? <><span style={{ color:TEXT, fontWeight:600 }}>{text.slice(0,d)} – </span><span style={{ color:TEXT }}>{text.slice(d+3)}</span></>
-                                        : <span style={{ color:TEXT }}>{text}</span>}
-                                    </span>
-                                  </div>
-                                );
-                              })
-                            : <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>N/A</span>
-                          }
-                        </div>
-
-                        <DARSect title="Loaners" />
-                        <DARSectionRow activities={loaners} last />
-
-                        <DARSect title="Lockouts" />
-                        <DARSectionRow activities={lockouts} last />
-
-                        <DARSect title="Vendors" />
-                        <DARSectionRow activities={vendors} last />
-
-                        {rounds.length > 0 && (
-                          <>
-                            <DARSect title="Security & Rounds" />
-                            <DARSectionRow activities={rounds} last />
-                          </>
-                        )}
-
-                        <DARSect title="Incidents Filed" accent={RED} />
-                        {allIncidents.length > 0
-                          ? allIncidents.map((inc, i) => (
-                              <DARSectionRow key={i} strings={[inc]} last />
-                            ))
-                          : <div style={{ padding: isPhone ? '4px 4px' : '5px 6px' }}>
-                              <span style={{ fontFamily:INTER, fontSize:isPhone?13:14, color:MUTED, fontStyle:'italic' }}>No incidents this shift.</span>
-                            </div>
-                        }
-
-                        <DARSect title="Tours" />
-                        <DARSectionRow activities={tours} last />
-                      </>
-                    );
-                  })()}
-                </div>
-              </>
-            );
+        <DailyActivityReport
+          mode="manager"
+          shift={todayShift}
+          editable={false}
+          showConciergeIdentity
+          propertyName={propertyName}
+          incidents={(() => {
+            const todayLabel = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
+            const live = incidents.filter(i => i.status !== 'resolved' && i.filedAt?.startsWith(todayLabel)).map(i => {
+              const tod = (i.filedAt.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i) || [])[0]?.replace(/\s*(AM|PM)$/i, (_, m) => m.toLowerCase()) || '';
+              return `${tod ? tod + ' — ' : ''}${i.type || ''}: ${i.title || ''}`;
+            });
+            return live.length ? live : todayShift?.incidents;
           })()}
-        </div>
+          customSections={customSections}
+          colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}
+        />
 
         {/* Right column */}
         <div style={{ display:'flex', flexDirection:'column', gap:20, order: isMobile ? 2 : 0 }}>
@@ -2292,7 +2370,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
               {[
-                { label:'Assign Task to Concierge', desc:'Dispatch a new task',       Icon:Send,      onClick:()=>setTaskOpen(true),    color:BLUE  },
+                { label:'Assign Task to Concierge', desc:'Dispatch a new task',       Icon:Send,      onClick:openTask,                 color:BLUE  },
                 { label:'View Shift Calendar',       desc:'Browse shift history',      Icon:Calendar,  onClick:()=>setTab('shifts'),    color:BLUE  },
                 { label:'Add Team Members',          desc:'Invite a new team member',  Icon:UserPlus,  onClick:()=>setLeasingOpen(true), color:GREEN },
                 { label:'Emergency Contacts',        desc:'Call building contacts',    Icon:Phone,     onClick:()=>setConOpen(true),    color:RED   },
@@ -2325,104 +2403,11 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     const prefix = toDS(year, month, 1).slice(0, 7);
     const monthCount = (y, m) => [...shiftDatesSet].filter(d => d.startsWith(toDS(y, m, 1).slice(0,7))).length;
 
-    const shiftDARBody = (s, dateLabel) => {
-      const acts     = s.activities;
-      const toStr    = arr => arr.length > 0 ? arr.map(a => `${a.time}: ${a.title}${a.notes ? ' · ' + a.notes : ''}`).join('\n') : 'N/A';
-      const delivery = acts.filter(a => a.category === 'Delivery');
-      const security = acts.filter(a => a.category === 'Safety / Security');
-      const resident = acts.filter(a => a.category === 'Resident Assist');
-      const vendors  = acts.filter(a => a.category === 'Vendor / Contractor');
-      const amenity  = acts.filter(a => a.category === 'Amenity');
-      const audit    = acts.find(a => a.category === 'Administrative' && a.title.toLowerCase().includes('audit'));
-      const loaners  = amenity.filter(a => a.title.toLowerCase().includes('loaner'));
-      const guests   = resident.filter(a => a.title.toLowerCase().includes('guest') || a.title.toLowerCase().includes('arrival'));
-      const tours    = resident.filter(a => a.title.toLowerCase().includes('tour') || a.title.toLowerCase().includes('move'));
-      const pickups  = delivery.filter(a => a.title.toLowerCase().includes('pickup'));
-      const incoming = delivery.filter(a => !a.title.toLowerCase().includes('pickup'));
-      const lockouts = security.filter(a => a.title.toLowerCase().includes('lockout'));
-      const rounds   = security.filter(a => !a.title.toLowerCase().includes('lockout'));
-      return (
-        <>
-          {/* DAR Header */}
-          <div style={{ background:'#0b0b0b', padding:'28px 28px 22px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-              <div>
-                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
-                  <span style={{ width:28, height:2, background:BLUE, display:'inline-block' }} />
-                  <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.55)', letterSpacing:'0.24em', textTransform:'uppercase' }}>Daily Activity Report</span>
-                </div>
-                <div style={{ fontFamily:INTER, fontSize:22, fontWeight:800, color:'white', letterSpacing:'-0.03em', marginBottom:5 }}>{s.concierge.name}</div>
-                <div style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.55)' }}>
-                  {dateLabel} · {s.clockIn}{s.clockOut ? ` – ${s.clockOut}` : ' – Present'}
-                </div>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:10 }}>
-                <div style={{ display:'inline-flex', alignItems:'center', gap:7, background: s.status==='active'?'rgba(52,199,89,0.15)':'rgba(255,255,255,0.08)', borderRadius:999, padding:'7px 14px' }}>
-                  <div style={{ width:7, height:7, borderRadius:'50%', background: s.status==='active'?GREEN:'rgba(255,255,255,0.4)', boxShadow: s.status==='active'?'0 0 0 2px rgba(52,199,89,0.3)':'none' }} />
-                  <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color: s.status==='active'?GREEN:'rgba(255,255,255,0.6)' }}>
-                    {s.status==='active' ? 'On Duty' : 'Completed'}
-                  </span>
-                </div>
-                <div style={{ fontFamily:INTER, fontSize:14, color:'rgba(255,255,255,0.45)' }}>{s.duration}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* DAR Sections */}
-          <div>
-            <DARSect title="Start of Shift Package Audit" />
-            <DARField label="Package Audit Completed" value="Yes" />
-            <DARField label="Keys Found at Start of Shift" value="Yes" />
-            {audit && <DARField label="Package Room Count" value={audit.notes} last />}
-
-            <DARSect title="Packages" />
-            <DARField label="Delivered by Couriers" value={toStr(incoming)} />
-            <DARField label="Picked Up by Residents" value={toStr(pickups)} last />
-
-            <DARSect title="Guests" />
-            <DARField label="Guest Arrivals / Check-ins" value={toStr(guests)} last />
-
-            <DARSect title="Tours" />
-            <DARField label="Scheduled & Walk-in Tours" value={toStr(tours)} last />
-
-            <DARSect title="Loaners" />
-            <DARField label="Checkouts & Returns" value={toStr(loaners)} last />
-
-            <DARSect title="Lockouts" />
-            <DARField label="Keys & Access Requests" value={toStr(lockouts)} last />
-
-            <DARSect title="Vendors" />
-            {vendors.length > 0
-              ? vendors.map((a, i, arr) => <DARField key={a.id} label={a.title} value={a.time} sub={a.notes} last={i===arr.length-1} />)
-              : <DARField label="Vendor Activity" value="N/A" last />
-            }
-
-            {rounds.length > 0 && (
-              <>
-                <DARSect title="Security & Rounds" />
-                {rounds.map((a, i, arr) => <DARField key={a.id} label={a.title} value={a.time} sub={a.notes} last={i===arr.length-1} />)}
-              </>
-            )}
-
-            {s.note && (
-              <>
-                <DARSect title="Shift Notes" />
-                <div style={{ padding: isPhone ? '16px 14px 20px' : isMobile ? '16px 18px 20px' : '20px 32px 24px' }}>
-                  <p style={{ fontFamily:INTER, fontSize:17, color:TEXT, lineHeight:1.75, margin:0 }}>{s.note}</p>
-                </div>
-              </>
-            )}
-
-            {s.incidents.length > 0 && (
-              <>
-                <DARSect title="Incidents Filed" accent={RED} />
-                {s.incidents.map((inc, i, arr) => <DARField key={i} label={`Incident ${i+1}`} value={inc} last={i===arr.length-1} />)}
-              </>
-            )}
-          </div>
-        </>
-      );
-    };
+    const shiftDARBody = (shift, reportDate) => (
+      <DailyActivityReport mode="manager" shift={shift} editable={false} showConciergeIdentity
+        propertyName={propertyName} dateLabel={reportDate} customSections={customSections}
+        colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }} />
+    );
 
     // Build real-data map from backend shift history, filtered by team member
     const filteredRaw = shiftFilter === 'all'
@@ -2464,14 +2449,21 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
     // Override selectedShift from real data
     const selectedShift = shiftDay ? shiftDatesMap[shiftDay] : null;
+    const shiftStatus = shift => {
+      const status = String(shift?.status || '').toLowerCase();
+      if (['active','on_shift','in_progress'].includes(status)) return { label:'Active', color:GREEN };
+      if (['missed','no_show','no-show'].includes(status)) return { label:'Missed', color:RED };
+      if (['upcoming','scheduled','pending'].includes(status)) return { label:'Upcoming', color:ORANGE };
+      return { label:'Completed', color:BLUE };
+    };
 
     return (
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'1fr 400px', gap: isMobile ? 16 : 20, alignItems: isMobile ? 'stretch' : 'start' }}>
 
         {/* DAR — middle on mobile, left col spanning both rows on desktop */}
-        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.05)', order: isMobile ? 2 : 0, gridColumn: 1, gridRow: '1 / 3' }}>
+        <div style={{ background:CARD, border:`1px solid ${selectedShift?BLUE:BORDER}`, borderRadius:20, overflow:'hidden', boxShadow:selectedShift?`0 0 0 3px ${BLUE}10`:'0 2px 8px rgba(0,0,0,0.05)', order: isMobile ? 2 : 0, gridColumn: 1, gridRow: '1 / 3' }}>
           {selectedShift ? (
-            shiftDARBody(selectedShift, dateLabel)
+            <><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'13px 16px',borderBottom:`1px solid ${BORDER}`,background:`${BLUE}08`}}><div style={{minWidth:0}}><DashboardEyebrow>Selected shift</DashboardEyebrow><strong style={{display:'block',fontSize:14,color:TEXT,marginTop:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{dateLabel} · {selectedShift.concierge.name}</strong></div><div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}><DashboardStatusBadge color={shiftStatus(selectedShift).color}>{shiftStatus(selectedShift).label}</DashboardStatusBadge><span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 11px',borderRadius:9,background:BLUE,color:'white',fontSize:11,fontWeight:800}}><ClipboardCheck size={14}/>DAR</span></div></div>{shiftDARBody(selectedShift, dateLabel)}</>
           ) : (
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'80px 32px', textAlign:'center' }}>
               <div style={{ width:72, height:72, borderRadius:20, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}>
@@ -2538,17 +2530,18 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     const hasShift = shiftDatesSet.has(cell.dateStr);
                     const isToday  = cell.dateStr === TODAY_STR;
                     const isSel    = cell.dateStr === shiftDay;
+                    const cellStatus = hasShift ? shiftStatus(shiftDatesMap[cell.dateStr]) : null;
                     return (
                       <button key={cell.dateStr}
                         onClick={() => hasShift && setShiftDay(isSel ? null : cell.dateStr)}
                         style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', aspectRatio:'1', borderRadius:10,
-                          background: isSel ? BLUE : isToday ? 'rgba(255,56,92,0.08)' : 'transparent',
+                          background: isSel ? BLUE : isToday ? `${BLUE}10` : 'transparent',
                           border: isSel ? 'none' : isToday ? `2px solid ${BLUE}` : '2px solid transparent',
                           cursor: hasShift ? 'pointer' : 'default' }}>
                         <span style={{ fontFamily:INTER, fontSize:13, fontWeight:isSel||isToday?800:500, color:isSel?'white':isToday?BLUE:hasShift?TEXT:'#ccc' }}>
                           {cell.day}
                         </span>
-                        {hasShift && <div style={{ width:4, height:4, borderRadius:'50%', background:isSel?'rgba(255,255,255,0.65)':BLUE, marginTop:2 }} />}
+                        {hasShift && <div style={{ width:5, height:5, borderRadius:'50%', background:isSel?'rgba(255,255,255,0.8)':cellStatus.color, marginTop:2 }} />}
                       </button>
                     );
                   })}
@@ -2606,22 +2599,24 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   const dp = dateStr.split('-');
                   const label = `${MONTH_ABB[parseInt(dp[1])-1]} ${parseInt(dp[2])}`;
                   const isSel = dateStr === shiftDay;
-                  const onDuty = s?.status === 'active';
-                  const stColor = onDuty ? GREEN : BLUE;
+                  const statusMeta = shiftStatus(s);
+                  const onDuty = statusMeta.label === 'Active';
+                  const stColor = statusMeta.color;
                   return (
                     <button key={dateStr} onClick={() => setShiftDay(dateStr)}
-                      style={{ display:'flex', alignItems:'center', gap:14, padding:16, background:isSel?'rgba(255,56,92,0.04)':CARD2, border:`1.5px solid ${isSel?BLUE:BORDER}`, borderRadius:14, cursor:'pointer', textAlign:'left', transition:'border-color 150ms' }}>
+                      aria-pressed={isSel} aria-label={`${label}, ${s.concierge.name}, ${statusMeta.label}. View daily activity report`}
+                      style={{ width:'100%', display:'flex', alignItems:'center', gap:14, padding:16, background:isSel?`${BLUE}0A`:CARD2, border:`1.5px solid ${isSel?BLUE:BORDER}`, boxShadow:isSel?`inset 3px 0 0 ${BLUE}`:'none', borderRadius:14, cursor:'pointer', textAlign:'left', transition:'border-color 150ms' }}>
                       <div style={{ width:48, height:48, borderRadius:14, background:onDuty?'rgba(52,199,89,0.12)':'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                         <span style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:stColor }}>{s.concierge.init}</span>
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}>
                           <span style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT }}>{s.concierge.name}</span>
-                          <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:stColor, background:`${stColor}14`, borderRadius:6, padding:'2px 6px', textTransform:'uppercase', letterSpacing:'0.06em' }}>{onDuty?'On Duty':'Completed'}</span>
+                          <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:stColor, background:`${stColor}14`, borderRadius:6, padding:'2px 6px', textTransform:'uppercase', letterSpacing:'0.06em' }}>{statusMeta.label}</span>
                         </div>
                         <div style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{label} · {s.clockIn}{s.clockOut?` – ${s.clockOut}`:''} · {s.activities.length} actions</div>
                       </div>
-                      <ChevronRight size={16} color={isSel?BLUE:MUTED} />
+                      <span style={{display:'flex',alignItems:'center',gap:4,color:isSel?BLUE:MUTED,fontSize:10,fontWeight:800}}><ClipboardCheck size={14}/><span style={{display:isMobile?'none':'inline'}}>DAR</span><ChevronRight size={14}/></span>
                     </button>
                   );
                 })}
@@ -2654,146 +2649,66 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
   /* ── Tasks list ───────────────────────────────────────────────────────────── */
   const renderTasks = () => {
-    const glassCard = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
-    const SHADOW_SM = '0 2px 8px rgba(0,0,0,0.06)';
-
-    const STATUS_CFG = {
-      in_progress: { label:'In Progress', color:ORANGE },
-      pending:     { label:'Pending',     color:BLUE   },
-      completed:   { label:'Completed',   color:GREEN  },
+    const managerTasks = tasks.filter(t => !t.createdByType || t.createdByType === 'manager');
+    const isOverdue = t => t.status === 'overdue' || t.isOverdue || (t.dueAt && new Date(t.dueAt) < new Date() && t.status !== 'completed');
+    const counts = {
+      overdue: managerTasks.filter(isOverdue).length,
+      active: managerTasks.filter(t => t.status === 'in_progress' && !isOverdue(t)).length,
+      pending: managerTasks.filter(t => t.status === 'pending' && !isOverdue(t)).length,
+      completed: managerTasks.filter(t => t.status === 'completed').length,
     };
-    const PRI_COLOR  = { Urgent:RED, High:ORANGE, Standard:BLUE, Low:'#717171' };
-
-    const groups = [
-      { key:'in_progress', Icon:Send,          sectionIcon:Send        },
-      { key:'pending',     Icon:ClipboardList, sectionIcon:ClipboardList },
-      { key:'completed',   Icon:CheckCircle,   sectionIcon:CheckCircle  },
+    const q = taskSearch.trim().toLowerCase();
+    const filtered = managerTasks.filter(t => {
+      const bucket = isOverdue(t) ? 'overdue' : t.status === 'in_progress' ? 'active' : t.status;
+      const statusMatch = taskFilter === 'all' || (taskFilter === 'open' ? bucket !== 'completed' : bucket === taskFilter);
+      const assigneeMatch = taskAssignee === 'all' || t.toId === taskAssignee;
+      const textMatch = !q || [t.title,t.notes,t.category,t.assignedTo,t.priority].some(v => String(v || '').toLowerCase().includes(q));
+      return statusMatch && assigneeMatch && textMatch;
+    });
+    const groupDefs = [
+      { key:'overdue', label:'Overdue', color:RED, Icon:AlertTriangle, test:t => isOverdue(t) },
+      { key:'active', label:'In progress', color:ORANGE, Icon:RefreshCw, test:t => t.status === 'in_progress' && !isOverdue(t) },
+      { key:'pending', label:'Ready to start', color:TEXT, Icon:ClipboardList, test:t => t.status === 'pending' && !isOverdue(t) },
+      { key:'completed', label:'Completed', color:GREEN, Icon:CheckCircle, test:t => t.status === 'completed' },
     ];
+    const updateStatus = async (task, status) => {
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status } : t));
+      try { const updated = await authApi.updateTask(task.id, { status }); setTasks(prev => prev.map(t => t.id === task.id ? updated : t)); }
+      catch { setTasks(prev => prev.map(t => t.id === task.id ? task : t)); setTasksError(true); }
+    };
+    const control = { minHeight:42, border:`1px solid ${BORDER}`, borderRadius:12, background:CARD, color:TEXT, fontFamily:INTER, fontSize:13, outline:'none' };
+    const EmptyState = ({ error=false }) => <DashboardCard style={{ padding:isMobile?28:38, textAlign:'center', border:`1px solid ${BORDER}`, boxShadow:'none' }}><div style={{ width:44,height:44,borderRadius:13,background:error?`${RED}12`:CARD2,display:'grid',placeItems:'center',margin:'0 auto 12px' }}>{error?<AlertTriangle size={20} color={RED}/>:<ClipboardCheck size={20} color={MUTED}/>}</div><strong style={{display:'block',fontSize:15,color:TEXT}}>{error?'Tasks couldn’t load':q || taskFilter !== 'open' || taskAssignee !== 'all'?'No tasks match these filters':'Everything is covered'}</strong><span style={{display:'block',fontSize:13,color:MUTED,marginTop:5}}>{error?'Try loading the task list again.':q || taskFilter !== 'open' || taskAssignee !== 'all'?'Clear or adjust the filters to see more work.':'There are no open manager assignments right now.'}</span>{error&&<button onClick={()=>{setTasksLoading(true);setTasksError(false);authApi.getTasks().then(setTasks).catch(()=>setTasksError(true)).finally(()=>setTasksLoading(false));}} style={{...control,padding:'0 16px',marginTop:16,cursor:'pointer'}}>Try again</button>}</DashboardCard>;
 
-    const refreshTasks = () => authApi.getTasks().then(list => setTasks(list));
-
-    return (
-      <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0, background:BG }}>
-
-        {/* ── CTA — mirrors incident report's top button ── */}
-        <div style={{ padding:'0 0 20px' }}>
-          <button onClick={() => setTaskOpen(true)}
-            style={{ width:'100%', padding:20, background:BLUE, borderRadius:20, border:'none', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:`0 8px 24px ${BLUE}40` }}>
-            <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-              <div style={{ width:56, height:56, background:'rgba(255,255,255,0.20)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <Plus size={28} color="white" />
-              </div>
-              <div style={{ textAlign:'left' }}>
-                <p style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', letterSpacing:'-0.01em', margin:0 }}>Assign New Task</p>
-                <p style={{ fontSize:14, color:'rgba(255,255,255,0.70)', margin:0 }}>Dispatch work to your concierge team</p>
-              </div>
-            </div>
-            <ChevronRight size={24} color="rgba(255,255,255,0.70)" />
-          </button>
-        </div>
-
-        {/* ── Task groups ── */}
-        {groups.map(({ key, sectionIcon:SIcon }) => {
-          const cfg   = STATUS_CFG[key];
-          const items = tasks.filter(t => t.status === key && t.createdByType === 'manager');
-          const done  = key === 'completed';
-          return (
-            <div key={key} style={{ marginBottom:28 }}>
-
-              {/* Section header — mirrors incident "Past Reports" header */}
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <SIcon size={20} color={cfg.color} />
-                  <h2 style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>{cfg.label}</h2>
-                </div>
-                <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED, flexShrink:0 }}>
-                  {items.length}
-                </span>
-              </div>
-
-              {/* Empty state */}
-              {items.length === 0 ? (
-                <div style={{ ...glassCard, padding:32, textAlign:'center' }}>
-                  <div style={{ width:64, height:64, background:CARD2, borderRadius:18, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
-                    <SIcon size={30} color={MUTED} strokeWidth={1.5} />
-                  </div>
-                  <p style={{ fontWeight:700, color:TEXT, fontSize:15, margin:'0 0 4px' }}>No {cfg.label.toLowerCase()} tasks</p>
-                  <p style={{ fontSize:13, color:MUTED, margin:0 }}>
-                    {key==='in_progress' ? 'Tasks being worked on will appear here' : key==='pending' ? 'Tap "Assign New Task" to dispatch work' : 'Completed tasks will appear here'}
-                  </p>
-                </div>
-              ) : (
-                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                  {items.map(t => {
-                    const TIcon = CAT_ICON[t.category] ?? HelpCircle;
-                    const tc    = CAT_COLOR[t.category]  ?? MUTED;
-                    const pc    = PRI_COLOR[t.priority]  ?? MUTED;
-                    return (
-                      <div key={t.id} style={{ ...glassCard, padding:20, display:'flex', alignItems:'center', gap:16, boxShadow:SHADOW_SM }}>
-
-                        {/* Category icon circle */}
-                        <div style={{ width:48, height:48, borderRadius:14, background: done ? CARD2 : `${tc}12`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                          {done
-                            ? <CheckCircle size={24} color={GREEN} />
-                            : <TIcon size={24} color={tc} />}
-                        </div>
-
-                        {/* Main content */}
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <p style={{ fontWeight:700, color:done ? MUTED : TEXT, fontSize:16, textDecoration:done?'line-through':'none', margin:'0 0 4px', lineHeight:1.3 }}>{t.title}</p>
-                          <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:5 }}>
-                            {t.category && (
-                              <span style={{ fontSize:12, fontWeight:600, color:MUTED, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, padding:'2px 8px' }}>{t.category}</span>
-                            )}
-                            {key === 'in_progress' && (
-                              <span style={{ fontSize:12, fontWeight:700, color:ORANGE, background:`${ORANGE}14`, borderRadius:8, padding:'2px 8px' }}>Active</span>
-                            )}
-                          </div>
-                          <p style={{ fontSize:13, color:MUTED, margin:0 }}>
-                            {t.assignedTo} · Due: {t.dueTime}
-                            {done && t.completedAt ? ` · Done ${t.completedAt}` : ''}
-                          </p>
-                          {t.notes && <p style={{ fontSize:13, color:MUTED, fontStyle:'italic', margin:'4px 0 0' }}>"{t.notes}"</p>}
-
-                          {/* Action buttons inline — mirrors incident toggle buttons */}
-                          {!done && (
-                            <div style={{ display:'flex', gap:8, marginTop:12 }}>
-                              {key === 'pending' && (
-                                <button onClick={() => authApi.updateTask(t.id,{status:'in_progress'}).then(refreshTasks)}
-                                  style={{ padding:'8px 18px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:600, color:TEXT, cursor:'pointer', boxShadow:SHADOW_SM }}>
-                                  Start
-                                </button>
-                              )}
-                              <button onClick={() => authApi.updateTask(t.id,{status:'completed'}).then(refreshTasks)}
-                                style={{ padding:'8px 18px', background:GREEN, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer', boxShadow:`0 4px 12px ${GREEN}40` }}>
-                                Mark Complete
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Priority pill — mirrors severity pill */}
-                        {t.priority && t.priority !== 'Standard' && (
-                          <span style={{ padding:'6px 14px', borderRadius:10, fontSize:12, fontWeight:700, background:pc, color:'white', flexShrink:0 }}>
-                            {t.priority.toUpperCase()}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
+    return <div style={{fontFamily:INTER,display:'flex',flexDirection:'column',gap:22}}>
+      {taskSuccess && <div role="status" style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',border:`1px solid ${GREEN}40`,borderRadius:12,background:`${GREEN}10`,color:TEXT,fontSize:13}}><CheckCircle size={17} color={GREEN}/><span style={{flex:1}}>{taskSuccess}</span><button aria-label="Dismiss" onClick={()=>setTaskSuccess('')} style={{border:0,background:'transparent',color:MUTED,cursor:'pointer'}}><X size={16}/></button></div>}
+      <div style={{display:'flex',alignItems:isMobile?'stretch':'center',flexDirection:isMobile?'column':'row',justifyContent:'space-between',gap:14}}>
+        <div><DashboardEyebrow>Work queue</DashboardEyebrow><DashboardSectionTitle as="h3" style={{margin:'5px 0 0'}}>Assignments at a glance</DashboardSectionTitle></div>
+        <button onClick={openTask} style={{...control,minHeight:44,padding:'0 16px',border:0,background:BLUE,color:'white',fontWeight:750,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8}}><Plus size={17}/>Assign task</button>
       </div>
-    );
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',gap:10}}>
+        {[['Overdue',counts.overdue,RED],['In progress',counts.active,ORANGE],['Ready',counts.pending,TEXT],['Completed',counts.completed,GREEN]].map(([label,value,color])=><div key={label} style={{padding:'14px 15px',border:`1px solid ${BORDER}`,borderRadius:14,background:CARD}}><strong style={{fontSize:22,color,lineHeight:1}}>{value}</strong><span style={{display:'block',fontSize:11,fontWeight:700,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginTop:6}}>{label}</span></div>)}
+      </div>
+      <div aria-label="Task filters" style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'minmax(220px,1fr) auto auto',gap:10}}>
+        <label style={{position:'relative'}}><span className="sr-only">Search tasks</span><Search size={16} color={MUTED} style={{position:'absolute',left:14,top:13}}/><input value={taskSearch} onChange={e=>setTaskSearch(e.target.value)} placeholder="Search title, assignee, or category" style={{...control,width:'100%',padding:'0 14px 0 40px',boxSizing:'border-box'}}/></label>
+        <select aria-label="Filter task status" value={taskFilter} onChange={e=>setTaskFilter(e.target.value)} style={{...control,padding:'0 34px 0 12px'}}><option value="open">Open work</option><option value="all">All statuses</option><option value="overdue">Overdue</option><option value="active">In progress</option><option value="pending">Ready to start</option><option value="completed">Completed</option></select>
+        <select aria-label="Filter task assignee" value={taskAssignee} onChange={e=>setTaskAssignee(e.target.value)} style={{...control,padding:'0 34px 0 12px'}}><option value="all">All assignees</option>{team.filter(c=>c.status!=='invited').map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+      </div>
+      {tasksLoading ? <div aria-label="Loading tasks" style={{display:'flex',flexDirection:'column',gap:10}}>{[1,2,3].map(i=><div key={i} style={{height:96,borderRadius:16,background:CARD2,border:`1px solid ${BORDER}`,opacity:1-i*.15}}/>)}</div> : tasksError ? <EmptyState error/> : filtered.length===0 ? <EmptyState/> : groupDefs.map(group=>{
+        const items=filtered.filter(group.test); if(!items.length)return null;
+        return <section key={group.key} aria-labelledby={`task-group-${group.key}`}><div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}><group.Icon size={17} color={group.color}/><h4 id={`task-group-${group.key}`} style={{fontSize:14,color:TEXT,margin:0}}>{group.label}</h4><span style={{fontSize:12,color:MUTED}}>({items.length})</span></div><div style={{border:`1px solid ${BORDER}`,borderRadius:16,overflow:'hidden',background:CARD}}>{items.map((t,index)=>{
+          const done=t.status==='completed'; const overdue=isOverdue(t); const TIcon=CAT_ICON[t.category]||ClipboardList; const pc=PRIORITY_COLOR[t.priority]||MUTED;
+          return <article key={t.id} data-testid="manager-task-row" style={{display:'grid',gridTemplateColumns:isMobile?'36px minmax(0,1fr)':'40px minmax(0,1fr) auto',gap:12,padding:isMobile?'15px 14px':'17px 18px',borderTop:index?`1px solid ${BORDER}`:'none',alignItems:'start'}}><div style={{width:36,height:36,borderRadius:11,background:done?`${GREEN}12`:overdue?`${RED}12`:CARD2,display:'grid',placeItems:'center'}}><TIcon size={17} color={done?GREEN:overdue?RED:MUTED}/></div><div style={{minWidth:0}}><div style={{display:'flex',gap:7,alignItems:'center',flexWrap:'wrap'}}><strong style={{fontSize:14,lineHeight:1.4,color:done?MUTED:TEXT,textDecoration:done?'line-through':'none'}}>{t.title}</strong>{t.priority&&t.priority!=='Standard'&&<DashboardStatusBadge dot={false} color={pc} style={{fontSize:9,padding:'3px 6px'}}>{t.priority}</DashboardStatusBadge>}</div><div style={{display:'flex',gap:6,flexWrap:'wrap',fontSize:12,color:MUTED,marginTop:5}}><span>{t.assignedTo||'Unassigned'}</span><span>·</span><span style={{color:overdue?RED:MUTED}}>Due {t.dueTime||'not set'}</span><span>·</span><span>{t.category||'Other'}</span>{done&&t.completedAt&&<><span>·</span><span>Done {t.completedAt}</span></>}</div>{t.notes&&<p style={{fontSize:12,color:MUTED,lineHeight:1.5,margin:'7px 0 0'}}>{t.notes}</p>}<div style={{display:'flex',gap:7,marginTop:11}}>{!done&&t.status!=='in_progress'&&<button onClick={()=>updateStatus(t,'in_progress')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,cursor:'pointer'}}>Start</button>}{!done&&<button onClick={()=>updateStatus(t,'completed')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,fontWeight:700,cursor:'pointer',background:TEXT,color:BG,borderColor:TEXT}}>Complete</button>}</div></div><DashboardStatusBadge color={done?GREEN:overdue?RED:t.status==='in_progress'?ORANGE:MUTED} style={{display:isMobile?'none':'inline-flex'}}>{done?'Completed':overdue?'Overdue':t.status==='in_progress'?'Active':'Ready'}</DashboardStatusBadge></article>;
+        })}</div></section>})}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:4,borderTop:`1px solid ${BORDER}`,fontSize:12,color:MUTED}}><span>Recurring work is managed separately.</span><button onClick={()=>setTab('scheduled')} style={{border:0,background:'transparent',color:TEXT,fontWeight:700,cursor:'pointer',padding:8}}>Scheduled tasks <ChevronRight size={13} style={{verticalAlign:'middle'}}/></button></div>
+    </div>;
   };
 
   /* ── Team ──────────────────────────────────────────────────────────────────── */
   const renderTeam = () => {
-    const active  = team.filter(c => c.status !== 'invited');
-    const invited = team.filter(c => c.status === 'invited');
+    const teamQuery = teamSearch.trim().toLowerCase();
+    const matchesTeamSearch = c => !teamQuery || [c.name,c.title,c.co,c.company,c.phone,c.email,c.access,c.status].some(value => String(value || '').toLowerCase().includes(teamQuery));
+    const active  = team.filter(c => c.status !== 'invited' && matchesTeamSearch(c));
+    const invited = team.filter(c => c.status === 'invited' && matchesTeamSearch(c));
     const glassCard = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
 
     return (
@@ -2816,6 +2731,13 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           </button>
         </div>
 
+        <label style={{ position:'relative', display:'block', marginBottom:18 }}>
+          <span className="sr-only">Search team</span>
+          <Search size={17} color={MUTED} style={{ position:'absolute', left:14, top:13 }} />
+          <input value={teamSearch} onChange={e=>setTeamSearch(e.target.value)} placeholder="Search name, role, company, or contact" aria-label="Search team"
+            style={{ width:'100%', minHeight:44, boxSizing:'border-box', padding:'0 14px 0 42px', border:`1px solid ${BORDER}`, borderRadius:12, background:CARD, color:TEXT, fontFamily:INTER, fontSize:13, outline:'none' }} />
+        </label>
+
         {/* ── Team Members section ── */}
         <div>
           {/* Section header — exact copy of "Past Reports" header */}
@@ -2837,7 +2759,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 const stLabel = onShift ? 'ON SHIFT' : 'OFF DUTY';
                 const stColor = onShift ? GREEN : MUTED;
                 return (
-                  <div key={c.id} style={{ ...glassCard, padding:20, display:'flex', alignItems:'center', gap:16 }}>
+                  <div key={c.id} style={{ ...glassCard, padding:isMobile?15:20, display:'grid', gridTemplateColumns:isMobile?'48px minmax(0,1fr)':'48px minmax(0,1fr) auto', alignItems:'center', gap:16 }}>
 
                     {/* Avatar — 48×48 borderRadius:14, matches incident icon container */}
                     <div style={{ position:'relative', flexShrink:0 }}>
@@ -2849,19 +2771,28 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
                     {/* Info — flex:1 content block, matches incident card layout */}
                     <div style={{ flex:1, minWidth:0 }}>
-                      <p style={{ fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 2px' }}>{c.name}</p>
-                      <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:3 }}>
-                        <span style={{ fontSize:12, color:MUTED, fontWeight:600 }}>{c.title}</span>
-                        <span style={{ fontSize:12, color:MUTED }}>· {c.shifts} Shifts</span>
+                      <p title={c.name} style={{ fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.name}</p>
+                      <div style={{ display:'flex', gap:7, flexWrap:'wrap', marginTop:3 }}>
+                        <span style={{ fontSize:12, color:TEXT, fontWeight:650 }}>{c.title || c.role || 'Concierge'}</span>
+                        {(c.co || c.company) && <span style={{ fontSize:12, color:MUTED }}>· {c.co || c.company}</span>}
+                        <span style={{ fontSize:12, color:MUTED }}>· {c.shifts ?? c.shift_count ?? 0} shifts</span>
                         {c.since && <span style={{ fontSize:12, color:MUTED }}>· Since {c.since}</span>}
+                      </div>
+                      <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:6,fontSize:11,color:MUTED}}>
+                        {c.phone && <span>{c.phone}</span>}{c.email && <span>· {c.email}</span>}<span>· {c.access || c.access_level || 'Property access'}</span>
                       </div>
                       {/* Action buttons — smaller, inside the info block */}
                       <div style={{ display:'flex', gap:6, marginTop:10, flexWrap:'wrap' }}>
-                        <a href={`tel:${c.phone.replace(/\D/g,'')}`}
+                        <button onClick={() => { setSetupConcierge(c.id); setTab('sections'); }}
+                          style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', background:`${BLUE}10`, border:`1px solid ${BLUE}28`, borderRadius:8, cursor:'pointer', fontFamily:INTER }}>
+                          <Sliders size={12} color={BLUE} />
+                          <span style={{ fontSize:12, fontWeight:650, color:BLUE }}>Manage access</span>
+                        </button>
+                        {c.phone && <a href={`tel:${c.phone.replace(/\D/g,'')}`}
                           style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, textDecoration:'none' }}>
                           <Phone size={12} color={MUTED} />
                           <span style={{ fontFamily:INTER, fontSize:12, fontWeight:600, color:TEXT }}>Call</span>
-                        </a>
+                        </a>}
                         <a href={`mailto:${c.email}`}
                           style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, textDecoration:'none' }}>
                           <Mail size={12} color={MUTED} />
@@ -2872,16 +2803,15 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                           <KeyRound size={12} color={BLUE} />
                           <span style={{ fontSize:12, fontWeight:600, color:BLUE }}>Reset PW</span>
                         </button>
-                        <button onClick={async () => { if (!window.confirm(`Remove ${c.name} from your team?`)) return; try { await authApi.removeConcierge(c.concierge_id); setTeam(p => p.filter(m => m.concierge_id !== c.concierge_id)); } catch { alert('Failed to remove team member.'); } }}
-                          style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, cursor:'pointer', fontFamily:INTER }}>
-                          <Trash2 size={12} color="#ef4444" />
-                          <span style={{ fontSize:12, fontWeight:600, color:'#ef4444' }}>Remove</span>
+                        <button aria-label={`Remove ${c.name}`} title="Remove team member" onClick={async () => { if (!window.confirm(`Remove ${c.name} from your team?`)) return; try { await authApi.removeConcierge(c.concierge_id); setTeam(p => p.filter(m => m.concierge_id !== c.concierge_id)); } catch { alert('Failed to remove team member.'); } }}
+                          style={{ display:'flex', alignItems:'center', justifyContent:'center', width:32, height:30, background:'transparent', border:`1px solid ${BORDER}`, borderRadius:8, cursor:'pointer', fontFamily:INTER }}>
+                          <Trash2 size={12} color={MUTED} />
                         </button>
                       </div>
                     </div>
 
                     {/* Status badge — exact copy of incident severity badge */}
-                    <span style={{ padding:'6px 14px', borderRadius:10, fontSize:12, fontWeight:700, background:stBg, color:'white', flexShrink:0 }}>
+                    <span style={{ gridColumn:isMobile?'2':'auto', justifySelf:isMobile?'start':'auto', padding:'6px 12px', borderRadius:999, fontSize:10, fontWeight:800, background:`${stBg}16`, color:stColor, border:`1px solid ${stBg}30`, flexShrink:0 }}>
                       {stLabel}
                     </span>
                   </div>
@@ -2894,8 +2824,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               <div style={{ width:80, height:80, background:CARD2, borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
                 <Users size={40} color={MUTED} />
               </div>
-              <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>No team members yet</p>
-              <p style={{ fontSize:14, color:MUTED }}>Tap "Add Team Member" to invite your first concierge</p>
+              <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>{teamSearch ? 'No team members match' : 'No team members yet'}</p>
+              <p style={{ fontSize:14, color:MUTED }}>{teamSearch ? 'Try a different name, role, company, or contact.' : 'Tap "Add Team Member" to invite your first concierge'}</p>
             </div>
           )}
         </div>
@@ -2965,8 +2895,12 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const saveUploadedSOP = () => {
     const cat = uploadForm.category === 'Other' ? (uploadForm.customCategory.trim() || 'Other') : uploadForm.category;
     if (!cat || !uploadForm.title.trim() || !uploadForm.dataURL) return;
+    const newSopId = editingSopId || `upload-${Date.now()}`;
+    if (editingSopId) {
+      setUploadedSOPs(items=>items.map(item=>item.id===editingSopId?{...item,category:cat,title:uploadForm.title.trim(),fileName:uploadForm.fileName,fileType:uploadForm.fileType,dataURL:uploadForm.dataURL}:item));
+    } else {
     setUploadedSOPs(p => [...p, {
-      id: `upload-${Date.now()}`,
+      id: newSopId,
       category: cat,
       title: uploadForm.title.trim(),
       fileName: uploadForm.fileName,
@@ -2974,9 +2908,12 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       dataURL: uploadForm.dataURL,
       _uploaded: true,
     }]);
+    }
+    setKnowledgeStatus(s=>({...s,[newSopId]:'review'}));
     setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
     setSopUploadOpen(false);
     setSopStep(1);
+    setEditingSopId(null);
     if (uploadFileRef.current) uploadFileRef.current.value = '';
   };
 
@@ -2998,14 +2935,16 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const saveTrainingItem = () => {
     const cat = trainingForm.category === 'Other' ? (trainingForm.customCategory.trim() || 'Other') : trainingForm.category;
     if (!cat || !trainingForm.title.trim() || !trainingForm.dataURL) return;
+    const newTrainingId = `training-${Date.now()}`;
     setTrainingItems(p => [...p, {
-      id: `training-${Date.now()}`,
+      id: newTrainingId,
       category: cat,
       title: trainingForm.title.trim(),
       fileName: trainingForm.fileName,
       fileType: trainingForm.fileType,
       dataURL: trainingForm.dataURL,
     }]);
+    setKnowledgeStatus(s=>({...s,[newTrainingId]:'assigned'}));
     setTrainingForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
     setTrainingUploadOpen(false);
     setTrainingStep(1);
@@ -3200,57 +3139,15 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     }
 
     /* ── List / history view ── */
+    const knowledgeColors = { accent:BLUE, success:GREEN, warning:ORANGE, danger:RED, card:CARD, surface:CARD2, border:BORDER, text:TEXT, muted:MUTED, shadow:SHADOW };
+    const trainingCategories = ['All', ...Array.from(new Set(trainingItems.map(item=>item.category).filter(Boolean)))];
+    const visibleTraining = trainingItems.filter(item => (trainingFilter==='All'||item.category===trainingFilter) && (!trainingSearch.trim() || `${item.title} ${item.category} ${item.fileName||''}`.toLowerCase().includes(trainingSearch.trim().toLowerCase())));
+    const reviewedCount = trainingItems.filter(item=>knowledgeStatus[item.id]==='reviewed').length;
     return (
-      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
-        {trainingItems.length === 0 ? (
-          <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', gap:16, padding:'8px 0 0', textAlign:'center' }}>
-            <div style={{ width:72, height:72, borderRadius:22, background:'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <GraduationCap size={36} color={RED} />
-            </div>
-            <div>
-              <p style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, margin:'0 0 8px', letterSpacing:'-0.01em' }}>No training materials yet</p>
-              <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0, lineHeight:1.6 }}>Upload documents, images, or videos{'\n'}for your team to reference.</p>
-            </div>
-          </div>
-        ) : (
-          <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:12 }}>
-            {trainingItems.map((item) => {
-              const def = CATEGORY_DEFS.find(d => d.id === item.category);
-              const CatIcon = def ? def.Icon : HelpCircle;
-              const typeLabel = item.fileType === 'video' ? 'Video' : item.fileType === 'image' ? 'Photo' : 'PDF';
-              const typeBadgeColor = item.fileType === 'video' ? BLUE : item.fileType === 'image' ? GREEN : ORANGE;
-              const TypeIcon = item.fileType === 'video' ? Video : item.fileType === 'image' ? Image : FileText;
-              return (
-                <button key={item.id} onClick={() => setFullscreenTraining(item)}
-                  style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%',
-                    background:CARD, border:`1px solid ${BORDER}` }}>
-                  {/* Icon */}
-                  <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:CARD2, overflow:'hidden' }}>
-                    {item.fileType === 'image' ? (
-                      <img src={item.dataURL} alt={item.title} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                    ) : (
-                      <CatIcon size={26} color={MUTED} />
-                    )}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', margin:'0 0 4px' }}>{item.category}</p>
-                    <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 6px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</p>
-                    <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 9px', borderRadius:8, background:typeBadgeColor, fontFamily:INTER, fontSize:11, fontWeight:700, color:'white' }}>
-                      <TypeIcon size={11} color="white" />{typeLabel}
-                    </span>
-                  </div>
-                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8, flexShrink:0 }}>
-                    <button onClick={e => { e.stopPropagation(); setTrainingItems(p=>p.filter(t=>t.id!==item.id)); }}
-                      style={{ width:34, height:34, borderRadius:10, border:'none', background:'rgba(255,59,48,0.08)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-                      <Trash2 size={15} color={RED} />
-                    </button>
-                    <ChevronRight size={18} color={MUTED} />
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', gap:16 }}>
+        <KnowledgeFilters search={trainingSearch} onSearch={setTrainingSearch} placeholder="Search training by topic or building system…" categories={trainingCategories} selected={trainingFilter} onSelect={setTrainingFilter} colors={knowledgeColors}/>
+        <KnowledgeProgress value={trainingItems.length?Math.round(reviewedCount/trainingItems.length*100):0} detail={`${reviewedCount} reviewed · ${trainingItems.length} assigned materials`} colors={knowledgeColors}/>
+        {trainingItems.length===0 ? <KnowledgeEmpty icon={GraduationCap} title="No training materials yet" description="Upload documents, visual guides, or videos and assign them to the concierge team." colors={knowledgeColors}/> : visibleTraining.length===0 ? <KnowledgeEmpty icon={Search} title="No training matches this view" description="Try a broader search or choose another category." colors={knowledgeColors}/> : <div style={{ flex:1, overflowY:'auto', display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,minmax(0,1fr))', gap:10 }}>{visibleTraining.map(item=>{ const def=CATEGORY_DEFS.find(d=>d.id===item.category); return <KnowledgeCard key={item.id} item={{...item,assignmentCount:team.length}} kind="training" icon={def?.Icon||HelpCircle} onOpen={setFullscreenTraining} status={knowledgeStatus[item.id]||'assigned'} colors={knowledgeColors} actions={<button onClick={()=>setKnowledgeStatus(s=>({...s,[item.id]:s[item.id]==='reviewed'?'assigned':'reviewed'}))} aria-label="Toggle review status" style={{ width:34,height:34,borderRadius:9,border:`1px solid ${BORDER}`,background:CARD2,cursor:'pointer' }}><Check size={14} color={knowledgeStatus[item.id]==='reviewed'?GREEN:MUTED}/></button>}/>})}</div>}
 
         <div style={{ flexShrink:0, paddingTop:16 }}>
           <button onClick={() => setTrainingUploadOpen(true)}
@@ -3274,6 +3171,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   const renderMore = () => {
+    const knowledgeColors = { accent:BLUE, success:GREEN, warning:ORANGE, danger:RED, card:CARD, surface:CARD2, border:BORDER, text:TEXT, muted:MUTED, shadow:SHADOW };
+    const managerSopCategories = ['All', ...Array.from(new Set(ALL_SOPS.map(s=>s.category).filter(Boolean)))];
+    const visibleSops = ALL_SOPS.filter(sop => (sopFilter==='All'||sop.category===sopFilter) && (!sopSearch.trim() || `${sop.title} ${sop.category} ${sop.fileName||''}`.toLowerCase().includes(sopSearch.trim().toLowerCase())));
     const SOP_CATEGORY_DEFS = [
       { id:'Amenity Hours',       Icon:Waves,         desc:'Pool, gym, rooftop hours and access rules' },
       { id:'Guest Policy',        Icon:User,          desc:'Visitor registration, guest parking, overnight stays' },
@@ -3294,6 +3194,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       setSopUploadOpen(false);
       setSopStep(1);
       setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
+      setEditingSopId(null);
       if (uploadFileRef.current) uploadFileRef.current.value = '';
     };
 
@@ -3306,7 +3207,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <div style={{ flexShrink:0, padding:'16px 0 14px', borderBottom:`1px solid ${BORDER}`, background:CARD }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
               <div>
-                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Upload a Binder Document</h2>
+                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>{editingSopId?'Edit procedure':'Upload a Binder Document'}</h2>
                 <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:'2px 0 0' }}>Step {sopStep} of 2</p>
               </div>
               <button onClick={cancelSop}
@@ -3485,18 +3386,20 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             </button>
           </div>
 
+          <KnowledgeFilters search={sopSearch} onSearch={setSopSearch} placeholder="Search procedures, policies, or building systems…" categories={managerSopCategories} selected={sopFilter} onSelect={setSopFilter} colors={knowledgeColors}/>
+
           {/* Procedures section header */}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, flexShrink:0 }}>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <BookOpen size={20} color={BLUE} />
               <h2 style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Procedures</h2>
             </div>
-            <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED, flexShrink:0 }}>{ALL_SOPS.length}</span>
+            <span style={{ fontSize:11, fontWeight:700, color:MUTED }}>{visibleSops.length} / {ALL_SOPS.length}</span>
           </div>
 
           {/* SOP accordion list */}
           <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:10, paddingBottom:24 }}>
-            {ALL_SOPS.map((sop) => {
+            {visibleSops.length===0 ? <KnowledgeEmpty icon={Search} title={ALL_SOPS.length?'No procedures match this view':'No procedures yet'} description={ALL_SOPS.length?'Try a broader search or choose another category.':'Create the first approved procedure for the concierge team.'} colors={knowledgeColors}/> : visibleSops.map((sop) => {
               const open = expandedSOPId === sop.id;
               const isUploaded = !!sop._uploaded;
               const SopIcon = isUploaded
@@ -3515,6 +3418,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4, flexWrap:'wrap' }}>
                         <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:open?catColor:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', transition:'color 150ms' }}>{sop.category}</span>
                         {isUploaded && <span style={{ fontFamily:INTER, fontSize:9, fontWeight:700, color:GREEN, background:'rgba(52,199,89,0.10)', borderRadius:4, padding:'1px 6px', textTransform:'uppercase' }}>{sop.fileType === 'image' ? 'Photo' : 'PDF'}</span>}
+                        <KnowledgeStatusBadge status={knowledgeStatus[sop.id] || 'published'} colors={knowledgeColors}/>
                       </div>
                       <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT, lineHeight:1.3 }}>{sop.title}</div>
                       {isUploaded && sop.fileName && (
@@ -3522,6 +3426,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       )}
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                      {isUploaded&&<button onClick={e=>{e.stopPropagation();setEditingSopId(sop.id);setUploadForm({category:SOP_CATEGORIES.includes(sop.category)?sop.category:'Other',customCategory:SOP_CATEGORIES.includes(sop.category)?'':sop.category,title:sop.title,fileName:sop.fileName,fileType:sop.fileType,dataURL:sop.dataURL});setSopStep(2);setSopUploadOpen(true);}} aria-label={`Edit ${sop.title}`} style={{ width:30,height:30,borderRadius:8,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}><Pencil size={14} color={MUTED}/></button>}
+                      <button onClick={e => { e.stopPropagation(); setKnowledgeStatus(s=>({...s,[sop.id]:(s[sop.id]||'published')==='published'?'review':'published'})); }} aria-label={(knowledgeStatus[sop.id]||'published')==='published'?'Send for review':'Publish procedure'} style={{ width:30,height:30,borderRadius:8,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}><CheckCircle size={14} color={(knowledgeStatus[sop.id]||'published')==='published'?GREEN:ORANGE}/></button>
                       {isUploaded && (
                         <button onClick={e => {
                           e.stopPropagation();
@@ -3584,20 +3490,20 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
   /* ── Layout ───────────────────────────────────────────────────────────────── */
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:BG, fontFamily:INTER }}>
+    <DashboardPage style={{ overflow:'visible' }}>
       {/* Screen-reader live region */}
       <div role="status" aria-live="polite" aria-atomic="true" style={{ position:'absolute', width:1, height:1, margin:-1, padding:0, overflow:'hidden', clip:'rect(0,0,0,0)', whiteSpace:'nowrap', border:0 }}>
         {srAnnounce}
       </div>
 
       {/* ── Full-width desktop header ─────────────────────────────────────────── */}
-      {!isMobile && (
+      {false && (
         <header style={{ height:72, background:CARD, borderBottom:`1px solid ${BORDER}`, display:'flex', alignItems:'center', padding:'0 24px', flexShrink:0, gap:16, zIndex:20, boxShadow:'0 2px 10px rgba(0,0,0,0.03)' }}>
           <button onClick={() => setSidebarCollapsed(c => !c)} aria-label={sidebarCollapsed ? 'Expand workspace navigation' : 'Collapse workspace navigation'} style={{ width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
             <Menu size={18} color={TEXT} />
           </button>
           <button onClick={() => setTab('home')} style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, border:'none', padding:0, background:'transparent', cursor:'pointer', textAlign:'left', flexShrink:0 }}>
-            <div style={{ width:36, height:36, borderRadius:11, background:'#222222', display:'flex', alignItems:'center', justifyContent:'center' }}><Building2 size={17} color="white" /></div>
+            <div style={{ width:36, height:36, borderRadius:11, background:DASHBOARD_ACTIVE_NAV, display:'flex', alignItems:'center', justifyContent:'center' }}><Building2 size={17} color="white" /></div>
             <div style={{ minWidth:0 }}>
               <div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:2 }}>Noted workspace</div>
               <div style={{ fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:210 }}>{propertyName}</div>
@@ -3764,16 +3670,39 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       {/* ── Body row: sidebar + content ───────────────────────────────────────── */}
       <div style={{ display:'flex', flex:1, minHeight:0 }}>
 
+      <DashboardSidebar
+        ariaLabel="Manager workspace"
+        eyebrow="Manager desk"
+        title="Property operations"
+        groups={MANAGER_NAV_GROUPS}
+        activeId={tab}
+        onSelect={({ id, action }) => {
+          if (action === 'task') openTask();
+          else if (action === 'emergency') setConOpen(true);
+          else setTab(id);
+        }}
+        collapsed={sidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed}
+        drawerOpen={sidebarOpen}
+        onDrawerOpenChange={setSidebarOpen}
+        isMobile={isMobile}
+        user={{ name:authUser?.name || MANAGER.name, email:authUser?.email || MANAGER.email }}
+        profileStatus="Property manager"
+        onProfile={() => setProfileOpen(true)}
+        colors={{ CARD, BORDER, TEXT, MUTED, NAV_SURFACE:CARD, isDarkMode }}
+        badges={{ home:incidents.length }}
+      />
+
       {/* ── DESKTOP SIDEBAR — persistent, always visible ≥768px ──────────────── */}
-      {!isMobile && (
-        <aside aria-label="Workspace navigation" style={{ width: sidebarCollapsed ? 80 : 272, minWidth: sidebarCollapsed ? 80 : 272, flexShrink:0, background:BG, borderRight:`1px solid ${BORDER}`, padding:12, display:'flex', flexDirection:'column', overflow:'hidden', zIndex:10, height:'100%', transition:'width 220ms ease, min-width 220ms ease' }}>
+      {false && !isMobile && (
+        <aside aria-label="Workspace navigation" style={{ width: sidebarCollapsed ? DASHBOARD_SIDEBAR_COLLAPSED : DASHBOARD_SIDEBAR_EXPANDED, minWidth: sidebarCollapsed ? DASHBOARD_SIDEBAR_COLLAPSED : DASHBOARD_SIDEBAR_EXPANDED, flexShrink:0, background:BG, borderRight:`1px solid ${BORDER}`, padding:12, display:'flex', flexDirection:'column', overflow:'hidden', zIndex:10, height:'100%', transition:'width 220ms ease, min-width 220ms ease' }}>
           <nav style={{ padding: sidebarCollapsed ? '8px 6px' : '12px 8px', overflowY:'auto', overflowX:'hidden', flex:1, minHeight:0, background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, boxShadow:'0 2px 8px rgba(0,0,0,.035)' }}>
             {!sidebarCollapsed && <div style={{ padding:'4px 10px 13px' }}><div style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, letterSpacing:'.2em', textTransform:'uppercase' }}>Workspace</div><div style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:TEXT, letterSpacing:'-.03em', marginTop:5 }}>Operations</div></div>}
             {NAV.map(({ id, Icon:NavIcon, label, action }) => {
               const active = !action && tab === id;
               const handleClick = () => {
                 if (sidebarCollapsed) setSidebarCollapsed(false);
-                if (action === 'task')           setTaskOpen(true);
+                if (action === 'task')           openTask();
                 else if (action === 'leasing')   setLeasingOpen(true);
                 else if (action === 'emergency') setConOpen(true);
                 else setTab(id);
@@ -3781,7 +3710,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               return (
                 <button key={id} onClick={handleClick} title={sidebarCollapsed ? label : undefined}
                   className={`nav-btn touch-target${active ? ' nav-btn--active' : ''}`}
-                  style={{ display:'flex', alignItems:'center', gap: sidebarCollapsed ? 0 : 12, justifyContent: sidebarCollapsed ? 'center' : 'flex-start', padding: sidebarCollapsed ? '9px 0' : '9px 10px', marginBottom:3, border:'none', cursor:'pointer', textAlign:'left', background:active?(isDarkMode?'rgba(255,255,255,0.10)':'#222222'):'transparent', borderRadius:12, width:'100%', position:'relative', transition:'background 150ms, transform 150ms', minHeight:44 }}>
+                  style={{ display:'flex', alignItems:'center', gap: sidebarCollapsed ? 0 : 12, justifyContent: sidebarCollapsed ? 'center' : 'flex-start', padding: sidebarCollapsed ? '9px 0' : '9px 10px', marginBottom:3, border:'none', cursor:'pointer', textAlign:'left', background:active?(isDarkMode?'rgba(255,255,255,0.10)':DASHBOARD_ACTIVE_NAV):'transparent', borderRadius:12, width:'100%', position:'relative', transition:'background 150ms, transform 150ms', minHeight:44 }}>
                   <div style={{ width:36, height:36, borderRadius:10, flexShrink:0, background:active?'rgba(255,255,255,0.14)':CARD2, display:'flex', alignItems:'center', justifyContent:'center', transition:'background 150ms', position:'relative' }}>
                     <NavIcon size={18} color={active?'#FFFFFF':MUTED} strokeWidth={active?2.2:1.6} />
                     {id==='home' && incidents.length>0 && sidebarCollapsed && (
@@ -3815,7 +3744,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       )}
 
       {/* ── MOBILE DRAWER — overlay, <768px ──────────────────────────────────── */}
-      {isMobile && (
+      {false && isMobile && (
         <>
           {!sidebarOpen && (
             <div style={{ position:'fixed', top:0, left:0, right:0, height:56, background:CARD, borderBottom:`1px solid ${BORDER}`, display:'flex', alignItems:'center', padding:'0 14px', zIndex:48, gap:10 }}>
@@ -3863,7 +3792,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       const active = !action && tab === id;
                       const handleClick = () => {
                         setSidebarOpen(false);
-                        if (action === 'task')           setTaskOpen(true);
+                        if (action === 'task')           openTask();
                         else if (action === 'leasing')   setLeasingOpen(true);
                         else if (action === 'emergency') setConOpen(true);
                         else setTab(id);
@@ -3871,7 +3800,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       return (
                         <button key={id} onClick={handleClick}
                           className={`nav-btn touch-target${active ? ' nav-btn--active' : ''}`}
-                          style={{ display:'flex', alignItems:'center', gap:12, padding:'11px 12px', marginBottom:2, border:'none', cursor:'pointer', textAlign:'left', background:active?(isDarkMode?'rgba(255,255,255,0.10)':'#222222'):'transparent', borderRadius:12, width:'100%', position:'relative', transition:'background 120ms', minHeight:44 }}>
+                          style={{ display:'flex', alignItems:'center', gap:12, padding:'11px 12px', marginBottom:2, border:'none', cursor:'pointer', textAlign:'left', background:active?(isDarkMode?'rgba(255,255,255,0.10)':DASHBOARD_ACTIVE_NAV):'transparent', borderRadius:12, width:'100%', position:'relative', transition:'background 120ms', minHeight:44 }}>
                           <div style={{ width:36, height:36, borderRadius:10, flexShrink:0, background:active?'rgba(255,255,255,0.14)':CARD2, display:'flex', alignItems:'center', justifyContent:'center', transition:'background 120ms' }}>
                             <NavIcon size={18} color={active?'#FFFFFF':MUTED} strokeWidth={active?2.2:1.6} />
                           </div>
@@ -3896,8 +3825,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
         {/* Home content — always visible */}
-        <div style={{ flex:1, overflowY:'auto', padding: isMobile ? '64px 16px 48px' : '28px 28px 48px' }}>
-          {renderHome()}
+        <div style={{ flex:1, overflowY:'auto', padding: isMobile ? '12px 16px 48px' : '20px 28px 48px' }}>
+          {renderManagerOverview()}
         </div>
       </div>
 
@@ -3923,10 +3852,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:12 }}>{propertyName}</div>
                   <h2 style={{ fontFamily:INTER, fontSize: isMobile ? 32 : 42, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-0.045em', lineHeight:0.95 }}>
-                    {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', residents:'Residents Directory', analytics:'Analytics', scheduled:'Scheduled Tasks', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings' }[tab]}
+                    {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', residents:'Residents Directory', analytics:'Analytics', scheduled:'Preset Requests', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings' }[tab]}
                   </h2>
                   <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>
-                    {{ shifts:'Browse shift history and daily activity reports', tasks:'Assign, track, and verify shift tasks', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', scheduled:'Recurring tasks that auto-assign each shift', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
+                    {{ shifts:'Browse shift history and daily activity reports', tasks:'Assign, track, and verify shift tasks', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', scheduled:'Recurring requests that appear automatically on scheduled days', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
                   </p>
                 </div>
                 <button onClick={() => setTab('home')} aria-label="Close panel" data-testid="panel-close-btn"
@@ -3998,11 +3927,12 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   <div>
                     <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>Task Title *</label>
                     <div style={{ position:'relative' }}>
-                      <input type="text" placeholder="e.g. Close rooftop pool at 10 PM" value={taskForm.title + (taskTitleInterim ? (taskForm.title ? ' ' : '') + taskTitleInterim : '')}
+                      <input data-autofocus="true" aria-required="true" aria-invalid={!taskForm.title.trim()} aria-describedby="task-title-help" type="text" placeholder="e.g. Close rooftop pool at 10 PM" value={taskForm.title + (taskTitleInterim ? (taskForm.title ? ' ' : '') + taskTitleInterim : '')}
                         onChange={e=>setTaskForm(p=>({...p,title:e.target.value}))}
                         style={{ width:'100%', padding:'14px 44px 14px 16px', borderRadius:12, border:taskForm.title?`1.5px solid ${BLUE}`:`1.5px solid ${BORDER}`, fontFamily:INTER, fontSize:16, color:TEXT, background:CARD2, outline:'none', boxSizing:'border-box' }} />
                       <MicButton onTranscript={t=>setTaskForm(p=>({...p,title:p.title?p.title+' '+t:t}))} onInterim={setTaskTitleInterim} />
                     </div>
+                    <p id="task-title-help" style={{fontFamily:INTER,fontSize:12,color:taskForm.title.trim()?MUTED:ORANGE,margin:'7px 0 0'}}>{taskForm.title.trim()?'Keep it specific and action-oriented.':'A task title is required to continue.'}</p>
                   </div>
 
                   <div>
@@ -4027,13 +3957,13 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                         const sel = taskForm.dueTime === dt;
                         return (
                           <button key={dt} onClick={()=>setTaskForm(p=>({...p,dueTime:dt}))}
-                            style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', border:`2px solid ${sel?BLUE:BORDER}`, background:sel?'rgba(255,56,92,0.06)':CARD, boxShadow:sel?`0 4px 20px rgba(255,56,92,0.12)`:'0 2px 8px rgba(0,0,0,0.05)' }}>
-                            <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:sel?'rgba(255,56,92,0.12)':CARD2 }}>
-                              <DTIcon size={24} color={sel?BLUE:MUTED} />
+                            style={{ padding:14, borderRadius:14, textAlign:'left', display:'flex', alignItems:'center', gap:13, cursor:'pointer', border:`1px solid ${sel?BLUE:BORDER}`, background:sel?'rgba(255,56,92,0.05)':CARD }}>
+                            <div style={{ width:40, height:40, borderRadius:11, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:sel?'rgba(255,56,92,0.10)':CARD2 }}>
+                              <DTIcon size={18} color={sel?BLUE:MUTED} />
                             </div>
                             <div style={{ flex:1 }}>
-                              <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 2px' }}>{dt}</p>
-                              <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0 }}>{desc}</p>
+                              <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:14, margin:'0 0 2px' }}>{dt}</p>
+                              <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>{desc}</p>
                             </div>
                             {sel && <div style={{ width:24, height:24, borderRadius:'50%', background:BLUE, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Check size={12} color="white" strokeWidth={3} /></div>}
                           </button>
@@ -4048,35 +3978,37 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
                   <div>
                     <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:12 }}>Assign To *</label>
-                    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                    <div role="radiogroup" aria-label="Assignee" style={{ display:'flex', flexDirection:'column', gap:10 }}>
                       {team.filter(c=>c.status!=='invited').map(c => {
                         const sel = taskForm.toId === c.id;
                         const onShift = c.status === 'on_shift';
                         return (
-                          <button key={c.id} onClick={()=>setTaskForm(p=>({...p,assignedTo:`${c.name.split(' ')[0]} ${c.name.split(' ')[1]?.[0]}.`,toId:c.id}))}
-                            style={{ display:'flex', alignItems:'center', gap:16, padding:20, background:sel?'rgba(255,56,92,0.06)':CARD, border:`2px solid ${sel?BLUE:BORDER}`, borderRadius:16, cursor:'pointer', textAlign:'left', boxShadow:sel?`0 4px 20px rgba(255,56,92,0.12)`:'0 2px 8px rgba(0,0,0,0.05)' }}>
-                            <div style={{ width:56, height:56, borderRadius:16, background:onShift?'rgba(52,199,89,0.12)':'rgba(255,56,92,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                              <span style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:onShift?GREEN:BLUE }}>{c.init}</span>
+                          <button role="radio" aria-checked={sel} key={c.id} onClick={()=>setTaskForm(p=>({...p,assignedTo:`${c.name.split(' ')[0]} ${c.name.split(' ')[1]?.[0]}.`,toId:c.id}))}
+                            style={{ display:'flex', alignItems:'center', gap:13, padding:14, background:sel?'rgba(255,56,92,0.05)':CARD, border:`1px solid ${sel?BLUE:BORDER}`, borderRadius:14, cursor:'pointer', textAlign:'left' }}>
+                            <div style={{ width:42, height:42, borderRadius:12, background:onShift?'rgba(52,199,89,0.12)':CARD2, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                              <span style={{ fontFamily:INTER, fontSize:14, fontWeight:800, color:onShift?GREEN:TEXT }}>{c.init}</span>
                             </div>
                             <div style={{ flex:1 }}>
-                              <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 2px' }}>{c.name}</p>
-                              <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0 }}>{c.title}{onShift?' · On shift now':c.lastShift?` · Last: ${c.lastShift}`:''}</p>
+                              <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:14, margin:'0 0 2px' }}>{c.name}</p>
+                              <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>{c.title}{onShift?' · On shift now':c.lastShift?` · Last: ${c.lastShift}`:''}</p>
                             </div>
                             {sel && <div style={{ width:24, height:24, borderRadius:'50%', background:BLUE, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Check size={12} color="white" strokeWidth={3} /></div>}
                           </button>
                         );
                       })}
+                      {team.filter(c=>c.status!=='invited').length===0&&<div style={{padding:16,border:`1px solid ${BORDER}`,borderRadius:12,color:MUTED,fontSize:13}}>No active concierges are available. Add a team member before assigning this task.</div>}
                     </div>
+                    {!taskForm.toId&&<p style={{fontFamily:INTER,fontSize:12,color:ORANGE,margin:'7px 0 0'}}>Choose an assignee before dispatching.</p>}
                   </div>
 
                   <div>
                     <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:12 }}>Category</label>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'1fr 1fr', gap:10 }}>
                       {TASK_CATS.map(({ id:cid, Icon:CIcon, desc }) => {
                         const sel = taskForm.category === cid;
                         return (
                           <button key={cid} onClick={()=>setTaskForm(p=>({...p,category:p.category===cid?'':cid}))}
-                            style={{ display:'flex', alignItems:'center', gap:12, padding:16, background:sel?'rgba(255,56,92,0.06)':CARD, border:`2px solid ${sel?BLUE:BORDER}`, borderRadius:14, cursor:'pointer', textAlign:'left', boxShadow:sel?`0 4px 20px rgba(255,56,92,0.12)`:'0 2px 8px rgba(0,0,0,0.05)' }}>
+                            style={{ display:'flex', alignItems:'center', gap:11, padding:12, background:sel?'rgba(255,56,92,0.05)':CARD, border:`1px solid ${sel?BLUE:BORDER}`, borderRadius:12, cursor:'pointer', textAlign:'left' }}>
                             <div style={{ width:44, height:44, borderRadius:12, background:sel?'rgba(255,56,92,0.12)':CARD2, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                               <CIcon size={20} color={sel?BLUE:MUTED} />
                             </div>
@@ -4111,6 +4043,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             </div>
 
             <div style={{ flexShrink:0, padding: isMobile ? '12px 20px 20px' : '16px 32px 24px', background:CARD, borderTop:`1px solid ${BORDER}` }}>
+              {taskSubmitError&&<div role="alert" style={{marginBottom:12,padding:'10px 12px',borderRadius:10,background:`${RED}10`,border:`1px solid ${RED}30`,fontSize:13,color:RED}}>{taskSubmitError}</div>}
               <div style={{ display:'flex', gap:12 }}>
                 {taskStep > 1 && (
                   <button onClick={()=>setTaskStep(1)}
@@ -4123,9 +4056,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       style={{ flex:1, padding:'16px 0', background:!taskForm.title.trim()?CARD2:BLUE, border:!taskForm.title.trim()?`1px solid ${BORDER}`:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:!taskForm.title.trim()?MUTED:'white', cursor:!taskForm.title.trim()?'not-allowed':'pointer', boxShadow:!taskForm.title.trim()?'none':`0 8px 24px rgba(255,56,92,0.30)` }}>
                       Continue
                     </button>
-                  : <button onClick={submitTask} disabled={!taskForm.toId}
-                      style={{ flex:1, padding:'16px 0', background:!taskForm.toId?CARD2:BLUE, border:!taskForm.toId?`1px solid ${BORDER}`:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:!taskForm.toId?MUTED:'white', cursor:!taskForm.toId?'not-allowed':'pointer', boxShadow:!taskForm.toId?'none':`0 8px 24px rgba(255,56,92,0.30)` }}>
-                      Dispatch Task
+                  : <button onClick={submitTask} disabled={!taskForm.toId||taskLoading}
+                      style={{ flex:1, padding:'16px 0', background:!taskForm.toId?CARD2:BLUE, border:!taskForm.toId?`1px solid ${BORDER}`:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:!taskForm.toId?MUTED:'white', cursor:!taskForm.toId||taskLoading?'not-allowed':'pointer', opacity:taskLoading ? .72 : 1 }}>
+                      {taskLoading?'Dispatching…':'Dispatch Task'}
                     </button>
                 }
               </div>
@@ -4135,7 +4068,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
         {/* Emergency Contacts slide-in */}
         {conOpen && (
-          <motion.div key="con-panel"
+          <motion.div key="con-panel" ref={contactsPanelRef} role="dialog" aria-modal="true" aria-labelledby="emergency-contacts-title"
             initial={{ x: '110%' }} animate={{ x: 0 }} exit={{ x: '110%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 300 }}
             style={{ position: 'fixed', top:0, bottom:0, right:0, ...(isPhone || isMobile ? {left:0} : {width:Math.min(720, window.innerWidth-280), borderLeft:`1px solid ${BORDER}`}), background: BG, zIndex: 68, display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
@@ -4144,10 +4077,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <div style={{ padding: isMobile ? '22px 20px 18px' : '30px 32px 24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap:16, borderBottom: `1px solid ${BORDER}`, background: BG, flexShrink: 0 }}>
               <div style={{ minWidth:0 }}>
                 <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: BLUE, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 12 }}>{propertyName}</div>
-                <h2 style={{ fontFamily: INTER, fontSize: isMobile ? 32 : 42, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.045em', lineHeight:0.95 }}>Emergency Contacts</h2>
+                <h2 id="emergency-contacts-title" style={{ fontFamily: INTER, fontSize: isMobile ? 32 : 42, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.045em', lineHeight:0.95 }}>Emergency Contacts</h2>
                 <p style={{ fontFamily: INTER, fontSize: 15, color: MUTED, margin: '10px 0 0', lineHeight:1.5 }}>Building contact directory for the desk</p>
               </div>
-              <button onClick={() => { setConOpen(false); setShowAddContact(false); }} aria-label="Close"
+              <button onClick={() => { setConOpen(false); setShowAddContact(false); }} aria-label="Close emergency contacts"
                 style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                 <X size={19} color={TEXT} />
               </button>
@@ -4156,18 +4089,18 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 20px 40px' : '28px 32px 48px', display: 'flex', flexDirection: 'column', gap: 28 }}>
 
               {/* CTA — full-width incident-style */}
-              <button onClick={() => { setNewContactDraft({ label:'', number:'' }); setShowAddContact(s => !s); }}
-                style={{ width: '100%', padding: 20, background: RED, borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', boxShadow: `0 8px 24px rgba(255,59,48,0.35)` }}>
+              <button type="button" aria-expanded={showAddContact} onClick={() => { setNewContactDraft({ label:'', number:'' }); setShowAddContact(s => !s); }}
+                style={{ width: '100%', minHeight:64, padding:isPhone?16:20, background:CARD, borderRadius: 16, border:`1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap:12, cursor: 'pointer', boxShadow:SHADOW, textAlign:'left' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ width: 56, height: 56, background: 'rgba(255,255,255,0.2)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Plus size={28} color="white" />
+                  <div style={{ width: 44, height: 44, background:`${BLUE}12`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink:0 }}>
+                    <Plus size={21} color={BLUE} />
                   </div>
                   <div>
-                    <p style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.01em', margin: 0 }}>Add Emergency Contact</p>
-                    <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', margin: 0 }}>Add a custom contact to the directory</p>
+                    <p style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color:TEXT, letterSpacing: '-0.01em', margin: 0 }}>Add contact</p>
+                    <p style={{ fontSize: 13, color:MUTED, margin:'3px 0 0' }}>Add a trusted building contact</p>
                   </div>
                 </div>
-                <ChevronRight size={24} color="rgba(255,255,255,0.7)" />
+                <ChevronRight size={20} color={MUTED} style={{transform:showAddContact?'rotate(90deg)':'none'}} />
               </button>
 
               {/* Inline add form — drops in below CTA */}
@@ -4190,13 +4123,15 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     </div>
                     {/* Inputs */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-                      <input
+                      <label htmlFor="contact-label" style={{fontSize:13,fontWeight:700,color:TEXT}}>Name or role</label>
+                      <input id="contact-label"
                         value={newContactDraft.label}
                         onChange={e => setNewContactDraft(d => ({ ...d, label: e.target.value }))}
                         placeholder="Name or role  e.g. Night Security"
                         style={{ width: '100%', padding: '14px 16px', background: CARD2, borderRadius: 12, border: newContactDraft.label ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}`, color: TEXT, outline: 'none', fontSize: 16, fontFamily: INTER, boxSizing: 'border-box' }}
                       />
-                      <input
+                      <label htmlFor="contact-number" style={{fontSize:13,fontWeight:700,color:TEXT}}>Phone number</label>
+                      <input id="contact-number" type="tel"
                         value={newContactDraft.number}
                         onChange={e => setNewContactDraft(d => ({ ...d, number: e.target.value }))}
                         placeholder="Phone number  e.g. (215) 555-0199"
@@ -4244,7 +4179,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     { label: 'Electricity Outage',      number: BUILDING_CONTACTS.emergency.electricityOutage,      urgent: false },
                     { label: 'Poison Control',          number: BUILDING_CONTACTS.emergency.poisonControl,          urgent: false },
                   ].map(({ label, number, urgent }) => (
-                    <div key={label} style={{ background: CARD, border: `1px solid ${urgent ? `rgba(255,59,48,0.3)` : BORDER}`, borderRadius: 16, padding: 20, display: 'flex', alignItems: 'center', gap: 16, boxShadow: urgent ? '0 4px 20px rgba(255,59,48,0.08)' : '0 2px 8px rgba(0,0,0,0.05)' }}>
+                    <div key={label} style={{ background: CARD, border: `1px solid ${urgent ? `rgba(255,59,48,0.35)` : BORDER}`, borderRadius: 16, padding:isPhone?16:20, display: 'flex', alignItems: 'center', flexWrap:isPhone?'wrap':'nowrap', gap:isPhone?12:16, boxShadow: urgent ? '0 4px 20px rgba(255,59,48,0.08)' : SHADOW }}>
                       <div style={{ width: 48, height: 48, borderRadius: 14, background: urgent ? 'rgba(255,59,48,0.10)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <Phone size={22} color={urgent ? RED : MUTED} />
                       </div>
@@ -4252,8 +4187,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                         <p style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 15, margin: '0 0 2px' }}>{label}</p>
                         <p style={{ fontFamily: INTER, fontSize: 14, color: MUTED, margin: 0 }}>{number}</p>
                       </div>
-                      <a href={`tel:${number.replace(/\D/g, '')}`}
-                        style={{ padding: '10px 18px', background: urgent ? RED : BLUE, color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', flexShrink: 0, boxShadow: urgent ? '0 4px 14px rgba(255,59,48,0.30)' : '0 4px 14px rgba(255,56,92,0.28)' }}>
+                      <a aria-label={`Call ${label} at ${number}`} href={`tel:${number.replace(/\D/g, '')}`}
+                        style={{ minHeight:44, padding: '0 18px', background: urgent ? RED : BLUE, color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', flexShrink: 0, display:'inline-flex',alignItems:'center',justifyContent:'center',marginLeft:isPhone?64:0, boxShadow: urgent ? '0 4px 14px rgba(255,59,48,0.22)' : 'none' }}>
                         Call
                       </a>
                     </div>
@@ -4274,8 +4209,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   {['propertyManager','maintenance','headConcierge','leasing','maverickDispatch'].map(key => {
                     const c = BUILDING_CONTACTS[key];
                     return (
-                      <div key={key} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: c.phone ? 14 : 0 }}>
+                      <div key={key} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding:isPhone?16:20, boxShadow:SHADOW }}>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap:isPhone?'wrap':'nowrap', gap:isPhone?12:16, marginBottom: c.phone ? 14 : 0 }}>
                           {c.avatar ? (
                             <img src={c.avatar} alt={c.name} style={{ width: 56, height: 56, borderRadius: 16, objectFit: 'cover', flexShrink: 0 }} />
                           ) : (
@@ -4289,8 +4224,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                             {c.available && <p style={{ fontFamily: INTER, fontSize: 12, color: MUTED, margin: 0 }}>{c.available}</p>}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
-                            <a href={`tel:${c.phone?.replace(/\D/g,'')}`}
-                              style={{ padding: '9px 20px', background: BLUE, color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', textAlign: 'center', boxShadow: '0 4px 14px rgba(255,56,92,0.28)' }}>
+                            <a aria-label={`Call ${c.name}`} href={`tel:${c.phone?.replace(/\D/g,'')}`}
+                              style={{ minHeight:44, padding: '0 20px', background: BLUE, color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', textAlign: 'center', display:'inline-flex',alignItems:'center',justifyContent:'center' }}>
                               Call
                             </a>
                             {c.afterHoursLine && (
@@ -4302,9 +4237,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                           </div>
                         </div>
                         {c.phone && (
-                          <div style={{ paddingTop: 14, borderTop: `1px solid ${BORDER}`, display: 'flex', gap: 16 }}>
+                          <div style={{ paddingTop: 14, borderTop: `1px solid ${BORDER}`, display: 'flex', flexWrap:'wrap', gap:'6px 16px' }}>
                             <span style={{ fontFamily: INTER, fontSize: 13, color: MUTED }}>{c.phone}</span>
-                            {c.email && <span style={{ fontFamily: INTER, fontSize: 13, color: BLUE }}>{c.email}</span>}
+                            {c.email && <a href={`mailto:${c.email}`} style={{ fontFamily: INTER, fontSize: 13, color: BLUE, overflowWrap:'anywhere' }}>{c.email}</a>}
                           </div>
                         )}
                       </div>
@@ -4334,7 +4269,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                           style={{ padding: '10px 18px', background: BLUE, color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', flexShrink: 0, boxShadow: '0 4px 14px rgba(255,56,92,0.28)' }}>
                           Call
                         </a>
-                        <button onClick={() => setCustomContacts(prev => prev.filter(x => x.id !== c.id))}
+                        <button aria-label={`Remove ${c.label}`} onClick={() => setCustomContacts(prev => prev.filter(x => x.id !== c.id))}
                           style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${BORDER}`, background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                           <X size={14} color={MUTED} />
                         </button>
@@ -4592,7 +4527,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         </div>
       )}
 
-    </div>
+    </DashboardPage>
   );
 };
 
