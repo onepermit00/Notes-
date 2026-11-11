@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * ADLTrack Care Assistant Icon
+ * Noted Care Assistant Icon
  * Green rounded square with white heartbeat/pulse waveform
  */
 export const CareAssistantIcon = ({ size = 40, className = '' }) => {

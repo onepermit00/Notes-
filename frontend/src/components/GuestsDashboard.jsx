@@ -75,7 +75,7 @@ function WizardFooter({ onBack, onContinue, continueLabel = 'Continue', continue
   );
 }
 
-export const GuestsDashboard = ({ onActivityLogged, onWorkflowChange, propertyName='The Alexen', isPhone=false }) => {
+export const GuestsDashboard = ({ onActivityLogged, onWorkflowChange, propertyName='', isPhone=false }) => {
   const { colors } = useTheme();
   const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
   const GuestHeader = props => <WizardHeader propertyName={propertyName} compact={isPhone} {...props}/>;

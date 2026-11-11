@@ -108,7 +108,7 @@ function SelectionCard({ id, Icon, desc, selected, onSelect }) {
   );
 }
 
-export const LockoutPage = ({ onActivityLogged, onWorkflowChange, propertyName='The Alexen', isPhone=false }) => {
+export const LockoutPage = ({ onActivityLogged, onWorkflowChange, propertyName='', isPhone=false }) => {
   const { colors } = useTheme();
   const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
   const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };

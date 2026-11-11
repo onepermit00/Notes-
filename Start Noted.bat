@@ -1,9 +1,9 @@
 @echo off
-title ADLTrack Startup
+title Noted Startup
 color 0A
 echo.
 echo  =========================================
-echo   ADLTrack Care OS -- Starting up...
+echo   Noted -- Starting up...
 echo  =========================================
 echo.
 
@@ -15,7 +15,7 @@ timeout /t 2 /nobreak >nul
 
 :: Start backend
 echo  [2/3] Starting backend (FastAPI)...
-start "ADLTrack Backend" cmd /k "cd /d "%~dp0backend" && C:\Users\Property\AppData\Local\Programs\Python\Python312\python.exe -m uvicorn server:app --reload --port 8001"
+start "Noted Backend" cmd /k "cd /d "%~dp0backend" && C:\Users\Property\AppData\Local\Programs\Python\Python312\python.exe -m uvicorn server:app --reload --port 8001"
 
 :: Wait for backend to be ready
 echo         Waiting for backend...
@@ -23,7 +23,7 @@ timeout /t 8 /nobreak >nul
 
 :: Start frontend
 echo  [3/3] Starting frontend (React)...
-start "ADLTrack Frontend" cmd /k "cd /d "%~dp0frontend" && npm start"
+start "Noted Frontend" cmd /k "cd /d "%~dp0frontend" && npm start"
 
 :: Wait for frontend to compile then open browser
 echo.
@@ -33,7 +33,7 @@ echo.
 timeout /t 15 /nobreak >nul
 start "" "http://localhost:3000"
 
-echo  ADLTrack is running!
+echo  Noted is running!
 echo  - Backend:  http://localhost:8001
 echo  - Frontend: http://localhost:3000
 echo.
