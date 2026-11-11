@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Notes (onepermit) Editorial Redesign
+Backend API Testing for Noted Editorial Redesign
 Tests all auth endpoints to verify backend functionality is preserved.
 """
 import requests
@@ -193,7 +193,7 @@ class NotesAPITester:
 
 def main():
     print("=" * 70)
-    print("Notes (onepermit) Backend API Test Suite")
+    print("Noted Backend API Test Suite")
     print("Testing Editorial Redesign - Backend Functionality Preservation")
     print("=" * 70)
     

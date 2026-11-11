@@ -162,7 +162,7 @@ function CarrierCard({ cfg, selected, onSelect, accent = BLUE, index }) {
   );
 }
 
-export const PackageDashboard = ({ onActivityLogged, onWorkflowChange, propertyName='The Alexen', onClose, isPhone=false }) => {
+export const PackageDashboard = ({ onActivityLogged, onWorkflowChange, propertyName='', onClose, isPhone=false }) => {
   const { colors } = useTheme();
   const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
   const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };

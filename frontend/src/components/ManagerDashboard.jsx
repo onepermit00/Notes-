@@ -2216,7 +2216,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       <DashboardCard style={{...card}}>
         <div style={{padding:isPhone?'20px 20px 15px':'26px 30px 19px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16}}>
           <div style={{minWidth:0,marginLeft:8}}>
-            <div style={{display:'flex',alignItems:'center',marginBottom:11}}><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.22em',textTransform:'uppercase'}}>The Alexen</span></div>
+            <div style={{display:'flex',alignItems:'center',marginBottom:11}}><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.22em',textTransform:'uppercase'}}>{propertyName}</span></div>
             <h1 style={{fontFamily:INTER,fontSize:isPhone?28:34,fontWeight:800,color:TEXT,letterSpacing:'-.045em',lineHeight:.98,margin:0}}>Today’s shift.</h1>
           </div>
           <button type="button" onClick={() => window.print()} aria-label="Export DAR as PDF" title="Export DAR as PDF" className="touch-target" style={{width:44,height:44,padding:0,borderRadius:999,border:`1px solid ${BORDER}`,background:CARD2,color:TEXT,display:'inline-flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>

@@ -45,7 +45,7 @@ function FieldLabel({ children, optional }) {
   return <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:9 }}><span style={{ fontFamily:INTER, fontSize:14, fontWeight:800, color:TEXT }}>{children}</span>{optional&&<span style={{ fontFamily:INTER, fontSize:10, fontWeight:600, color:MUTED, textTransform:'uppercase', letterSpacing:'.12em' }}>Optional</span>}</div>;
 }
 
-export const LoanersDashboard = ({ onActivityLogged, propertyName='The Alexen', onClose, isPhone=false }) => {
+export const LoanersDashboard = ({ onActivityLogged, propertyName='', onClose, isPhone=false }) => {
   const { colors:{ BG,CARD,CARD2,TEXT,MUTED,BORDER,SHADOW,INTER } } = useTheme();
   const [loaners,setLoaners]=useState(LOANER_INIT);
   const [subTab,setSubTab]=useState('items');

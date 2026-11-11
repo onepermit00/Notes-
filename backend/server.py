@@ -322,8 +322,8 @@ async def manager_signup(data: ManagerSignupRequest, response: Response):
     html = f"""
     <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
       <div style="background:#0F0F0F;border-radius:16px 16px 0 0;padding:32px;text-align:center">
-        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin:0 0 8px">onepermit</p>
-        <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Welcome to onepermit, {data.first_name}!</h1>
+        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin:0 0 8px">Noted</p>
+        <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Welcome to Noted, {data.first_name}!</h1>
       </div>
       <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
         <p style="color:#444;font-size:15px;line-height:1.7">Your manager account for <strong>{data.property_name}</strong> is ready.</p>
@@ -332,7 +332,7 @@ async def manager_signup(data: ManagerSignupRequest, response: Response):
         <p style="color:#aaa;font-size:13px">You can add your concierge team from the Team section of your dashboard.</p>
       </div>
     </div>"""
-    asyncio.create_task(send_email(data.email, 'Welcome to onepermit — your account is ready', html))
+    asyncio.create_task(send_email(data.email, 'Welcome to Noted — your account is ready', html))
 
     return {
         'token':         token,
@@ -486,17 +486,17 @@ async def forgot_password(data: ForgotPasswordRequest):
         html = f"""
         <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
           <div style="background:#0F0F0F;border-radius:16px 16px 0 0;padding:32px;text-align:center">
-            <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin:0 0 8px">onepermit</p>
+            <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin:0 0 8px">Noted</p>
             <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Reset your password</h1>
           </div>
           <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
             <p style="color:#444;font-size:15px;line-height:1.7">Hi {user.get('first_name', '')},</p>
-            <p style="color:#444;font-size:15px;line-height:1.7">We received a request to reset your onepermit password. This link expires in {RESET_TOKEN_MINUTES} minutes.</p>
+            <p style="color:#444;font-size:15px;line-height:1.7">We received a request to reset your Noted password. This link expires in {RESET_TOKEN_MINUTES} minutes.</p>
             <a href="{reset_link}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Reset password</a>
             <p style="color:#aaa;font-size:13px">If you didn't request this, you can safely ignore this email.</p>
           </div>
         </div>"""
-        asyncio.create_task(send_email(user['email'], 'Reset your onepermit password', html))
+        asyncio.create_task(send_email(user['email'], 'Reset your Noted password', html))
         logger.info(f'Password reset requested for {user_type} {user_id}')  # never log the raw token
     else:
         logger.info(f'Password reset requested for unregistered email — no email sent')
@@ -670,27 +670,27 @@ async def add_concierge(data: AddConciergeRequest, request: Request, session_tok
     html = f"""
     <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
       <div style="background:#FF385C;border-radius:16px 16px 0 0;padding:32px;text-align:center">
-        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 8px">onepermit</p>
+        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 8px">Noted</p>
         <h1 style="color:white;font-size:22px;font-weight:800;margin:0">You've been added to {property_name}</h1>
       </div>
       <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
         <p style="color:#444;font-size:15px;line-height:1.7">Hi {data.first_name},</p>
         <p style="color:#444;font-size:15px;line-height:1.7">
           <strong>{manager_name}</strong> has added you as a <strong>{data.title}</strong>
-          at <strong>{property_name}</strong> on the onepermit platform.
+          at <strong>{property_name}</strong> on the Noted platform.
         </p>
         <div style="background:#f8f8f8;border:1px solid #ebebeb;border-radius:12px;padding:20px 24px;margin:24px 0">
           <p style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#aaa;margin:0 0 12px">Your Login Credentials</p>
           <p style="color:#222;font-size:15px;margin:0 0 8px"><strong>Email:</strong> {data.email}</p>
           <p style="color:#222;font-size:15px;margin:0"><strong>Password:</strong> {data.password}</p>
         </div>
-        <a href="{frontend_url}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px">Sign In to onepermit</a>
+        <a href="{frontend_url}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px">Sign In to Noted</a>
         <p style="color:#aaa;font-size:13px;text-align:center;margin-top:20px">
           Select <strong>Concierge</strong> on the sign-in screen and use the credentials above.
         </p>
       </div>
     </div>"""
-    asyncio.create_task(send_email(data.email, f"You've been added to {property_name} on onepermit", html))
+    asyncio.create_task(send_email(data.email, f"You've been added to {property_name} on Noted", html))
 
     return {
         'concierge_id':  con_id,
@@ -743,7 +743,7 @@ async def resend_credentials(concierge_id: str, request: Request, session_token:
     html = f"""
     <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
       <div style="background:#FF385C;border-radius:16px 16px 0 0;padding:32px;text-align:center">
-        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 8px">onepermit</p>
+        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 8px">Noted</p>
         <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Your login credentials have been reset</h1>
       </div>
       <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
@@ -756,11 +756,11 @@ async def resend_credentials(concierge_id: str, request: Request, session_token:
           <p style="color:#222;font-size:15px;margin:0 0 8px"><strong>Email:</strong> {con['email']}</p>
           <p style="color:#222;font-size:15px;margin:0"><strong>Password:</strong> {new_pw}</p>
         </div>
-        <a href="{frontend_url}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px">Sign In to onepermit</a>
+        <a href="{frontend_url}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px">Sign In to Noted</a>
         <p style="color:#aaa;font-size:13px;text-align:center;margin-top:20px">Select <strong>Concierge</strong> on the sign-in screen.</p>
       </div>
     </div>"""
-    asyncio.create_task(send_email(con['email'], f"Your onepermit credentials have been reset", html))
+    asyncio.create_task(send_email(con['email'], f"Your Noted credentials have been reset", html))
     return {'message': 'Credentials reset and emailed.', 'new_password': new_pw}
 
 
@@ -826,19 +826,19 @@ async def create_concierge_invitation(data: CreateInvitationRequest, request: Re
     html = f"""
     <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
       <div style="background:#FF385C;border-radius:16px 16px 0 0;padding:32px;text-align:center">
-        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 8px">onepermit</p>
+        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 8px">Noted</p>
         <h1 style="color:white;font-size:22px;font-weight:800;margin:0">You've been invited to {property_name}</h1>
       </div>
       <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
         <p style="color:#444;font-size:15px;line-height:1.7">Hi {data.first_name},</p>
         <p style="color:#444;font-size:15px;line-height:1.7">
-          <strong>{manager_name}</strong> has invited you to join <strong>{property_name}</strong> as a <strong>{data.title or 'Concierge'}</strong> on the onepermit platform.
+          <strong>{manager_name}</strong> has invited you to join <strong>{property_name}</strong> as a <strong>{data.title or 'Concierge'}</strong> on the Noted platform.
         </p>
         <a href="{invite_link}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Accept invitation</a>
         <p style="color:#aaa;font-size:13px">This link expires in {INVITE_TOKEN_DAYS} days and lets you set your own password.</p>
       </div>
     </div>"""
-    asyncio.create_task(send_email(email, f"You've been invited to {property_name} on onepermit", html))
+    asyncio.create_task(send_email(email, f"You've been invited to {property_name} on Noted", html))
 
     return {
         'invitation_id': inv_id,
@@ -1578,7 +1578,7 @@ async def _notify_task_assigned(task_doc: dict, manager: dict, concierge: dict):
     html = f"""
     <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
       <div style="background:#FF385C;border-radius:16px 16px 0 0;padding:28px 32px;text-align:center">
-        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 6px">onepermit · Task Assignment</p>
+        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 6px">Noted · Task Assignment</p>
         <h1 style="color:white;font-size:20px;font-weight:800;margin:0">New task assigned to you</h1>
       </div>
       <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
@@ -1591,7 +1591,7 @@ async def _notify_task_assigned(task_doc: dict, manager: dict, concierge: dict):
           <p style="color:#666;font-size:14px;margin:0 0 6px">Due: {task_doc.get('due_time','ASAP')} · Priority: {task_doc.get('priority','Standard')}</p>
           {f'<p style="color:#444;font-size:14px;margin:8px 0 0">{task_doc["notes"]}</p>' if task_doc.get('notes') else ''}
         </div>
-        <p style="color:#aaa;font-size:13px;margin-top:20px">Log in to onepermit to view and complete this task.</p>
+        <p style="color:#aaa;font-size:13px;margin-top:20px">Log in to Noted to view and complete this task.</p>
       </div>
     </div>"""
     asyncio.create_task(send_email(concierge['email'], f"New task: {task_doc['title']}", html))
@@ -1602,7 +1602,7 @@ async def _notify_incident_filed(incident_doc: dict, manager: dict, concierge_na
     html = f"""
     <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
       <div style="background:#111827;border-radius:16px 16px 0 0;padding:28px 32px">
-        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin:0 0 6px">onepermit · Incident Report</p>
+        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin:0 0 6px">Noted · Incident Report</p>
         <h1 style="color:white;font-size:20px;font-weight:800;margin:0">{incident_doc['type']} — {incident_doc['location']}</h1>
         <span style="display:inline-block;margin-top:10px;padding:4px 12px;background:{sev_color};border-radius:999px;font-size:12px;font-weight:700;color:white;text-transform:uppercase;letter-spacing:0.05em">{incident_doc.get('severity','medium')}</span>
       </div>
@@ -1617,7 +1617,7 @@ async def _notify_incident_filed(incident_doc: dict, manager: dict, concierge_na
           {f'<p style="color:#666;font-size:13px;margin:8px 0 0">Unit: {incident_doc["unit_number"]}</p>' if incident_doc.get('unit_number') else ''}
           {f'<p style="color:#666;font-size:13px;margin:4px 0 0">Person: {incident_doc["person_involved"]}</p>' if incident_doc.get('person_involved') else ''}
         </div>
-        <p style="color:#aaa;font-size:13px">Log in to onepermit to review and resolve this incident.</p>
+        <p style="color:#aaa;font-size:13px">Log in to Noted to review and resolve this incident.</p>
       </div>
     </div>"""
     asyncio.create_task(send_email(manager['email'], f"🚨 Incident: {incident_doc['type']} at {manager['property_name']}", html))
@@ -1819,7 +1819,7 @@ async def upload_image(
 
 @api.get('/')
 async def root():
-    return {'message': 'onepermit API', 'version': '2.0.0'}
+    return {'message': 'Noted API', 'version': '2.0.0'}
 
 @api.get('/health')
 async def health():
