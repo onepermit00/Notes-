@@ -79,13 +79,14 @@ function normalizeConcierge(c) {
   const name = c.name || [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Concierge';
   const initials = name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'C';
   return {
-    id:           c.concierge_id,
+    id:           c.concierge_id || c.invitation_id,
     concierge_id: c.concierge_id,
+    invitation_id: c.invitation_id,
     name,
     init:         initials,
     title:        c.title || 'Concierge',
     co:           '',
-    status:       'active',
+    status:       c.status || 'active',
     phone:        c.phone || '',
     email:        c.email || '',
     shifts:       0,
@@ -173,6 +174,11 @@ export const authApi = {
   async addConcierge(payload) {
     const { data } = await api.post('/manager/concierge', payload);
     return normalizeConcierge(data);
+  },
+
+  async inviteConcierge(payload) {
+    const { data } = await api.post('/manager/concierge/invitations', payload);
+    return normalizeConcierge({ ...data, status: 'invited' });
   },
 
   async getConcierges() {

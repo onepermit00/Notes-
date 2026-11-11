@@ -367,7 +367,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [showAddContact,  setShowAddContact]  = useState(false);
   const [newContactDraft, setNewContactDraft] = useState({ label:'', number:'' });
   const [leasingOpen,     setLeasingOpen]     = useState(false);
-  const [leasingForm,     setLeasingForm]     = useState({ teamName:'', contact:'', phone:'', email:'', password:'' });
+  const [leasingForm,     setLeasingForm]     = useState({ teamName:'', contact:'', phone:'', email:'' });
   const [showPw,          setShowPw]          = useState(false);
   const [profileOpen,     setProfileOpen]     = useState(false);
   const { uploadedSOPs, setUploadedSOPs, trainingItems, setTrainingItems } = useSharedData();
@@ -644,33 +644,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const closeTask = () => {
     setTaskOpen(false); setTaskStep(1); setTaskForm(EMPTY_TASK); setTaskSubmitError('');
     requestAnimationFrame(() => taskOpenerRef.current?.focus?.());
-  };
-
-  const submitAdd = async () => {
-    if (!addForm.name.trim() || !addForm.email.trim()) return;
-    setAddLoading(true); setAddError('');
-    try {
-      const parts = addForm.name.trim().split(' ');
-      const firstName = parts[0];
-      const lastName  = parts.slice(1).join(' ') || '.';
-      const tempPw = `Concierge${Math.floor(1000 + Math.random() * 9000)}!`;
-      const newC = await authApi.addConcierge({
-        first_name: firstName,
-        last_name:  lastName,
-        email:      addForm.email.trim(),
-        phone:      addForm.phone || '',
-        title:      addForm.title || 'Concierge',
-        password:   tempPw,
-      });
-      setTeam(p => [...p, newC]);
-      setSectionAccess(prev => ({ ...prev, [newC.id]: { ...DEFAULT_SECTIONS } }));
-      setNewCredentials({ email: addForm.email.trim(), password: tempPw, name: addForm.name.trim() });
-      closeAdd();
-    } catch (err) {
-      setAddError(err?.response?.data?.detail || 'Failed to add concierge. Please try again.');
-    } finally {
-      setAddLoading(false);
-    }
   };
 
   const submitTask = async () => {
@@ -2798,7 +2771,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                           <Mail size={12} color={MUTED} />
                           <span style={{ fontFamily:INTER, fontSize:12, fontWeight:600, color:TEXT }}>Email</span>
                         </a>
-                        <button onClick={async () => { try { await authApi.resendCredentials(c.concierge_id); alert(`New credentials emailed to ${c.email}`); } catch { alert('Failed to resend credentials.'); } }}
+                        <button onClick={async () => { try { await authApi.resendCredentials(c.concierge_id); alert(`Password reset link emailed to ${c.email}`); } catch { alert('Could not send the reset link.'); } }}
                           style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, cursor:'pointer', fontFamily:INTER }}>
                           <KeyRound size={12} color={BLUE} />
                           <span style={{ fontSize:12, fontWeight:600, color:BLUE }}>Reset PW</span>
@@ -4288,7 +4261,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <>
             <motion.div key="leasing-bg"
               initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.2 }}
-              onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'', password:'' }); setShowPw(false); }}
+              onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'' }); setShowPw(false); }}
               style={{ position:'fixed', inset:0, zIndex:67, background:'rgba(0,0,0,0.32)', backdropFilter:'blur(2px)' }} />
             <motion.div key="leasing-modal" ref={leasingModalRef}
               role="dialog" aria-modal="true" aria-label="Add Team Members"
@@ -4300,9 +4273,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               <div style={{ minWidth:0 }}>
                 <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:12 }}>{propertyName}</div>
                 <h2 style={{ fontFamily:INTER, fontSize: isMobile ? 32 : 42, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-0.045em', lineHeight:0.95 }}>Add Team Members</h2>
-                <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>Create a concierge login for your property</p>
+                <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>We’ll email them a link to set their own password</p>
               </div>
-              <button onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'', password:'' }); setShowPw(false); }} aria-label="Close"
+              <button onClick={() => { setLeasingOpen(false); setLeasingForm({ teamName:'', contact:'', phone:'', email:'' }); setShowPw(false); }} aria-label="Close"
                 style={{ width:44, height:44, borderRadius:999, border:`1px solid ${BORDER}`, background:BG, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
                 <X size={19} color={TEXT} />
               </button>
@@ -4316,7 +4289,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   { field:'teamName', label:'Full Name *',        placeholder:'e.g. George Nwachukwu',   type:'text',     ac:'off'          },
                   { field:'phone',    label:'Phone Number',       placeholder:'e.g. (215) 555-0140',     type:'tel',      ac:'off'          },
                   { field:'email',    label:'Email / Username *', placeholder:'e.g. george@example.com', type:'email',    ac:'off'          },
-                  { field:'password', label:'Password *',         placeholder:'Min. 8 characters',       type:'password', ac:'new-password' },
                 ].map(({ field, label, placeholder, type, ac }) => (
                   <div key={field}>
                     <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:10 }}>{label}</label>
@@ -4371,7 +4343,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             </div>
 
             {(() => {
-              const lValid = (leasingForm.teamName || '').trim() && (leasingForm.email || '').trim() && (leasingForm.password || '').trim().length >= 8;
+              const lValid = (leasingForm.teamName || '').trim() && (leasingForm.email || '').trim();
               const handleAddMember = async () => {
                 if (!lValid || addLoading) return;
                 setAddLoading(true); setAddError('');
@@ -4380,18 +4352,16 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   const parts = fullName.split(/\s+/);
                   const firstName = parts[0] || 'Concierge';
                   const lastName  = parts.slice(1).join(' ') || '';
-                  const newC = await authApi.addConcierge({
+                  const newC = await authApi.inviteConcierge({
                     first_name: firstName,
                     last_name:  lastName,
                     email:      leasingForm.email.trim(),
                     phone:      leasingForm.phone || '',
                     title:      leasingForm.role || 'Concierge',
-                    password:   leasingForm.password.trim(),
                   });
                   setTeam(p => [...p, newC]);
-                  setSectionAccess(prev => ({ ...prev, [newC.id]: { ...DEFAULT_SECTIONS } }));
                   setLeasingOpen(false);
-                  setLeasingForm({ teamName:'', contact:'', phone:'', email:'', password:'' });
+                  setLeasingForm({ teamName:'', contact:'', phone:'', email:'' });
                   setAddError('');
                 } catch (err) {
                   setAddError(err?.response?.data?.detail || 'Failed to add member. Check the email is not already in use.');
@@ -4404,7 +4374,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     disabled={!lValid || addLoading}
                     onClick={handleAddMember}
                     style={{ width:'100%', padding:'16px 0', background:(!lValid||addLoading)?CARD2:GREEN, border:(!lValid||addLoading)?`1px solid ${BORDER}`:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:(!lValid||addLoading)?MUTED:'white', cursor:(!lValid||addLoading)?'not-allowed':'pointer', boxShadow:(!lValid||addLoading)?'none':'0 8px 24px rgba(52,199,89,0.30)' }}>
-                    {addLoading ? 'Adding...' : 'Add Member'}
+                    {addLoading ? 'Sending...' : 'Send Invitation'}
                   </button>
                 </div>
               );

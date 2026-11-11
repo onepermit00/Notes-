@@ -326,3 +326,46 @@ class TestInvitations:
 
         signin = await client.post('/api/auth/signin', json={'email': 'e2e-invitee@example.com', 'password': 'E2EPassword1', 'role': 'concierge'})
         assert signin.status_code == 200
+
+
+# ── No plain-text passwords in email ─────────────────────────────────────────
+
+class TestNoPasswordsInEmail:
+    async def test_direct_add_email_omits_password(self, client, server, monkeypatch):
+        sent = []
+        async def fake_send(to, subject, html): sent.append(html)
+        monkeypatch.setattr(server, 'send_email', fake_send)
+        mgr = await _signup_manager(client, email='nopw-owner@example.com')
+        await _add_concierge_direct(client, mgr['token'], email='nopw-con@example.com', password='SecretPass99')
+        await asyncio.sleep(0)
+        assert sent and not any('SecretPass99' in h for h in sent)
+
+    async def test_reset_credentials_sends_link_not_password(self, client, server, monkeypatch):
+        sent = []
+        async def fake_send(to, subject, html): sent.append(html)
+        monkeypatch.setattr(server, 'send_email', fake_send)
+        monkeypatch.setattr(server, '_generate_raw_token', lambda: 'mgr-reset-token')
+        mgr = await _signup_manager(client, email='reset-owner@example.com')
+        con = await _add_concierge_direct(client, mgr['token'], email='reset-con@example.com')
+        resp = await client.post(
+            f"/api/manager/concierge/{con['concierge_id']}/resend-credentials",
+            headers={'Authorization': f"Bearer {mgr['token']}"},
+        )
+        assert resp.status_code == 200
+        assert 'new_password' not in resp.json()
+        await asyncio.sleep(0)
+        assert '/reset-password?token=mgr-reset-token' in sent[-1]
+
+        reset = await client.post('/api/auth/password/reset', json={'token': 'mgr-reset-token', 'password': 'BrandNewPass1'})
+        assert reset.status_code == 200
+        signin = await client.post('/api/auth/signin', json={'email': 'reset-con@example.com', 'password': 'BrandNewPass1', 'role': 'concierge'})
+        assert signin.status_code == 200
+
+    async def test_team_list_includes_pending_invitations(self, client):
+        mgr = await _signup_manager(client, email='list-owner@example.com')
+        headers = {'Authorization': f"Bearer {mgr['token']}"}
+        await _add_concierge_direct(client, mgr['token'], email='list-active@example.com')
+        await client.post('/api/manager/concierge/invitations', json={'first_name': 'Pat', 'last_name': 'Q', 'email': 'list-invited@example.com'}, headers=headers)
+        team = (await client.get('/api/manager/concierges', headers=headers)).json()['concierges']
+        status = {m['email']: m['status'] for m in team}
+        assert status == {'list-active@example.com': 'active', 'list-invited@example.com': 'invited'}

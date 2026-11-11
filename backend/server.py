@@ -679,15 +679,11 @@ async def add_concierge(data: AddConciergeRequest, request: Request, session_tok
           <strong>{manager_name}</strong> has added you as a <strong>{data.title}</strong>
           at <strong>{property_name}</strong> on the Noted platform.
         </p>
-        <div style="background:#f8f8f8;border:1px solid #ebebeb;border-radius:12px;padding:20px 24px;margin:24px 0">
-          <p style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#aaa;margin:0 0 12px">Your Login Credentials</p>
-          <p style="color:#222;font-size:15px;margin:0 0 8px"><strong>Email:</strong> {data.email}</p>
-          <p style="color:#222;font-size:15px;margin:0"><strong>Password:</strong> {data.password}</p>
-        </div>
-        <a href="{frontend_url}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px">Sign In to Noted</a>
-        <p style="color:#aaa;font-size:13px;text-align:center;margin-top:20px">
-          Select <strong>Concierge</strong> on the sign-in screen and use the credentials above.
+        <p style="color:#444;font-size:15px;line-height:1.7">
+          Sign in with <strong>{data.email}</strong>. Your manager will give you a temporary password in person,
+          or you can choose your own with <strong>Forgot password</strong> on the sign-in screen.
         </p>
+        <a href="{frontend_url}/login" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px">Sign In to Noted</a>
       </div>
     </div>"""
     asyncio.create_task(send_email(data.email, f"You've been added to {property_name} on Noted", html))
@@ -700,7 +696,7 @@ async def add_concierge(data: AddConciergeRequest, request: Request, session_tok
         'title':         data.title,
         'phone':         data.phone,
         'property_name': property_name,
-        'message':       'Concierge added. Login credentials emailed.',
+        'message':       'Concierge added. Welcome email sent.',
     }
 
 
@@ -716,8 +712,25 @@ async def list_concierges(request: Request, session_token: Optional[str] = Cooki
     ).to_list(200)
 
     for d in docs:
+        d['status'] = 'active'
         if isinstance(d.get('created_at'), datetime):
             d['created_at'] = d['created_at'].isoformat()
+
+    invites = await db.invitations.find(
+        {'manager_id': session['user_id'], 'status': 'pending', 'expires_at': {'$gt': datetime.now(timezone.utc)}},
+        {'_id': 0, 'token_hash': 0},
+    ).to_list(200)
+    for inv in invites:
+        docs.append({
+            'invitation_id': inv['invitation_id'],
+            'first_name':    inv['first_name'],
+            'last_name':     inv['last_name'],
+            'email':         inv['email'],
+            'phone':         inv.get('phone', ''),
+            'title':         inv.get('title', 'Concierge'),
+            'status':        'invited',
+            'created_at':    inv['created_at'].isoformat() if isinstance(inv.get('created_at'), datetime) else inv.get('created_at'),
+        })
 
     return {'concierges': docs}
 
@@ -733,35 +746,39 @@ async def resend_credentials(concierge_id: str, request: Request, session_token:
     if not con:
         raise HTTPException(404, 'Concierge not found.')
 
-    import random, string
-    new_pw = 'Team' + ''.join(random.choices(string.digits, k=4)) + '!'
-    await db.concierges.update_one({'concierge_id': concierge_id}, {'$set': {'password_hash': hash_pw(new_pw)}})
+    raw_token = _generate_raw_token()
+    now       = datetime.now(timezone.utc)
+    await db.password_resets.insert_one({
+        'token_hash': _hash_token(raw_token),
+        'user_id':    concierge_id,
+        'user_type':  'concierge',
+        'created_at': now,
+        'expires_at': now + timedelta(minutes=RESET_TOKEN_MINUTES),
+        'used_at':    None,
+    })
 
     manager_name  = f"{manager['first_name']} {manager['last_name']}"
     property_name = manager['property_name']
     frontend_url  = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+    reset_link    = f'{frontend_url}/reset-password?token={raw_token}'
     html = f"""
     <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
       <div style="background:#FF385C;border-radius:16px 16px 0 0;padding:32px;text-align:center">
         <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 8px">Noted</p>
-        <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Your login credentials have been reset</h1>
+        <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Set a new password</h1>
       </div>
       <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
         <p style="color:#444;font-size:15px;line-height:1.7">Hi {con['first_name']},</p>
         <p style="color:#444;font-size:15px;line-height:1.7">
-          <strong>{manager_name}</strong> has reset your login credentials for <strong>{property_name}</strong>.
+          <strong>{manager_name}</strong> sent you a link to set a new password for <strong>{property_name}</strong>.
+          It expires in {RESET_TOKEN_MINUTES} minutes.
         </p>
-        <div style="background:#f8f8f8;border:1px solid #ebebeb;border-radius:12px;padding:20px 24px;margin:24px 0">
-          <p style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#aaa;margin:0 0 12px">Your New Login Credentials</p>
-          <p style="color:#222;font-size:15px;margin:0 0 8px"><strong>Email:</strong> {con['email']}</p>
-          <p style="color:#222;font-size:15px;margin:0"><strong>Password:</strong> {new_pw}</p>
-        </div>
-        <a href="{frontend_url}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px">Sign In to Noted</a>
-        <p style="color:#aaa;font-size:13px;text-align:center;margin-top:20px">Select <strong>Concierge</strong> on the sign-in screen.</p>
+        <a href="{reset_link}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Set new password</a>
+        <p style="color:#aaa;font-size:13px">If you weren't expecting this, you can ignore this email. Your current password still works.</p>
       </div>
     </div>"""
-    asyncio.create_task(send_email(con['email'], f"Your Noted credentials have been reset", html))
-    return {'message': 'Credentials reset and emailed.', 'new_password': new_pw}
+    asyncio.create_task(send_email(con['email'], 'Set a new Noted password', html))
+    return {'message': 'Password reset link emailed.'}
 
 
 @api.delete('/manager/concierge/{concierge_id}')
