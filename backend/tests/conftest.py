@@ -37,7 +37,8 @@ async def client():
 @pytest_asyncio.fixture(autouse=True)
 async def _clean_collections():
     yield
-    for name in ('managers', 'concierges', 'sessions', 'password_resets', 'invitations', 'rate_limit_events'):
+    for name in ('managers', 'concierges', 'sessions', 'password_resets', 'invitations', 'rate_limit_events',
+                 'residents', 'tasks', 'shifts', 'incidents', 'messages', 'audit_logs', 'scheduled_tasks', 'contacts'):
         await server_module.db[name].delete_many({})
 
 

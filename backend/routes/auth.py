@@ -1,4 +1,5 @@
 """Sign-up, sign-in, sessions, password reset and invitation acceptance."""
+from core import esc
 import asyncio
 import os
 import uuid
@@ -47,12 +48,12 @@ async def manager_signup(data: ManagerSignupRequest, response: Response):
     <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
       <div style="background:#0F0F0F;border-radius:16px 16px 0 0;padding:32px;text-align:center">
         <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin:0 0 8px">Noted</p>
-        <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Welcome to Noted, {data.first_name}!</h1>
+        <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Welcome to Noted, {esc(data.first_name)}!</h1>
       </div>
       <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
-        <p style="color:#444;font-size:15px;line-height:1.7">Your manager account for <strong>{data.property_name}</strong> is ready.</p>
+        <p style="color:#444;font-size:15px;line-height:1.7">Your manager account for <strong>{esc(data.property_name)}</strong> is ready.</p>
         <p style="color:#444;font-size:15px;line-height:1.7">Sign in any time at:</p>
-        <a href="{frontend_url}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">{frontend_url}</a>
+        <a href="{esc(frontend_url)}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">{esc(frontend_url)}</a>
         <p style="color:#aaa;font-size:13px">You can add your concierge team from the Team section of your dashboard.</p>
       </div>
     </div>"""
@@ -215,8 +216,8 @@ async def forgot_password(data: ForgotPasswordRequest):
           </div>
           <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
             <p style="color:#444;font-size:15px;line-height:1.7">Hi {user.get('first_name', '')},</p>
-            <p style="color:#444;font-size:15px;line-height:1.7">We received a request to reset your Noted password. This link expires in {RESET_TOKEN_MINUTES} minutes.</p>
-            <a href="{reset_link}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Reset password</a>
+            <p style="color:#444;font-size:15px;line-height:1.7">We received a request to reset your Noted password. This link expires in {esc(RESET_TOKEN_MINUTES)} minutes.</p>
+            <a href="{esc(reset_link)}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Reset password</a>
             <p style="color:#aaa;font-size:13px">If you didn't request this, you can safely ignore this email.</p>
           </div>
         </div>"""

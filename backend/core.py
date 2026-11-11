@@ -4,6 +4,7 @@ import bcrypt as _bcrypt
 import hashlib
 import json as _json
 import logging
+import html as html_lib
 import os
 import secrets
 import urllib.error
@@ -45,6 +46,7 @@ async def _ensure_indexes():
     await db.sessions.create_index('expires_at',              background=True)
     await db.managers.create_index('email',      unique=True,  background=True)
     await db.managers.create_index('manager_id',              background=True)
+    await db.contacts.create_index('manager_id',              background=True)
     await db.concierges.create_index('email',    unique=True,  background=True)
     await db.concierges.create_index('concierge_id',          background=True)
     await db.concierges.create_index([('manager_id', 1)],     background=True)
@@ -237,10 +239,15 @@ async def _check_rate_limit(key: str, limit: int, window_minutes: int):
     await db.rate_limit_events.insert_one({'key': key, 'created_at': datetime.now(timezone.utc)})
 
 
+def esc(value) -> str:
+    """Make a value safe to place in an HTML email. Names, titles and notes are typed by people."""
+    return html_lib.escape('' if value is None else str(value))
+
+
 def _send_resend(to_email: str, subject: str, html: str):
     api_key = os.environ.get('RESEND_API_KEY', '')
     payload = _json.dumps({
-        'from': 'Notes <onboarding@resend.dev>',
+        'from': os.environ.get('EMAIL_FROM', 'Noted <onboarding@resend.dev>'),
         'to': [to_email],
         'subject': subject,
         'html': html,

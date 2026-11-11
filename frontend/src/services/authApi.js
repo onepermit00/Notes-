@@ -260,6 +260,17 @@ export const authApi = {
   },
 
   // Residents directory
+  // The property's own contact directory, plus the manager so the desk always has a real person to call.
+  async getContacts() {
+    const { data } = await api.get('/contacts');
+    return { contacts: (data.contacts || []).map(c => ({ id: c.contact_id, label: c.label, number: c.number })), manager: data.manager || null };
+  },
+  async addContact(label, number) {
+    const { data } = await api.post('/contacts', { label, number });
+    return { id: data.contact_id, label: data.label, number: data.number };
+  },
+  async deleteContact(id) { await api.delete(`/contacts/${id}`); },
+
   async getResidents() {
     try {
       const { data } = await api.get('/residents');

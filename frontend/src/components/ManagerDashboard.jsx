@@ -56,27 +56,7 @@ const getCalCells = (year, month) => {
 };
 
 /* ─── Mock data ──────────────────────────────────────────────────────────────── */
-const MANAGER = {
-  name:              BUILDING_CONTACTS.propertyManager.name,
-  title:             BUILDING_CONTACTS.propertyManager.title,
-  company:           BUILDING_CONTACTS.propertyManager.company,
-  initials:          'ST',
-  avatar:            BUILDING_CONTACTS.propertyManager.avatar,
-  phone:             BUILDING_CONTACTS.propertyManager.phone,
-  email:             BUILDING_CONTACTS.propertyManager.email,
-  available:         BUILDING_CONTACTS.propertyManager.available,
-  rating:            4.8,
-  yearsExperience:   8,
-  propertiesManaged: 3,
-  certifications:    ['CAM Certified', 'Fair Housing', 'OSHA 30-Hr'],
-};
 
-const INIT_TEAM = [
-  { id:'c1', name:'George Nwachukwu', init:'GN', title:'Head Concierge', co:'Maverick Concierge Services', status:'on_shift', clockIn:'8:00 AM', phone:'(215) 555-0125', email:'george@maverick.com', shifts:847, rating:4.9, since:'Mar 2022'  },
-  { id:'c2', name:'Kevin Thompson',   init:'KT', title:'Concierge',      co:'Maverick Concierge Services', status:'off_duty', lastShift:'Jun 21', phone:'(215) 555-0130', email:'kevin@maverick.com',  shifts:312, rating:4.7, since:'Nov 2023'  },
-  { id:'c3', name:'Maria Santos',     init:'MS', title:'Concierge',      co:'Maverick Concierge Services', status:'off_duty', lastShift:'Jun 20', phone:'(215) 555-0131', email:'maria@maverick.com',  shifts:198, rating:4.8, since:'Feb 2024'  },
-  { id:'c4', name:'David Kim',        init:'DK', title:'Concierge',      co:'Maverick Concierge Services', status:'invited',  invitedAt:'Jun 18', phone:'',               email:'david@maverick.com',  shifts:0,   rating:null, since:null        },
-];
 
 const CONCIERGE_SECTIONS = [
   { id:'home',      Icon:Home,          label:"Today's Tasks",     desc:'Daily task list and shift activity log',   color:BLUE,   required:true  },
@@ -95,106 +75,6 @@ const DEFAULT_SECTIONS = Object.fromEntries(CONCIERGE_SECTIONS.map(s => [s.id, t
 
 const mkAct = (items) => items.map((x, i) => ({ id: i + 1, ...x }));
 
-const SHIFTS = {
-  '2026-06-22': {
-    concierge: { name:'George Nwachukwu', init:'GN', co:'Maverick Concierge Services' },
-    clockIn:'8:00 AM', clockOut:null, status:'active', duration:'6h 45m (ongoing)',
-    activities: mkAct([
-      { time:'8:00 AM',  title:'Shift started',                                       category:'Administrative',      notes:'GPS verified · The Hannah'         },
-      { time:'8:45 AM',  title:'Package delivery · UPS → Unit 524',                   category:'Delivery',            notes:'2 packages · Luxer Locker'         },
-      { time:'9:12 AM',  title:'Guest arrival · John Smith → Maria Lopez · Unit 312', category:'Resident Assist',     notes:'Personal Visit'                    },
-      { time:'9:30 AM',  title:'Vendor check-in · City Plumbing Co. · Plumbing',      category:'Vendor / Contractor', notes:'Unit 802 · Auth: Maria Lopez'      },
-      { time:'10:15 AM', title:'Pool opened',                                          category:'Amenity',             notes:''                                  },
-      { time:'10:22 AM', title:'Package pickup · Maria Lopez · Unit 312',              category:'Delivery',            notes:''                                  },
-      { time:'11:05 AM', title:'Lockout · James Chen · Unit 715',                     category:'Safety / Security',   notes:'Forgot Key · Master Key'           },
-      { time:'11:30 AM', title:'Tour · Alex Rivera · 1 Bed / 1 Bath',                 category:'Resident Assist',     notes:'Walk-in'                           },
-      { time:'12:10 PM', title:'Package room audit · Match',                           category:'Administrative',      notes:'Luxer: 8 · Physical: 8'           },
-      { time:'12:45 PM', title:'Loaner checkout · Luggage Cart #1 · Unit 412',        category:'Amenity',             notes:''                                  },
-      { time:'1:20 PM',  title:'Rounds check · All floors clear',                      category:'Safety / Security',   notes:'Floors 1–14 checked'              },
-      { time:'2:05 PM',  title:'Package delivery · Amazon → Unit 715',                 category:'Delivery',            notes:'1 package'                         },
-    ]),
-    note: 'All systems operational. Package room at capacity ~noon — leasing notified. Unauthorized vehicle in P2 reported.',
-    incidents: ['Unauthorized vehicle – P2','Package room at capacity'],
-    metrics: { packages:4, guests:2, vendors:1, lockouts:1, tours:1 },
-    leasingTeam: 'The Hannah Leasing',
-  },
-  '2026-06-21': {
-    concierge: { name:'Kevin Thompson', init:'KT', co:'Maverick Concierge Services' },
-    clockIn:'8:00 AM', clockOut:'4:00 PM', status:'completed', duration:'8h 0m',
-    activities: mkAct([
-      { time:'8:00 AM',  title:'Shift started',                           category:'Administrative',      notes:'GPS verified'                         },
-      { time:'8:30 AM',  title:'Lobby Opening Check',                     category:'Administrative',      notes:'All clear · lights checked'           },
-      { time:'9:00 AM',  title:'Package delivery · FedEx → Unit 108',    category:'Delivery',            notes:'1 package'                            },
-      { time:'10:15 AM', title:'Gym opened',                              category:'Amenity',             notes:''                                     },
-      { time:'10:45 AM', title:'Vendor check-in · HVAC Services',         category:'Vendor / Contractor', notes:'Roof mechanical · Auth: Mike Rodriguez'},
-      { time:'11:20 AM', title:'Vendor check-out · HVAC Services',        category:'Vendor / Contractor', notes:'Work completed'                       },
-      { time:'12:30 PM', title:'Package room audit · Match',              category:'Administrative',      notes:'Luxer: 5 · Physical: 5'              },
-      { time:'2:00 PM',  title:'Tour · Jennifer Kim · Studio',            category:'Resident Assist',     notes:'Scheduled · Strong interest in 704'   },
-      { time:'3:45 PM',  title:'Shift handover notes logged',             category:'Administrative',      notes:'HVAC issue flagged for PM'            },
-    ]),
-    note: 'Quiet Saturday. HVAC roof inspection completed. Jennifer Kim tour — strong interest in Studio 704, follow-up with leasing recommended.',
-    incidents: ['Gym HVAC: slight warm temp reported by resident'],
-    metrics: { packages:1, guests:0, vendors:2, lockouts:0, tours:1 },
-    leasingTeam: 'The Hannah Leasing',
-  },
-  '2026-06-20': {
-    concierge: { name:'Maria Santos', init:'MS', co:'Maverick Concierge Services' },
-    clockIn:'8:00 AM', clockOut:'4:00 PM', status:'completed', duration:'8h 0m',
-    activities: mkAct([
-      { time:'8:00 AM',  title:'Shift started',                              category:'Administrative',    notes:'GPS verified'                         },
-      { time:'8:15 AM',  title:'Move-in setup · Unit 1204 · Elevator booked',category:'Administrative',    notes:'9 AM–1 PM window'                    },
-      { time:'9:05 AM',  title:'Package delivery · UPS → Unit 304',          category:'Delivery',          notes:'3 packages'                           },
-      { time:'9:30 AM',  title:'Move-in · Emily & David Park · Unit 1204',   category:'Resident Assist',   notes:'Elevator reserved · Luggage cart out' },
-      { time:'10:00 AM', title:'Guest arrival · Brian Lee → Unit 504',       category:'Resident Assist',   notes:'Personal visit'                       },
-      { time:'11:15 AM', title:'Lockout · Sophia Wright · Unit 302',         category:'Safety / Security', notes:'Key fob issue · Temp access issued'  },
-      { time:'12:00 PM', title:'Package room audit · +1 unaccounted',        category:'Administrative',    notes:'Luxer: 7 · Physical: 8 · Reported'   },
-      { time:'1:00 PM',  title:'Move-in complete · Unit 1204',               category:'Resident Assist',   notes:'Cart returned · Elevator released'    },
-      { time:'2:30 PM',  title:'Package delivery · Amazon → Unit 712',       category:'Delivery',          notes:'2 packages'                           },
-      { time:'3:00 PM',  title:'Pool closed · weather advisory',             category:'Amenity',           notes:'Storm approaching · Leasing notified' },
-    ]),
-    note: 'Move-in for 1204 smooth. Package audit +1 discrepancy — reported to Luxer support. Pool closed early (storm advisory).',
-    incidents: ['Package count discrepancy · Luxer +1'],
-    metrics: { packages:5, guests:2, vendors:0, lockouts:1, tours:0 },
-  },
-  '2026-06-19': {
-    concierge: { name:'George Nwachukwu', init:'GN', co:'Maverick Concierge Services' },
-    clockIn:'8:00 AM', clockOut:'4:00 PM', status:'completed', duration:'8h 0m',
-    activities: mkAct([
-      { time:'8:00 AM',  title:'Shift started',                          category:'Administrative',      notes:'GPS verified'                         },
-      { time:'8:30 AM',  title:'Lobby Opening Check',                    category:'Administrative',      notes:'Broken light #3 — ticket #4435 created'},
-      { time:'9:00 AM',  title:'Package delivery · UPS → Unit 901',     category:'Delivery',            notes:'1 package'                            },
-      { time:'10:00 AM', title:'Model unit 501 opened · 1 Bed/1 Bath',  category:'Amenity',             notes:''                                     },
-      { time:'10:30 AM', title:'Tour · Marcus Bell · 1 Bed / 1 Bath',   category:'Resident Assist',     notes:'Scheduled · Model 501'                },
-      { time:'11:30 AM', title:'Vendor check-in · Cleaning Services',    category:'Vendor / Contractor', notes:'Common areas · Auth: Sarah Thompson'  },
-      { time:'12:15 PM', title:'Package room audit · Match',             category:'Administrative',      notes:'Luxer: 3 · Physical: 3'              },
-      { time:'1:00 PM',  title:'Vendor check-out · Cleaning Services',   category:'Vendor / Contractor', notes:'All common areas complete'            },
-      { time:'2:45 PM',  title:'Package delivery · Amazon → Unit 215',  category:'Delivery',            notes:'2 packages'                           },
-      { time:'3:30 PM',  title:'Model unit 501 closed',                 category:'Amenity',             notes:''                                     },
-    ]),
-    note: 'Lobby light #3 flagged, ticket #4435 created. Cleaning vendor on schedule. Marcus Bell tour — interested in 1BR.',
-    incidents: ['Lobby light #3 burned out — ticket #4435'],
-    metrics: { packages:3, guests:0, vendors:2, lockouts:0, tours:1 },
-    leasingTeam: 'The Hannah Leasing',
-  },
-  '2026-06-18': {
-    concierge: { name:'Kevin Thompson', init:'KT', co:'Maverick Concierge Services' },
-    clockIn:'8:00 AM', clockOut:'4:00 PM', status:'completed', duration:'8h 0m',
-    activities: mkAct([
-      { time:'8:00 AM',  title:'Shift started',                           category:'Administrative',    notes:'GPS verified'                         },
-      { time:'9:15 AM',  title:'Package delivery · FedEx → Unit 601',    category:'Delivery',          notes:'1 package'                            },
-      { time:'9:45 AM',  title:'Package delivery · USPS → Unit 814',     category:'Delivery',          notes:'2 packages'                           },
-      { time:'10:30 AM', title:'Guest arrival · Tom Clark → Unit 1105',  category:'Resident Assist',   notes:'Furniture delivery assistance'        },
-      { time:'11:00 AM', title:'Loaner checkout · Dolly · Unit 1105',    category:'Amenity',           notes:'Large item move'                      },
-      { time:'12:00 PM', title:'Package room audit · Match',              category:'Administrative',    notes:'Luxer: 4 · Physical: 4'              },
-      { time:'1:30 PM',  title:'Loaner return · Dolly',                  category:'Amenity',           notes:'Good condition'                       },
-      { time:'2:00 PM',  title:'Package pickup · Jennifer K. · Unit 814',category:'Delivery',          notes:''                                     },
-      { time:'3:15 PM',  title:'Lockout · Robert Wu · Unit 414',         category:'Safety / Security', notes:'Lost fob · Temp key issued'          },
-    ]),
-    note: 'Furniture delivery assistance for 1105. Lost fob for Unit 414 flagged for key management follow-up.',
-    incidents: [],
-    metrics: { packages:4, guests:1, vendors:0, lockouts:1, tours:0 },
-  },
-};
 
 const SHIFT_DATES = new Set([
   '2026-06-22','2026-06-21','2026-06-20','2026-06-19','2026-06-18',
@@ -261,15 +141,6 @@ const TASK_CATS = [
   { id:'Other',              Icon:HelpCircle,    desc:'Unlisted task'           },
 ];
 
-const EMERGENCY_CONTACTS = [
-  { role:'Emergency Services',   number:'911',                                       color:RED    },
-  { role:'Police Non-Emergency', number:'(215) 686-8080',                            color:ORANGE },
-  { role:'Building Emergency',   number:'(215) 555-0199',                            color:RED    },
-  { role:'Property Manager',     number:BUILDING_CONTACTS.propertyManager.phone,     color:BLUE   },
-  { role:'Maintenance',          number:BUILDING_CONTACTS.maintenance.phone,         color:ORANGE },
-  { role:'Head Concierge',       number:BUILDING_CONTACTS.headConcierge.phone,       color:GREEN  },
-  { role:'Maverick Dispatch',    number:BUILDING_CONTACTS.maverickDispatch.phone,    color:MUTED  },
-];
 
 const NAV = [
   { id:'home',        Icon:Home,          label:'Overview'            },
@@ -321,7 +192,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const MUTED  = colors.MUTED;
   const SHADOW = colors.SHADOW;
   const SIDEBAR = colors.SIDEBAR;
-  const propertyName = authUser?.property_name || BUILDING_PROFILE.name;
+  const propertyName = authUser?.property_name || 'Your property';
   // ───────────────────────────────────────────────────────────────────────────
 
   const [tab,       setTab]       = useState('home');
@@ -369,6 +240,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const contactsOpenerRef = useRef(null);
   const [conOpen,         setConOpen]         = useState(false);
   const [customContacts,  setCustomContacts]  = useState([]);
+  const propertyContacts = customContacts;
+  const propertyTeam = team.filter(c => c.phone || c.email).map(c => ({ id: c.concierge_id || c.id, name: c.name, title: c.title || 'Concierge', phone: c.phone || '', email: c.email || '', available: c.status === 'on_shift' ? 'On shift now' : '' }));
+  useEffect(() => { authApi.getContacts().then(r => setCustomContacts(r.contacts)).catch(() => {}); }, []);
   const [showAddContact,  setShowAddContact]  = useState(false);
   const [newContactDraft, setNewContactDraft] = useState({ label:'', number:'' });
   const [leasingOpen,     setLeasingOpen]     = useState(false);
@@ -811,8 +685,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             </div>
             <div>
               <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 2px' }}>{propertyName}</p>
-              <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'0 0 1px' }}>{BUILDING_PROFILE.company} · {BUILDING_PROFILE.units} units</p>
-              <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>{BUILDING_PROFILE.address}</p>
             </div>
           </div>
         </div>
@@ -2161,7 +2033,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       ? team.find(m => m.name === todayShift.concierge.name) || { id:'active-shift', name:todayShift.concierge.name, init:todayShift.concierge.name.split(/\s+/).map(part=>part[0]).join('').slice(0,2), clockIn:todayShift.clockIn }
       : null;
     const onDuty = activeConcierge && !rosterOnDuty.some(m => m.id === activeConcierge.id) ? [activeConcierge, ...rosterOnDuty] : rosterOnDuty;
-    const emptyDARConcierge = rosterOnDuty[0]?.name || team[0]?.name || BUILDING_CONTACTS.headConcierge.name;
+    const emptyDARConcierge = rosterOnDuty[0]?.name || team[0]?.name || '';
     const displayedDAR = todayShift || {
       concierge: { name:emptyDARConcierge },
       clockIn:'',
@@ -3665,7 +3537,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         drawerOpen={sidebarOpen}
         onDrawerOpenChange={setSidebarOpen}
         isMobile={isMobile}
-        user={{ name:authUser?.name || MANAGER.name, email:authUser?.email || MANAGER.email }}
+        user={{ name:authUser?.name || 'Property manager', email:authUser?.email || '' }}
         profileStatus="Property manager"
         onProfile={() => setProfileOpen(true)}
         colors={{ CARD, BORDER, TEXT, MUTED, NAV_SURFACE:CARD, isDarkMode }}
@@ -4137,9 +4009,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       <button
                         onClick={() => {
                           if (!canAdd) return;
-                          setCustomContacts(prev => [...prev, { id: Date.now(), label: newContactDraft.label.trim(), number: newContactDraft.number.trim() }]);
-                          setNewContactDraft({ label:'', number:'' });
-                          setShowAddContact(false);
+                          authApi.addContact(newContactDraft.label.trim(), newContactDraft.number.trim())
+                            .then(saved => { setCustomContacts(prev => [...prev, saved]); setNewContactDraft({ label:'', number:'' }); setShowAddContact(false); })
+                            .catch(() => setTaskSuccess('The contact could not be saved. Check your connection and try again.'));
                         }}
                         disabled={!canAdd}
                         style={{ flex: 2, padding: '13px 0', background: canAdd ? RED : CARD2, border: canAdd ? 'none' : `1px solid ${BORDER}`, borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: canAdd ? 'white' : MUTED, cursor: canAdd ? 'pointer' : 'not-allowed', boxShadow: canAdd ? '0 8px 24px rgba(255,59,48,0.35)' : 'none' }}>
@@ -4157,17 +4029,12 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     <AlertTriangle size={20} color={RED} />
                     <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Emergency Numbers</h2>
                   </div>
-                  <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED, flexShrink: 0 }}>7</span>
+                  <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED, flexShrink: 0 }}>2</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {[
                     { label: 'Police / Fire / EMS',    number: '911',                                               urgent: true  },
-                    { label: 'Non-Emergency Police',    number: BUILDING_CONTACTS.emergency.nonEmergencyPolice,     urgent: false },
-                    { label: 'Building Emergency Line', number: BUILDING_CONTACTS.emergency.buildingEmergency,      urgent: false },
-                    { label: 'Elevator Emergency',      number: BUILDING_CONTACTS.emergency.elevatorEmergency,      urgent: false },
-                    { label: 'Gas Emergency',           number: BUILDING_CONTACTS.emergency.gasEmergency,           urgent: false },
-                    { label: 'Electricity Outage',      number: BUILDING_CONTACTS.emergency.electricityOutage,      urgent: false },
-                    { label: 'Poison Control',          number: BUILDING_CONTACTS.emergency.poisonControl,          urgent: false },
+                    { label: 'Poison Control',          number: '(800) 222-1222',          urgent: false },
                   ].map(({ label, number, urgent }) => (
                     <div key={label} style={{ background: CARD, border: `1px solid ${urgent ? `rgba(255,59,48,0.35)` : BORDER}`, borderRadius: 16, padding:isPhone?16:20, display: 'flex', alignItems: 'center', flexWrap:isPhone?'wrap':'nowrap', gap:isPhone?12:16, boxShadow: urgent ? '0 4px 20px rgba(255,59,48,0.08)' : SHADOW }}>
                       <div style={{ width: 48, height: 48, borderRadius: 14, background: urgent ? 'rgba(255,59,48,0.10)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -4193,11 +4060,12 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     <Users size={20} color={BLUE} />
                     <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Property Team</h2>
                   </div>
-                  <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED, flexShrink: 0 }}>5</span>
+                  <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED, flexShrink: 0 }}>{propertyTeam.length}</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {['propertyManager','maintenance','headConcierge','leasing','maverickDispatch'].map(key => {
-                    const c = BUILDING_CONTACTS[key];
+                  {propertyTeam.length === 0 && <p style={{ fontFamily: INTER, fontSize: 14, color: MUTED, margin: 0 }}>Add your concierge team and their phone numbers appear here.</p>}
+                    {propertyTeam.map(c => {
+                      const key = c.id;
                     return (
                       <div key={key} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding:isPhone?16:20, boxShadow:SHADOW }}>
                         <div style={{ display: 'flex', alignItems: 'center', flexWrap:isPhone?'wrap':'nowrap', gap:isPhone?12:16, marginBottom: c.phone ? 14 : 0 }}>
@@ -4214,7 +4082,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                             {c.available && <p style={{ fontFamily: INTER, fontSize: 12, color: MUTED, margin: 0 }}>{c.available}</p>}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
-                            <a aria-label={`Call ${c.name}`} href={`tel:${c.phone?.replace(/\D/g,'')}`}
+                            <a aria-label={`Call ${c.name}`} href={c.phone ? `tel:${c.phone.replace(/\D/g,'')}` : `mailto:${c.email || ''}`}
                               style={{ minHeight:44, padding: '0 20px', background: BLUE, color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', textAlign: 'center', display:'inline-flex',alignItems:'center',justifyContent:'center' }}>
                               Call
                             </a>
@@ -4243,7 +4111,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                     <Star size={20} color={ORANGE} />
-                    <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Custom Contacts</h2>
+                    <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Property Contacts</h2>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {customContacts.map(c => (
@@ -4259,7 +4127,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                           style={{ padding: '10px 18px', background: BLUE, color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', flexShrink: 0, boxShadow: '0 4px 14px rgba(255,56,92,0.28)' }}>
                           Call
                         </a>
-                        <button aria-label={`Remove ${c.label}`} onClick={() => setCustomContacts(prev => prev.filter(x => x.id !== c.id))}
+                        <button aria-label={`Remove ${c.label}`} onClick={() => authApi.deleteContact(c.id).then(() => setCustomContacts(prev => prev.filter(x => x.id !== c.id))).catch(() => {})}
                           style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${BORDER}`, background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                           <X size={14} color={MUTED} />
                         </button>
