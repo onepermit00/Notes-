@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from routes import team as team_routes
+
 
 def _manager_payload(email='manager@example.com', password='ManagerPass1'):
     return {
@@ -307,7 +309,7 @@ class TestInvitations:
         """Exercises create -> verify -> accept through the real HTTP endpoints,
         with the token generator patched so the test can know the raw value
         (the API never returns it — only the emailed link would)."""
-        monkeypatch.setattr(server, '_generate_raw_token', lambda: 'e2e-fixed-token')
+        monkeypatch.setattr(team_routes, '_generate_raw_token', lambda: 'e2e-fixed-token')
 
         mgr = await _signup_manager(client, email='e2e-owner@example.com')
         created = await client.post(
@@ -334,7 +336,7 @@ class TestNoPasswordsInEmail:
     async def test_direct_add_email_omits_password(self, client, server, monkeypatch):
         sent = []
         async def fake_send(to, subject, html): sent.append(html)
-        monkeypatch.setattr(server, 'send_email', fake_send)
+        monkeypatch.setattr(team_routes, 'send_email', fake_send)
         mgr = await _signup_manager(client, email='nopw-owner@example.com')
         await _add_concierge_direct(client, mgr['token'], email='nopw-con@example.com', password='SecretPass99')
         await asyncio.sleep(0)
@@ -343,8 +345,8 @@ class TestNoPasswordsInEmail:
     async def test_reset_credentials_sends_link_not_password(self, client, server, monkeypatch):
         sent = []
         async def fake_send(to, subject, html): sent.append(html)
-        monkeypatch.setattr(server, 'send_email', fake_send)
-        monkeypatch.setattr(server, '_generate_raw_token', lambda: 'mgr-reset-token')
+        monkeypatch.setattr(team_routes, 'send_email', fake_send)
+        monkeypatch.setattr(team_routes, '_generate_raw_token', lambda: 'mgr-reset-token')
         mgr = await _signup_manager(client, email='reset-owner@example.com')
         con = await _add_concierge_direct(client, mgr['token'], email='reset-con@example.com')
         resp = await client.post(
