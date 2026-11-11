@@ -71,6 +71,7 @@ function normalizeIncident(i) {
     unit_number:     i.unit_number || '',
     person_involved: i.person_involved || '',
     evidenceUrls:    Array.isArray(i.evidence_urls) ? i.evidence_urls : [],
+    createdAtMs:     i.created_at ? new Date(i.created_at).getTime() : 0,
   };
 }
 
@@ -347,6 +348,33 @@ export const authApi = {
 
   async deleteScheduledTask(taskId) {
     await api.delete(`/scheduled-tasks/${taskId}`);
+  },
+
+  // Team messages: one thread per property, shared by the manager and the desk
+  async getMessages() {
+    const { data } = await api.get('/messages');
+    return data.messages || [];
+  },
+
+  async sendMessage(content) {
+    const { data } = await api.post('/messages', { content, message_type: 'text' });
+    return data;
+  },
+
+  // Assistant: only what the app can't understand by itself is sent here (see assistant/engine.js).
+  // Resolves to { answer, reason }; answer is null when the AI is off, busy or unreachable.
+  async askAssistant(messages, name = '') {
+    try {
+      const now = new Date(), pad = n => String(n).padStart(2, '0');
+      const { data } = await api.post('/assistant', {
+        messages,
+        name,
+        today:   `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+        weekday: now.toLocaleDateString('en-US', { weekday: 'long' }),
+        now:     `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+      }, { timeout: 35000 });
+      return data;
+    } catch { return { answer: null, reason: 'failed' }; }
   },
 
   // SSE — returns an EventSource; caller must close it on unmount

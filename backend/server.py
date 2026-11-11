@@ -10,7 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from core import _ensure_indexes, client, logger
 from core import FORGOT_PW_RATE_LIMIT, _hash_token, db, verify_pw  # noqa: F401  re-exported for tests and scripts
-from routes import analytics, auth, incidents, messages, packages, residents, shifts, tasks, team
+from routes import analytics, assistant, auth, incidents, messages, packages, residents, shifts, tasks, team
 
 
 @asynccontextmanager
@@ -38,7 +38,7 @@ async def health():
     return {'status': 'healthy'}
 
 
-for module in (auth, team, shifts, tasks, incidents, messages, residents, analytics, packages):
+for module in (auth, team, shifts, tasks, incidents, messages, residents, analytics, packages, assistant):
     app.include_router(module.api)
 app.include_router(api)
 

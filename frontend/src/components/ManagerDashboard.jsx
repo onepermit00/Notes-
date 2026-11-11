@@ -10,8 +10,10 @@ import {
   Upload, FileText, Eye, EyeOff, Image,
   GraduationCap, Video, Play, Trash2,
   Printer, BarChart2, UserCog,
-  ClipboardCheck, RefreshCw, Activity, Pencil,
+  ClipboardCheck, RefreshCw, Activity, Pencil, Sparkles, MessageSquare,
 } from 'lucide-react';
+import { NotedAssistant, AssistantButton } from '../assistant/NotedAssistant';
+import { TeamMessagesPage } from './TeamMessagesPage';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
 import { authApi } from '../services/authApi';
@@ -273,6 +275,8 @@ const NAV = [
   { id:'home',        Icon:Home,          label:'Overview'            },
   { id:'tasks',       Icon:Send,          label:'Tasks'               },
   { id:'assign-task', Icon:Plus,          label:'Assign Task',        action:'task'      },
+  { id:'assistant',   Icon:Sparkles,      label:'Assistant',          action:'assistant' },
+  { id:'messages',    Icon:MessageSquare, label:'Messages'            },
   { id:'shifts',      Icon:Calendar,      label:'Shifts'              },
   { id:'team',        Icon:Users,         label:'Team'                },
   { id:'residents',   Icon:UserCog,       label:'Residents'           },
@@ -286,7 +290,7 @@ const NAV = [
 ];
 
 const MANAGER_NAV_GROUPS = [
-  { label:'Command center', ids:['home', 'tasks', 'assign-task'] },
+  { label:'Command center', ids:['home', 'tasks', 'assign-task', 'messages', 'assistant'] },
   { label:'People & coverage', ids:['shifts', 'team', 'residents'] },
   { label:'Operations setup', ids:['scheduled', 'sections'] },
   { label:'Property guide', ids:['more', 'training'] },
@@ -321,6 +325,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   // ───────────────────────────────────────────────────────────────────────────
 
   const [tab,       setTab]       = useState('home');
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [managerSummaryView, setManagerSummaryView] = useState('dar');
   const [managerMedia, setManagerMedia] = useState(null);
   const [calView,      setCalView]      = useState('month');
@@ -3652,6 +3657,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         onSelect={({ id, action }) => {
           if (action === 'task') openTask();
           else if (action === 'emergency') setConOpen(true);
+          else if (action === 'assistant') setAssistantOpen(true);
           else setTab(id);
         }}
         collapsed={sidebarCollapsed}
@@ -3825,10 +3831,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:12 }}>{propertyName}</div>
                   <h2 style={{ fontFamily:INTER, fontSize: isMobile ? 32 : 42, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-0.045em', lineHeight:0.95 }}>
-                    {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', residents:'Residents Directory', analytics:'Analytics', scheduled:'Preset Requests', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings' }[tab]}
+                    {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', residents:'Residents Directory', analytics:'Analytics', scheduled:'Preset Requests', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings', messages:'Messages' }[tab]}
                   </h2>
                   <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>
-                    {{ shifts:'Browse shift history and daily activity reports', tasks:'Assign, track, and verify shift tasks', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', scheduled:'Recurring requests that appear automatically on scheduled days', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
+                    {{ messages:'One thread for the manager and the front desk', shifts:'Browse shift history and daily activity reports', tasks:'Assign, track, and verify shift tasks', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', scheduled:'Recurring requests that appear automatically on scheduled days', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
                   </p>
                 </div>
                 <button onClick={() => setTab('home')} aria-label="Close panel" data-testid="panel-close-btn"
@@ -3849,11 +3855,22 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 {tab==='training'  && renderTraining()}
                 {tab==='sections'  && renderConciergeSetup()}
                 {tab==='settings'  && renderSettings()}
+                {tab==='messages'  && <TeamMessagesPage user={authUser} isPhone={isPhone} />}
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      {/* ── Assistant ────────────────────────────────────────────────────────── */}
+      {!assistantOpen && tab === 'home' && <AssistantButton onClick={() => setAssistantOpen(true)} isPhone={isPhone} />}
+      <NotedAssistant isOpen={assistantOpen} onClose={() => setAssistantOpen(false)} role="manager" user={authUser} propertyName={propertyName} isPhone={isPhone}
+        requests={tasks} incidents={incidents}
+        team={team.map(c => ({ ...c, onShift: c.status === 'on_shift' }))}
+        actions={{
+          createRequest: async (form) => { const saved = await authApi.createTask(form); setTasks(p => [saved, ...p]); },
+          open: (place) => { if (place === 'contacts') setConOpen(true); else setTab(place); },
+        }} />
 
       {/* ── Modals ───────────────────────────────────────────────────────────── */}
       <AnimatePresence>

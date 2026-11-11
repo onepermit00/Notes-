@@ -19,7 +19,7 @@ import { TaskStatus, UserRole } from '../types';
 import { TaskCard } from './TaskCard';
 import { TaskRequestCard }  from './TaskRequestCard';
 import { TaskCompletionModal } from './TaskCompletionModal';
-import { AICopilot } from './AICopilot';
+import { NotedAssistant, AssistantButton } from '../assistant/NotedAssistant';
 import { IncidentReportPage } from './IncidentReportPage';
 import { LoanersDashboard } from './LoanersDashboard';
 import { LockoutPage } from './LockoutPage';
@@ -341,6 +341,7 @@ export const CaregiverDashboard = ({
   const [isShiftActive, setIsShiftActive]     = useState(false);
   const [shiftStarted,  setShiftStarted]     = useState(false);
   const [shiftStartTime, setShiftStartTime]   = useState('');
+  const [shiftStartMs, setShiftStartMs]       = useState(0);
   const [clockOutTime, setClockOutTime]       = useState(null);
   const [currentShiftId, setCurrentShiftId]  = useState(null);
   const [previousShiftData, setPreviousShiftData] = useState(undefined); // undefined = loading
@@ -471,7 +472,7 @@ export const CaregiverDashboard = ({
           setCurrentShiftId(s.shift_id);
           setIsShiftActive(true);
           setShiftStarted(true);
-          setShiftStartTime(new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+          setShiftStartTime(new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })); setShiftStartMs(new Date(s.clock_in).getTime() || Date.now());
           // Restore only today's activities as selfTasks
           const prevActivities = (s.activities || []).filter(t => {
             if (!t.created_at) return false;
@@ -581,6 +582,7 @@ export const CaregiverDashboard = ({
           filedBy: i.created_by || '',
           filedAt: i.created_at ? new Date(i.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '',
           note: i.notes || '', status: i.status || 'new',
+          createdAtMs: i.created_at ? new Date(i.created_at).getTime() : Date.now(),
           unit_number: i.unit_number || '', person_involved: i.person_involved || '',
           photos: (incidentPhotos.current[i.incident_id] || []).map(url => ({ url })),
         }));
@@ -755,7 +757,7 @@ export const CaregiverDashboard = ({
       setCurrentShiftId(shift.shift_id);
       setIsShiftActive(true);
       setSelfTasks([]);
-      setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+      setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })); setShiftStartMs(new Date(shift.clock_in).getTime() || Date.now());
       setClockOutTime(null);
       setClockAlertTitle('Clocked In');
       setClockAlertMsg('Shift started. GPS location verified. Read the handoff notes before beginning rounds.');
@@ -815,6 +817,29 @@ export const CaregiverDashboard = ({
       sourceSection: resolvedSource,
     }).then(saved => setTasks(p => [saved, ...p])).catch(() => {});
   }, [authUser]);
+
+  // What the assistant is allowed to do. Each one goes through the same path as the form it stands in for.
+  const assistantHandoff = previousShiftData ? { from: previousShiftData.concierge?.name || '', note: previousShiftData.note || '', openItems: previousShiftData.openItems || [] } : null;
+  const assistantActions = {
+    logActivity: (entry) => handleActivityLogged(entry),
+    createIncident: async (form) => {
+      const saved = await authApi.createIncident(form);
+      setIncidents(prev => prev.some(i => i.incident_id === saved.incident_id) ? prev : [{ ...saved, photos: [] }, ...prev]);
+    },
+    addFollowUp: (item) => followUps.add(item),
+    openHandoff: ({ notes, items }) => {
+      handleTabChange('home'); setShowPreviousDar(false); setShowMedia(false);
+      if (notes) setHandoverNotes(notes);
+      if (items) setHandoverItems(Array.isArray(items) ? items.join('\n') : items);
+      setShowHandover(true);
+    },
+    open: (place) => {
+      if (place === 'contacts') setShowContacts(true);
+      else if (place === 'new-task') setShowNewTask(true);
+      else if (place === 'handoff') { handleTabChange('home'); setShowPreviousDar(false); setShowMedia(false); setShowHandover(true); }
+      else handleTabChange(place);
+    },
+  };
 
   const handleSectionActivityLogged = (entry) => {
     handleActivityLogged(entry);
@@ -895,7 +920,7 @@ export const CaregiverDashboard = ({
         setIsShiftActive(true);
         setShiftStarted(true);
         setSelfTasks([]);
-          setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+          setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })); setShiftStartMs(new Date(shift.clock_in).getTime() || Date.now());
       } finally { setShiftStarting(false); }
     };
 
@@ -2252,6 +2277,7 @@ export const CaregiverDashboard = ({
     calendar: 'Your shift schedule and history',
     'shift-history': 'Past shifts and daily reports',
     messages: 'Team messages for this property',
+    followup: 'Reminders and loose ends that carry into your handoff',
     guests: 'Visitor check-ins and authorizations',
     settings: 'Account, appearance, and preferences',
     profile: 'Your account and certifications',
@@ -2263,6 +2289,9 @@ export const CaregiverDashboard = ({
     { id: 'home',          Icon: Home,           label: "Today's"             },
     { id: 'new-task',      Icon: Plus,           label: 'New Task',           action: () => setShowNewTask(true) },
     { id: 'requests',      Icon: Bell,           label: 'Requests'            },
+    { id: 'assistant',     Icon: Sparkles,       label: 'Assistant',          action: () => setShowCopilot(true) },
+    { id: 'messages',      Icon: MessageSquare,  label: 'Messages'            },
+    { id: 'followup',      Icon: Clock,          label: 'Follow-ups'          },
     { id: 'packages',      Icon: Package,        label: 'Packages'            },
     { id: 'guests',        Icon: UserCheck,      label: 'Guests'              },
     { id: 'lockout',       Icon: Lock,           label: 'Lockouts'            },
@@ -2278,7 +2307,7 @@ export const CaregiverDashboard = ({
     { id: 'emergency',     Icon: Phone,          label: 'Emergency Contacts', action: () => setShowContacts(true) },
   ];
   const NAV_GROUPS = [
-    { label: 'Shift record', ids: ['home', 'new-task', 'requests', 'handoff'] },
+    { label: 'Shift record', ids: ['home', 'new-task', 'requests', 'followup', 'messages', 'handoff', 'assistant'] },
     { label: 'Front desk', ids: ['packages', 'guests', 'lockout', 'vendors', 'tours', 'loaners', 'incident'] },
     { label: 'Property guide', ids: ['sops', 'training'] },
     { label: 'Account & support', ids: ['calendar', 'settings', 'emergency'] },
@@ -2776,7 +2805,8 @@ export const CaregiverDashboard = ({
                   {activeTab === 'calendar'      && renderShifts()}
                   {activeTab === 'shift-history' && <HistoryPage />}
                   {activeTab === 'profile'       && renderProfileContent()}
-                  {activeTab === 'messages'      && <TeamMessagesPage />}
+                  {activeTab === 'messages'      && <TeamMessagesPage user={authUser} isPhone={isPhone} />}
+                  {activeTab === 'followup'      && <FollowUpTracker colors={colors} INTER={INTER} followUps={followUps} />}
                   {activeTab === 'settings'      && renderSettingsContent()}
                   {activeTab === 'sops'          && renderSOPs()}
                   {activeTab === 'training'      && renderTrainingContent()}
@@ -2955,8 +2985,11 @@ export const CaregiverDashboard = ({
         </>
       )}
 
-      {/* AI Copilot */}
-      <AICopilot isOpen={showCopilot} onClose={() => setShowCopilot(false)} role="concierge" patientName={propertyName} />
+      {/* Assistant */}
+      {!showCopilot && !sectionWorkflow && <AssistantButton onClick={() => setShowCopilot(true)} isPhone={isPhone} lifted={!isShiftActive && activeTab === 'home'} />}
+      <NotedAssistant isOpen={showCopilot} onClose={() => setShowCopilot(false)} role="concierge" user={authUser} propertyName={propertyName} isPhone={isPhone}
+        shiftActive={isShiftActive} requests={managerRequests} incidents={incidents} todayLog={selfTasks} handoff={assistantHandoff}
+        followUps={followUps.items} shiftStartMs={shiftStartMs} actions={assistantActions} />
 
       {/* Clock alert */}
       <AnimatePresence>
