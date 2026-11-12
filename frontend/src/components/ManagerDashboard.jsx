@@ -9,7 +9,7 @@ import {
   CheckCircle, Send, Mail, UserPlus, Archive, ArrowUpDown, Menu, Search, Clock, Bell, Sliders, Lock, ShoppingCart, UserCheck, KeyRound, Sun, Moon,
   Upload, FileText, Eye, EyeOff, Image,
   GraduationCap, Video, Play, Trash2,
-  Printer, BarChart2, UserCog,
+  BarChart2, UserCog,
   ClipboardCheck, RefreshCw, Activity, Pencil, Sparkles, MessageSquare,
 } from 'lucide-react';
 import { NotedAssistant, AssistantButton } from '../assistant/NotedAssistant';
@@ -2111,7 +2111,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         navLabel="Operational summary"
         isPhone={isPhone}
         colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}
-        action={managerSummaryView !== 'media' && <button type="button" onClick={() => window.print()} aria-label="Export DAR as PDF" title="Export DAR as PDF" className="touch-target" style={{width:44,height:44,padding:0,borderRadius:999,border:`1px solid ${BORDER}`,background:CARD,color:TEXT,display:'inline-flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><Printer size={17}/></button>}
         views={shiftViews}
       />
 
@@ -2124,6 +2123,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           shift={managerSummaryView === 'previous' ? previousDAR : displayedDAR}
           editable={false}
           showConciergeIdentity
+          onPrint={() => window.print()}
+          printLabel="Export DAR as PDF"
           propertyName={propertyName}
           incidents={(managerSummaryView === 'previous' ? previousDAR : displayedDAR)?.incidents}
           customSections={customSections}

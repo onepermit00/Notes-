@@ -9,7 +9,7 @@ import {
   Waves, Activity, Sun, Coffee, Briefcase, Film, Heart, Bike, Leaf, Flame,
   Menu, Lock, ShoppingCart, ClipboardList, PlusCircle, Wrench, Search,
   Tag, Navigation, Flag, ChevronLeft, UserCheck, Truck, HelpCircle, Star, LogOut, Mail, Moon,
-  GraduationCap, FileText, Image, Video, Play, Eye, Printer
+  GraduationCap, FileText, Image, Video, Play, Eye
 } from 'lucide-react';
 import { PackageDashboard } from './PackageDashboard';
 import { ToursDashboard } from './ToursDashboard';
@@ -1350,7 +1350,6 @@ export const CaregiverDashboard = ({
         isPhone={isPhone}
         colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}
         style={{ maxWidth:1280, margin:'0 auto 20px' }}
-        action={!viewingHandoff && !viewingMedia && <button onClick={() => window.print()} aria-label="Export DAR" className="touch-target" style={{ width:44, height:44, padding:0, borderRadius:999, border:`1px solid ${BORDER}`, background:CARD, color:TEXT, display:'inline-flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><Printer size={17}/></button>}
         views={[
           { id:'previous', label:'Previous shift', current:viewingPreviousDar, disabled:!previousShiftData, onSelect:() => { setShowHandover(false); setShowMedia(false); setShowPreviousDar(true); }, aria:'Show the previous shift report' },
           { id:'current', label:'Current shift', current:!viewingPreviousDar && !viewingHandoff && !viewingMedia, onSelect:() => { setShowHandover(false); setShowMedia(false); setShowPreviousDar(false); }, aria:'Show the current shift report' },
@@ -1407,6 +1406,8 @@ export const CaregiverDashboard = ({
             shift={activeShift}
             editable={!viewingPreviousDar}
             showConciergeIdentity
+            onPrint={() => window.print()}
+            printLabel="Export DAR"
             propertyName={propertyName}
             taskEntries={taskEntries}
             incidents={activeShift?.incidents}
