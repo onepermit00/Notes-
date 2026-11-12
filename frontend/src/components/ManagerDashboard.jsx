@@ -72,6 +72,11 @@ const CONCIERGE_SECTIONS = [
 ];
 
 const DEFAULT_SECTIONS = Object.fromEntries(CONCIERGE_SECTIONS.map(s => [s.id, true]));
+const CUSTOM_SECTION_COLORS = [BLUE, GREEN, ORANGE, RED, MUTED];
+const decorateCustomSection = (section, index) => ({
+  ...section, Icon:Star, desc:section.desc || 'Custom section', custom:true,
+  color:CUSTOM_SECTION_COLORS[index % CUSTOM_SECTION_COLORS.length],
+});
 
 const mkAct = (items) => items.map((x, i) => ({ id: i + 1, ...x }));
 
@@ -360,9 +365,13 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       setTeam(list);
       setSectionsLoading(false);
       setSectionsError(false);
-      if (list.length > 0) setSetupConcierge(list[0].id);
-      setSectionAccess(Object.fromEntries(list.map(c => [c.id, { ...DEFAULT_SECTIONS }])));
+      const active = list.filter(c => c.concierge_id);
+      if (active.length > 0) setSetupConcierge(active[0].id);
+      setSectionAccess(Object.fromEntries(active.map(c => [c.id, { ...DEFAULT_SECTIONS, ...c.sectionAccess }])));
     }).catch(() => { setSectionsLoading(false); setSectionsError(true); });
+    authApi.getCustomSections()
+      .then(list => setCustomSections(list.map((s, i) => decorateCustomSection(s, i))))
+      .catch(() => {});
     authApi.getTasks()
       .then(list => { setTasks(list); setTasksLoading(false); setTasksError(false); })
       .catch(() => { setTasksLoading(false); setTasksError(true); });
@@ -739,43 +748,50 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   );
 
   /* ── Concierge Section Assignment ─────────────────────────────────────────── */
+  const persistCustomSections = (next) => {
+    setSectionSaved('Saving…');
+    authApi.saveCustomSections(next)
+      .then(() => setSectionSaved('Saved'))
+      .catch(() => setSectionSaved('Could not save'));
+  };
+
   const handleAddCustomSection = () => {
     if (!newSectionDraft.label.trim()) return;
     const newId = `custom_${Date.now()}`;
-    const CUSTOM_COLORS = [BLUE, GREEN, ORANGE, RED, MUTED];
-    const color = CUSTOM_COLORS[customSections.length % CUSTOM_COLORS.length];
-    setCustomSections(prev => [...prev, { id:newId, Icon:Star, label:newSectionDraft.label.trim(), desc:newSectionDraft.desc.trim() || 'Custom section', color, custom:true }]);
-    setSectionAccess(prev => {
-      const updated = {};
-      Object.keys(prev).forEach(cId => { updated[cId] = { ...prev[cId], [newId]: true }; });
-      return updated;
-    });
+    const next = [...customSections, decorateCustomSection({ id:newId, label:newSectionDraft.label.trim(), desc:newSectionDraft.desc.trim() }, customSections.length)];
+    setCustomSections(next);
+    persistCustomSections(next);
     setNewSectionDraft({ label:'', desc:'' });
     setShowAddSection(false);
   };
 
   const handleDeleteCustomSection = (sectionId) => {
-    setCustomSections(prev => prev.filter(s => s.id !== sectionId));
-    setSectionAccess(prev => {
-      const updated = {};
-      Object.keys(prev).forEach(cId => { const { [sectionId]:_, ...rest } = prev[cId]; updated[cId] = rest; });
-      return updated;
-    });
+    const next = customSections.filter(s => s.id !== sectionId);
+    setCustomSections(next);
+    persistCustomSections(next);
   };
 
   const renderConciergeSetup = () => {
     const glassCard  = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
     const baseInput  = { width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box' };
-    const activeConcierge = setupConcierge || team[0]?.id || null;
+    // Only people who have accepted their invite have a desk to configure.
+    const sectionTeam = team.filter(person => person.concierge_id);
+    const activeConcierge = sectionTeam.some(person => person.id === setupConcierge) ? setupConcierge : (sectionTeam[0]?.id || null);
     const access     = sectionAccess[activeConcierge] || {};
     const allSections = [...CONCIERGE_SECTIONS, ...customSections];
     const toggleSection = (sectionId) => {
-      setSectionAccess(prev => ({
-        ...prev,
-        [activeConcierge]: { ...prev[activeConcierge], [sectionId]: !(prev[activeConcierge]?.[sectionId] !== false) },
-      }));
+      if (!activeConcierge) return;
+      const previous = sectionAccess[activeConcierge] || {};
+      const next = { ...previous, [sectionId]: !(previous[sectionId] !== false) };
+      setSectionAccess(prev => ({ ...prev, [activeConcierge]: next }));
       setSectionSaved('Saving…');
-      window.setTimeout(()=>setSectionSaved('Saved'), 250);
+      authApi.saveConciergeSections(activeConcierge, next)
+        .then(() => setSectionSaved('Saved'))
+        .catch(() => {
+          // Put the switch back so the screen never claims something that was not saved.
+          setSectionAccess(prev => ({ ...prev, [activeConcierge]: { ...prev[activeConcierge], [sectionId]: previous[sectionId] !== false } }));
+          setSectionSaved('Could not save');
+        });
     };
 
     const canSubmit = !!newSectionDraft.label.trim();
@@ -785,7 +801,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
         <div style={{ ...glassCard, padding:18, marginBottom:16 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12 }}><div><p style={{ margin:'0 0 3px', fontSize:16, fontWeight:800, color:TEXT }}>Choose a concierge</p><p style={{ margin:0, fontSize:12, color:MUTED }}>Each person gets their own DAR workspace access.</p></div>{sectionSaved&&<KnowledgeStatusBadge status={sectionSaved==='Saved'?'published':'review'} label={sectionSaved} colors={{accent:BLUE,success:GREEN,warning:ORANGE,muted:MUTED,surface:CARD2}}/>}</div>
-          {sectionsLoading ? <div role="status" style={{ padding:24,borderRadius:14,background:CARD2,color:MUTED,textAlign:'center',fontSize:13 }}><RefreshCw size={18} style={{ marginBottom:8 }}/> <div>Loading concierge access…</div></div> : sectionsError ? <KnowledgeEmpty icon={AlertTriangle} title="Concierge access could not be loaded" description="Check your connection and reopen Shift Sections to try again." colors={{accent:BLUE,success:GREEN,warning:ORANGE,card:CARD,surface:CARD2,border:BORDER,text:TEXT,muted:MUTED,shadow:SHADOW}}/> : team.length===0 ? <KnowledgeEmpty icon={Users} title="No concierges to configure" description="Add a concierge to the property before assigning shift sections." colors={{accent:BLUE,success:GREEN,warning:ORANGE,card:CARD,surface:CARD2,border:BORDER,text:TEXT,muted:MUTED,shadow:SHADOW}}/> : <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:2 }}>{team.map(person=>{const selected=person.id===activeConcierge; const enabledCount=allSections.filter(section=>section.required||sectionAccess[person.id]?.[section.id]!==false).length; return <button key={person.id} onClick={()=>{setSetupConcierge(person.id);setSectionSaved('');}} style={{ minWidth:180,padding:13,borderRadius:13,border:`1.5px solid ${selected?BLUE:BORDER}`,background:selected?`${BLUE}08`:CARD2,textAlign:'left',cursor:'pointer' }}><span style={{ display:'block',fontSize:13,fontWeight:800,color:TEXT }}>{person.name}</span><span style={{ display:'block',fontSize:10,color:MUTED,marginTop:4 }}>{enabledCount} of {allSections.length} sections accessible</span></button>})}</div>}
+          {sectionsLoading ? <div role="status" style={{ padding:24,borderRadius:14,background:CARD2,color:MUTED,textAlign:'center',fontSize:13 }}><RefreshCw size={18} style={{ marginBottom:8 }}/> <div>Loading concierge access…</div></div> : sectionsError ? <KnowledgeEmpty icon={AlertTriangle} title="Concierge access could not be loaded" description="Check your connection and reopen Shift Sections to try again." colors={{accent:BLUE,success:GREEN,warning:ORANGE,card:CARD,surface:CARD2,border:BORDER,text:TEXT,muted:MUTED,shadow:SHADOW}}/> : sectionTeam.length===0 ? <KnowledgeEmpty icon={Users} title="No concierges to configure" description="Add a concierge to the property before assigning shift sections." colors={{accent:BLUE,success:GREEN,warning:ORANGE,card:CARD,surface:CARD2,border:BORDER,text:TEXT,muted:MUTED,shadow:SHADOW}}/> : <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:2 }}>{sectionTeam.map(person=>{const selected=person.id===activeConcierge; const enabledCount=allSections.filter(section=>section.required||sectionAccess[person.id]?.[section.id]!==false).length; return <button key={person.id} onClick={()=>{setSetupConcierge(person.id);setSectionSaved('');}} style={{ minWidth:180,padding:13,borderRadius:13,border:`1.5px solid ${selected?BLUE:BORDER}`,background:selected?`${BLUE}08`:CARD2,textAlign:'left',cursor:'pointer' }}><span style={{ display:'block',fontSize:13,fontWeight:800,color:TEXT }}>{person.name}</span><span style={{ display:'block',fontSize:10,color:MUTED,marginTop:4 }}>{enabledCount} of {allSections.length} sections accessible</span></button>})}</div>}
         </div>
 
         {/* CTA — full-width incident-style */}

@@ -5,7 +5,8 @@ import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Cookie, HTTPException, Request
-from typing import Optional
+from pydantic import BaseModel
+from typing import Dict, List, Optional
 from core import (
     AddConciergeRequest, CreateInvitationRequest, INVITE_TOKEN_DAYS, RESET_TOKEN_MINUTES,
     _generate_raw_token, _hash_token, db, get_session, hash_pw, send_email,
@@ -273,4 +274,93 @@ async def create_concierge_invitation(data: CreateInvitationRequest, request: Re
         'email_sent':    email_sent,
         'email_error':   email_error,
         'message':       'Invitation sent.' if email_sent else 'Invitation created, but the email could not be sent.',
+    }
+
+
+# ── Shift Sections: which parts of the desk each concierge can see ──────────
+
+# Sections every concierge always has; a manager cannot switch these off.
+REQUIRED_SECTIONS = ('home', 'emergency')
+
+
+class SectionAccessRequest(BaseModel):
+    sections: Dict[str, bool]
+
+
+class CustomSection(BaseModel):
+    id: str
+    label: str
+    desc: Optional[str] = ''
+
+
+class CustomSectionsRequest(BaseModel):
+    custom_sections: List[CustomSection]
+
+
+def _clean_section_access(raw) -> dict:
+    access = {str(k)[:60]: bool(v) for k, v in (raw or {}).items() if '.' not in str(k) and not str(k).startswith('$')}
+    for section_id in REQUIRED_SECTIONS:
+        access[section_id] = True
+    return access
+
+
+@api.put('/manager/concierge/{concierge_id}/sections')
+async def set_concierge_sections(concierge_id: str, data: SectionAccessRequest, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    """Save which shift sections one concierge can see. Anything not listed stays on."""
+    session = await get_session(request, session_token)
+    if not session or session['user_type'] != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    if len(data.sections) > 100:
+        raise HTTPException(400, 'Too many sections.')
+
+    access = _clean_section_access(data.sections)
+    result = await db.concierges.update_one(
+        {'concierge_id': concierge_id, 'manager_id': session['user_id']},
+        {'$set': {'section_access': access}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, 'Concierge not found.')
+    return {'concierge_id': concierge_id, 'sections': access}
+
+
+@api.get('/manager/shift-sections')
+async def get_custom_sections(request: Request, session_token: Optional[str] = Cookie(default=None)):
+    session = await get_session(request, session_token)
+    if not session or session['user_type'] != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    manager = await db.managers.find_one({'manager_id': session['user_id']}, {'custom_sections': 1})
+    return {'custom_sections': (manager or {}).get('custom_sections', [])}
+
+
+@api.put('/manager/shift-sections')
+async def set_custom_sections(data: CustomSectionsRequest, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    """Replace the property's list of custom shift sections."""
+    session = await get_session(request, session_token)
+    if not session or session['user_type'] != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    if len(data.custom_sections) > 30:
+        raise HTTPException(400, 'Too many custom sections.')
+
+    sections = [
+        {'id': s.id.strip()[:60], 'label': s.label.strip()[:80], 'desc': (s.desc or '').strip()[:200]}
+        for s in data.custom_sections if s.id.strip() and s.label.strip()
+    ]
+    await db.managers.update_one({'manager_id': session['user_id']}, {'$set': {'custom_sections': sections}})
+    return {'custom_sections': sections}
+
+
+@api.get('/concierge/sections')
+async def my_sections(request: Request, session_token: Optional[str] = Cookie(default=None)):
+    """What the signed-in concierge is allowed to see. A section is on unless
+    the manager switched it off."""
+    session = await get_session(request, session_token)
+    if not session or session['user_type'] != 'concierge':
+        raise HTTPException(403, 'Concierge access required.')
+    con = await db.concierges.find_one({'concierge_id': session['user_id']}, {'section_access': 1, 'manager_id': 1})
+    if not con:
+        raise HTTPException(404, 'Concierge not found.')
+    manager = await db.managers.find_one({'manager_id': con.get('manager_id')}, {'custom_sections': 1})
+    return {
+        'sections':        _clean_section_access(con.get('section_access')),
+        'custom_sections': (manager or {}).get('custom_sections', []),
     }

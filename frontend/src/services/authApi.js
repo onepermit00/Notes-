@@ -90,6 +90,7 @@ function normalizeConcierge(c) {
     status:       c.status || 'active',
     phone:        c.phone || '',
     email:        c.email || '',
+    sectionAccess: c.section_access || {},
     shifts:       0,
     rating:       null,
     since:        c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : null,
@@ -190,6 +191,29 @@ export const authApi = {
   async getConcierges() {
     const { data } = await api.get('/manager/concierges');
     return (data.concierges || []).map(normalizeConcierge);
+  },
+
+  // Shift Sections: which parts of the desk each concierge can see
+  async saveConciergeSections(conciergeId, sections) {
+    const { data } = await api.put(`/manager/concierge/${conciergeId}/sections`, { sections });
+    return data.sections || {};
+  },
+
+  async getCustomSections() {
+    const { data } = await api.get('/manager/shift-sections');
+    return data.custom_sections || [];
+  },
+
+  async saveCustomSections(customSections) {
+    const { data } = await api.put('/manager/shift-sections', {
+      custom_sections: customSections.map(({ id, label, desc }) => ({ id, label, desc: desc || '' })),
+    });
+    return data.custom_sections || [];
+  },
+
+  async getMySections() {
+    const { data } = await api.get('/concierge/sections');
+    return { sections: data.sections || {}, customSections: data.custom_sections || [] };
   },
 
   async removeConcierge(conciergeId) {

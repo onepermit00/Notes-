@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -69,6 +69,13 @@ const TAB_TO_ROUTE = {
   home: 'today', sops: 'knowledge', requests: 'tasks',
   incident: 'incidents', guests: 'visitors', vendors: 'vendors', packages: 'packages',
   'shift-history': 'history', profile: 'profile', settings: 'settings',
+};
+
+// Desk sections a manager can switch off per concierge in Shift Sections,
+// mapped to the Daily Activity Report block each one feeds.
+const MANAGED_SECTION_TO_DAR = {
+  requests: null, packages: 'packages', guests: 'guests', lockout: 'lockouts',
+  vendors: 'vendors', tours: 'tours', loaners: 'loaners', incident: 'incidents',
 };
 
 function Ghost({ label }) { return null; }
@@ -241,6 +248,14 @@ export const CaregiverDashboard = ({
   const [fullscreenItem, setFullscreenItem] = useState(null);
   const [activeTab, setActiveTab]             = useState('home');
   const [sectionWorkflow, setSectionWorkflow] = useState(false);
+  // Sections the manager switched off for this concierge. Missing = on.
+  const [sectionAccess, setSectionAccess]     = useState({});
+  const [customSections, setCustomSections]   = useState([]);
+  const sectionEnabled = useCallback((id) => sectionAccess[id] !== false, [sectionAccess]);
+  const hiddenDarSections = useMemo(
+    () => Object.entries(MANAGED_SECTION_TO_DAR).filter(([id, darId]) => darId && sectionAccess[id] === false).map(([, darId]) => darId),
+    [sectionAccess]);
+  const visibleCustomSections = useMemo(() => customSections.filter(section => sectionAccess[section.id] !== false), [customSections, sectionAccess]);
   const [activeTaskTab, setActiveTaskTab]     = useState('today');
   const [requestQueueTab, setRequestQueueTab] = useState('inbox');
   const [expandedTaskId, setExpandedTaskId]   = useState(null);
@@ -364,6 +379,24 @@ export const CaregiverDashboard = ({
     return () => window.removeEventListener('keydown', onEsc);
   }, [showSearch, showSummary, showHandover, showPreviousDar, selectedTask, showNewTask, showContacts, showPkgAudit, showAmenities, showModels, activeTab, handleTabChange]);
 
+
+  // Load the manager's section settings, and pick up changes when the
+  // concierge comes back to this tab so a sign-out is not needed.
+  useEffect(() => {
+    const load = () => authApi.getMySections()
+      .then(({ sections, customSections: custom }) => { setSectionAccess(sections); setCustomSections(custom); })
+      .catch(() => {});
+    load();
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    window.addEventListener('focus', load);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { window.removeEventListener('focus', load); document.removeEventListener('visibilitychange', onVisible); };
+  }, []);
+
+  // A switched-off section cannot be opened by link, shortcut or old bookmark.
+  useEffect(() => {
+    if (activeTab in MANAGED_SECTION_TO_DAR && !sectionEnabled(activeTab)) handleTabChange('home');
+  }, [activeTab, sectionEnabled, handleTabChange]);
 
   // Load real data + shift state on mount
   useEffect(() => {
@@ -1384,6 +1417,8 @@ export const CaregiverDashboard = ({
             propertyName={propertyName}
             taskEntries={taskEntries}
             incidents={activeShift?.incidents}
+            hiddenSections={hiddenDarSections}
+            customSections={visibleCustomSections}
             emptyAction={handleClockIn}
             onOpenEvidence={(urls) => setGallery({ urls, idx:0 })}
             colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER, shadow:SHADOW }}
@@ -2222,7 +2257,8 @@ export const CaregiverDashboard = ({
     { label: 'Front desk', ids: ['packages', 'guests', 'lockout', 'vendors', 'tours', 'loaners', 'incident'] },
     { label: 'Property guide', ids: ['sops', 'training'] },
     { label: 'Account & support', ids: ['calendar', 'settings', 'emergency'] },
-  ];
+  ].map(group => ({ ...group, ids: group.ids.filter(id => !(id in MANAGED_SECTION_TO_DAR) || sectionEnabled(id)) }))
+    .filter(group => group.ids.length > 0);
 
   /* ── Shift Calendar ─────────────────────────────────────────────────────────── */
   const renderShifts = () => {
@@ -2281,6 +2317,7 @@ export const CaregiverDashboard = ({
     const shiftDARBody = (shift, reportDate) => (
       <DailyActivityReport mode="concierge" shift={shift} editable={false} showConciergeIdentity
         propertyName={propertyName} dateLabel={reportDate}
+        hiddenSections={hiddenDarSections} customSections={visibleCustomSections}
         colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER, shadow:SHADOW }} />
     );
 
