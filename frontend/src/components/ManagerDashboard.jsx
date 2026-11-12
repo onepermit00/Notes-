@@ -204,6 +204,31 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [shiftDay,     setShiftDay]     = useState(TODAY_STR);
   const [shiftsPage,   setShiftsPage]   = useState(0);
   const [team,      setTeam]      = useState([]);
+  const [removeTarget,  setRemoveTarget]  = useState(null);   // team member or pending invite awaiting delete confirmation
+  const [removeLoading, setRemoveLoading] = useState(false);
+  const [removeError,   setRemoveError]   = useState('');
+  const confirmRemove = async () => {
+    const target = removeTarget;
+    if (!target || removeLoading) return;
+    setRemoveLoading(true);
+    setRemoveError('');
+    try {
+      if (target.status === 'invited') await authApi.cancelInvitation(target.invitation_id);
+      else await authApi.removeConcierge(target.concierge_id);
+      setTeam(p => p.filter(m => m.id !== target.id));
+      setRemoveTarget(null);
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        // Already gone (e.g. the invite was just accepted) — refresh the list.
+        try { setTeam(await authApi.getConcierges()); } catch { /* keep current list */ }
+        setRemoveTarget(null);
+      } else {
+        setRemoveError(target.status === 'invited' ? 'Could not delete the invite. Please try again.' : 'Could not remove this team member. Please try again.');
+      }
+    } finally {
+      setRemoveLoading(false);
+    }
+  };
   const [sectionAccess,    setSectionAccess]    = useState({});
   const [setupConcierge,   setSetupConcierge]   = useState(null);
   const [customSections,   setCustomSections]   = useState([]);
@@ -2655,9 +2680,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                           <KeyRound size={12} color={BLUE} />
                           <span style={{ fontSize:12, fontWeight:600, color:BLUE }}>Reset PW</span>
                         </button>
-                        <button aria-label={`Remove ${c.name}`} title="Remove team member" onClick={async () => { if (!window.confirm(`Remove ${c.name} from your team?`)) return; try { await authApi.removeConcierge(c.concierge_id); setTeam(p => p.filter(m => m.concierge_id !== c.concierge_id)); } catch { alert('Failed to remove team member.'); } }}
-                          style={{ display:'flex', alignItems:'center', justifyContent:'center', width:32, height:30, background:'transparent', border:`1px solid ${BORDER}`, borderRadius:8, cursor:'pointer', fontFamily:INTER }}>
-                          <Trash2 size={12} color={MUTED} />
+                        <button aria-label={`Remove ${c.name}`} title="Remove team member" onClick={() => { setRemoveError(''); setRemoveTarget(c); }}
+                          style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', background:`${RED}10`, border:`1px solid ${RED}28`, borderRadius:8, cursor:'pointer', fontFamily:INTER }}>
+                          <Trash2 size={12} color={RED} />
+                          <span style={{ fontSize:12, fontWeight:600, color:RED }}>Remove</span>
                         </button>
                       </div>
                     </div>
@@ -2708,6 +2734,11 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     </div>
                   </div>
                   <span style={{ padding:'6px 14px', borderRadius:10, fontSize:12, fontWeight:700, background:ORANGE, color:'white', flexShrink:0 }}>PENDING</span>
+                  <button aria-label={`Delete invite for ${c.name}`} title="Delete invite" onClick={() => { setRemoveError(''); setRemoveTarget(c); }}
+                    style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', background:`${RED}10`, border:`1px solid ${RED}28`, borderRadius:8, cursor:'pointer', fontFamily:INTER, flexShrink:0 }}>
+                    <Trash2 size={12} color={RED} />
+                    <span style={{ fontSize:12, fontWeight:600, color:RED }}>Delete</span>
+                  </button>
                 </div>
               ))}
             </div>
@@ -3745,6 +3776,42 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           createRequest: async (form) => { const saved = await authApi.createTask(form); setTasks(p => [saved, ...p]); },
           open: (place) => { if (place === 'contacts') setConOpen(true); else setTab(place); },
         }} />
+
+      {/* ── Confirm delete of a team member / pending invite ── */}
+      {removeTarget && (
+        <div role="dialog" aria-modal="true" aria-labelledby="remove-member-title"
+          onClick={() => { if (!removeLoading) setRemoveTarget(null); }}
+          onKeyDown={e => { if (e.key === 'Escape' && !removeLoading) setRemoveTarget(null); }}
+          style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.45)', display:'grid', placeItems:'center', padding:20, fontFamily:INTER }}>
+          <div onClick={e => e.stopPropagation()} style={{ width:'100%', maxWidth:400, background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:24, boxShadow:'0 24px 60px rgba(0,0,0,0.25)' }}>
+            <div style={{ width:48, height:48, borderRadius:14, background:`${RED}12`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:14 }}>
+              <Trash2 size={22} color={RED} />
+            </div>
+            <h2 id="remove-member-title" style={{ fontSize:18, fontWeight:800, color:TEXT, margin:'0 0 8px' }}>
+              {removeTarget.status === 'invited' ? `Delete the invite for ${removeTarget.name}?` : `Remove ${removeTarget.name} from your team?`}
+            </h2>
+            <p style={{ fontSize:14, lineHeight:1.6, color:MUTED, margin:'0 0 6px' }}>
+              {removeTarget.status === 'invited'
+                ? 'The invitation link in their email will stop working.'
+                : 'Their account will be deleted and they will be signed out right away. This cannot be undone.'}
+            </p>
+            <p style={{ fontSize:14, lineHeight:1.6, color:MUTED, margin:0 }}>
+              You can invite {removeTarget.email || 'this email'} again at any time.
+            </p>
+            {removeError && <p role="alert" style={{ fontSize:13, fontWeight:600, color:RED, margin:'12px 0 0' }}>{removeError}</p>}
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button type="button" autoFocus disabled={removeLoading} onClick={() => setRemoveTarget(null)}
+                style={{ flex:1, padding:'12px 16px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, cursor:'pointer', fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT }}>
+                Cancel
+              </button>
+              <button type="button" disabled={removeLoading} onClick={confirmRemove}
+                style={{ flex:1, padding:'12px 16px', background:RED, border:'none', borderRadius:12, cursor:removeLoading?'default':'pointer', opacity:removeLoading?0.7:1, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white' }}>
+                {removeLoading ? 'Deleting...' : (removeTarget.status === 'invited' ? 'Delete invite' : 'Remove')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modals ───────────────────────────────────────────────────────────── */}
       <AnimatePresence>

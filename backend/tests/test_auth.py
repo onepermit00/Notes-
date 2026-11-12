@@ -371,3 +371,63 @@ class TestNoPasswordsInEmail:
         team = (await client.get('/api/manager/concierges', headers=headers)).json()['concierges']
         status = {m['email']: m['status'] for m in team}
         assert status == {'list-active@example.com': 'active', 'list-invited@example.com': 'invited'}
+
+
+@pytest.mark.asyncio
+class TestRemovingTeamMembers:
+    async def _invite(self, client, token, email):
+        return await client.post(
+            '/api/manager/concierge/invitations',
+            json={'first_name': 'Jordan', 'last_name': 'Kim', 'email': email},
+            headers={'Authorization': f'Bearer {token}'},
+        )
+
+    async def test_cancel_pending_invite_allows_reinvite(self, client, server):
+        mgr = await _signup_manager(client, email='cancel-owner@example.com')
+        client.cookies.clear()
+        auth = {'Authorization': f"Bearer {mgr['token']}"}
+        first = await self._invite(client, mgr['token'], 'again@example.com')
+        assert first.status_code == 200
+        assert (await self._invite(client, mgr['token'], 'again@example.com')).status_code == 409
+
+        raw_token = first.json()['invite_link'].rsplit('/', 1)[-1]
+        resp = await client.delete(f"/api/manager/concierge/invitations/{first.json()['invitation_id']}", headers=auth)
+        assert resp.status_code == 200
+
+        listed = (await client.get('/api/manager/concierges', headers=auth)).json()['concierges']
+        assert listed == []
+        assert (await client.get(f'/api/auth/invitations/{raw_token}')).status_code != 200
+        assert (await self._invite(client, mgr['token'], 'again@example.com')).status_code == 200
+
+    async def test_cannot_cancel_another_managers_invite(self, client, server):
+        owner = await _signup_manager(client, email='inv-owner@example.com')
+        client.cookies.clear()
+        other = await _signup_manager(client, email='inv-other@example.com')
+        client.cookies.clear()
+        inv = await self._invite(client, owner['token'], 'mine@example.com')
+        resp = await client.delete(
+            f"/api/manager/concierge/invitations/{inv.json()['invitation_id']}",
+            headers={'Authorization': f"Bearer {other['token']}"},
+        )
+        assert resp.status_code == 404
+        assert await server.db.invitations.find_one({'email': 'mine@example.com'})
+
+    async def test_cancel_invite_requires_manager(self, client):
+        assert (await client.delete('/api/manager/concierge/invitations/inv_x')).status_code == 403
+
+    async def test_removed_concierge_is_signed_out_and_can_be_reinvited(self, client, server):
+        mgr = await _signup_manager(client, email='remove-owner@example.com')
+        client.cookies.clear()
+        auth = {'Authorization': f"Bearer {mgr['token']}"}
+        con = await _add_concierge_direct(client, mgr['token'], email='leaver@example.com')
+        client.cookies.clear()
+        signin = await client.post('/api/auth/signin', json={'email': 'leaver@example.com', 'password': 'ConciergePass1', 'role': 'concierge'})
+        assert signin.status_code == 200
+        client.cookies.clear()
+        assert await server.db.sessions.find_one({'user_id': con['concierge_id']})
+
+        resp = await client.delete(f"/api/manager/concierge/{con['concierge_id']}", headers=auth)
+        assert resp.status_code == 200
+        assert await server.db.sessions.find_one({'user_id': con['concierge_id']}) is None
+        assert await server.db.concierges.find_one({'email': 'leaver@example.com'}) is None
+        assert (await self._invite(client, mgr['token'], 'leaver@example.com')).status_code == 200

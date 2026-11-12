@@ -167,13 +167,36 @@ async def remove_concierge(concierge_id: str, request: Request, session_token: O
     if not session or session['user_type'] != 'manager':
         raise HTTPException(403, 'Manager access required.')
 
-    result = await db.concierges.delete_one(
+    con = await db.concierges.find_one_and_delete(
         {'concierge_id': concierge_id, 'manager_id': session['user_id']}
     )
-    if result.deleted_count == 0:
+    if not con:
         raise HTTPException(404, 'Concierge not found.')
 
+    # Sign the removed person out everywhere and clear anything that would
+    # stop this email from being invited again later.
+    await db.sessions.delete_many({'user_id': concierge_id, 'user_type': 'concierge'})
+    await db.password_resets.delete_many({'user_id': concierge_id, 'user_type': 'concierge'})
+    await db.invitations.delete_many({'manager_id': session['user_id'], 'email': con['email']})
+
     return {'message': 'Concierge removed.'}
+
+
+@api.delete('/manager/concierge/invitations/{invitation_id}')
+async def cancel_concierge_invitation(invitation_id: str, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    """Cancel a pending invitation. The emailed link stops working and the
+    same email can be invited again."""
+    session = await get_session(request, session_token)
+    if not session or session['user_type'] != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+
+    result = await db.invitations.delete_one(
+        {'invitation_id': invitation_id, 'manager_id': session['user_id'], 'status': 'pending'}
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(404, 'Invitation not found.')
+
+    return {'message': 'Invitation cancelled.'}
 
 
 @api.post('/manager/concierge/invitations')
