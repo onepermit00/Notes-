@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUp, Check, ChevronRight, Mic, Pencil, Phone, Sparkles, X } from 'lucide-react';
+import { ArrowUp, Check, ChevronLeft, ChevronRight, Mic, Phone } from 'lucide-react';
+import { AssistantFace } from './AssistantFace';
 import { useTheme } from '../context/ThemeContext';
 import { authApi } from '../services/authApi';
 import {
   ASSISTANT_DEFAULT_NAME, PLACES, TASK_NAMES, answer, fromAI, nextQuestion, nudges, ready, skip, startFlow, understand,
 } from './engine';
 
-/* The Noted assistant: a drawer that opens over any desk screen.
+/* The Noted assistant: a full page that opens over any desk screen, from the avatar on Today's shift or the menu.
    It understands a request in plain words (typed or spoken), asks what's missing one question at a time,
    and shows a Ready to save card. Nothing is saved until Save is tapped, and it is saved through the same
    handlers as the app's own forms (passed in as `actions`), so entries land in the same report.
@@ -332,53 +333,49 @@ export function NotedAssistant({
   };
 
   const empty = !log.length;
+  const av = isPhone ? 84 : 92;
+  const gutter = isPhone ? '18px' : 'max(26px, calc((100% - 720px) / 2))';
+  const round = { width: 48, height: 48, borderRadius: 999, border: `1px solid ${BORDER}`, background: CARD, boxShadow: SHADOW, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 };
   return (
     <AnimatePresence>
-      {isOpen && <>
-        <motion.div key="assistant-bg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} onClick={onClose}
-          style={{ position: 'fixed', inset: 0, zIndex: 110, background: 'rgba(0,0,0,0.32)', backdropFilter: 'blur(2px)' }} />
-        <motion.aside key="assistant" role="dialog" aria-modal="true" aria-label={name} data-testid="assistant-panel"
-          initial={{ x: '100%', opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: '100%', opacity: 0 }} transition={{ type: 'spring', damping: 34, stiffness: 320 }}
-          style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 111, width: isPhone ? '100%' : 'min(480px, 100vw)', background: BG, borderLeft: isPhone ? 'none' : `1px solid ${BORDER}`, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', fontFamily: INTER }}>
+      {isOpen && <motion.aside key="assistant" role="dialog" aria-modal="true" aria-label={name} data-testid="assistant-panel"
+          initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 111, background: BG, display: 'flex', flexDirection: 'column', fontFamily: INTER }}>
 
-          <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, padding: isPhone ? '20px 20px 16px' : '26px 28px 18px', borderBottom: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}><span style={{ width: 24, height: 2, background: ACCENT }} /><span style={{ ...tag, letterSpacing: '.22em' }}>{propertyName || 'Noted'}</span></div>
-              {renaming
-                ? <form onSubmit={e => { e.preventDefault(); saveName(e.target.elements.n.value); }} style={{ display: 'flex', gap: 8 }}>
-                    <input name="n" autoFocus defaultValue={name === ASSISTANT_DEFAULT_NAME ? '' : name} maxLength={24} placeholder={ASSISTANT_DEFAULT_NAME} aria-label="Assistant name"
-                      style={{ flex: 1, minWidth: 0, height: 40, padding: '0 12px', borderRadius: 12, border: `1.5px solid ${ACCENT}`, background: CARD2, color: TEXT, fontFamily: INTER, fontSize: 15, fontWeight: 700, outline: 'none' }} />
-                    <button type="submit" style={{ ...dark, minHeight: 40 }}>Save</button>
-                  </form>
-                : <button type="button" onClick={() => setRenaming(true)} title="Rename your assistant" aria-label={`Rename ${name}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: 9, padding: 0, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                    <h2 style={{ fontFamily: INTER, fontSize: isPhone ? 26 : 30, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.04em', lineHeight: 1 }}>{name}</h2>
-                    <Pencil size={14} color={MUTED} />
-                  </button>}
-            </div>
+          <header style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, height: av + 70, padding: `calc(16px + env(safe-area-inset-top)) ${gutter} 0`, boxSizing: 'border-box', display: 'flex', justifyContent: 'center', pointerEvents: 'none', background: `linear-gradient(${BG} 0%, ${BG} 30%, transparent 100%)` }}>
             <button type="button" onClick={onClose} aria-label="Close assistant" data-testid="assistant-close"
-              style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><X size={19} color={TEXT} strokeWidth={2} /></button>
+              style={{ ...round, position: 'absolute', left: isPhone ? 18 : gutter, top: 'calc(22px + env(safe-area-inset-top))', pointerEvents: 'auto' }}><ChevronLeft size={22} color={TEXT} strokeWidth={2} /></button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'auto' }}>
+              <button type="button" onClick={() => setRenaming(v => !v)} title="Rename your assistant" aria-label={`Rename ${name}`} data-testid="assistant-avatar"
+                style={{ display: 'block', width: av, height: av, padding: 0, borderRadius: '50%', overflow: 'hidden', border: `4px solid ${CARD}`, boxSizing: 'border-box', background: 'transparent', boxShadow: '0 6px 18px rgba(40,30,10,.18)', cursor: 'pointer' }}><AssistantFace /></button>
+              {renaming
+                ? <form onSubmit={e => { e.preventDefault(); saveName(e.target.elements.n.value); }} style={{ display: 'flex', gap: 6, marginTop: -14, padding: 5, borderRadius: 999, background: CARD, boxShadow: `inset 0 0 0 1px ${BORDER}, 0 4px 14px rgba(0,0,0,.1)` }}>
+                    <input name="n" autoFocus defaultValue={name === ASSISTANT_DEFAULT_NAME ? '' : name} maxLength={24} placeholder="Give me a name" aria-label="Assistant name"
+                      style={{ width: 150, height: 34, padding: '0 12px', borderRadius: 999, border: `1.5px solid ${ACCENT}`, background: CARD2, color: TEXT, fontFamily: INTER, fontSize: 16, fontWeight: 650, outline: 'none' }} />
+                    <button type="submit" style={{ ...dark, minHeight: 34, padding: '0 14px' }}>Save</button>
+                  </form>
+                : <span style={{ marginTop: -14, minHeight: 30, padding: '0 14px', borderRadius: 999, background: CARD, boxShadow: `inset 0 0 0 1px ${BORDER}, 0 3px 10px rgba(0,0,0,.08)`, display: 'inline-flex', alignItems: 'center', fontFamily: INTER, fontSize: 14, fontWeight: 750, color: TEXT, letterSpacing: '-.01em', whiteSpace: 'nowrap' }}>{name}</span>}
+            </div>
           </header>
 
-          <div ref={bodyRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: isPhone ? '18px 18px 8px' : '22px 26px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div ref={bodyRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: `calc(${av + 64}px + env(safe-area-inset-top)) ${gutter} 8px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
             {empty && <>
-              <h3 style={{ fontFamily: INTER, fontSize: 21, fontWeight: 800, color: TEXT, letterSpacing: '-.03em', margin: '4px 0 0' }}>{first ? `Hi ${first}.` : 'Hi.'} What do you need?</h3>
-              <p style={{ fontFamily: INTER, fontSize: 14, color: MUTED, lineHeight: 1.6, margin: 0 }}>
+              <h3 style={{ fontFamily: INTER, fontSize: isPhone ? 28 : 34, fontWeight: 700, color: TEXT, letterSpacing: '-.04em', lineHeight: 1.1, textAlign: 'center', margin: '4px 0 0' }}>{first ? `Hi ${first}, ` : 'Hi, '}{name === ASSISTANT_DEFAULT_NAME ? 'I’m your assistant.' : `I’m ${name}.`}</h3>
+              <p style={{ fontFamily: INTER, fontSize: isPhone ? 15.5 : 16, color: MUTED, lineHeight: 1.55, textAlign: 'center', margin: '0 auto', maxWidth: 560 }}>
                 {who === 'manager'
-                  ? 'Tell me in your own words, or talk. I can send requests to the desk, find residents, requests and incidents, and take you to any section. You check it and tap Save.'
-                  : 'Tell me in your own words, or talk. I can log packages, visitors, vendors and incidents, set reminders, find residents and requests, and get your handoff ready. You check it and tap Save.'}
+                  ? 'What can I do for you? Tell me in your own words, or talk. I can send requests to the desk, find residents, requests and incidents, and take you to any section. You check it and tap Save.'
+                  : 'What can I do for you? Tell me in your own words, or talk. I can log packages, visitors, vendors and incidents, set reminders, find residents and requests, and get your handoff ready. You check it and tap Save.'}
               </p>
-              <ol style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, border: `1px solid ${BORDER}`, borderRadius: 18, overflow: 'hidden', background: CARD }}>
-                {(SUGGEST[who] || []).map(([title, hint, sayText], i) => <li key={title} style={{ borderTop: i ? `1px solid ${BORDER}` : 'none' }}>
+              <ol style={{ listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'grid', gap: 12 }}>
+                {(SUGGEST[who] || []).map(([title, hint, sayText], i) => <li key={title}>
                   <button type="button" onClick={() => ask(sayText)} data-testid="assistant-suggestion"
-                    style={{ width: '100%', display: 'grid', gridTemplateColumns: '30px 1fr 18px', alignItems: 'center', gap: 10, padding: '13px 16px', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                    <span style={{ fontFamily: INTER, fontSize: 10, fontWeight: 800, color: MUTED, letterSpacing: '.08em' }}>{String(i + 1).padStart(2, '0')}</span>
-                    <span><span style={{ display: 'block', fontFamily: INTER, fontSize: 14, fontWeight: 750, color: TEXT }}>{title}</span><span style={{ display: 'block', fontFamily: INTER, fontSize: 12.5, color: MUTED, marginTop: 2 }}>{hint}</span></span>
-                    <ChevronRight size={16} color={MUTED} />
+                    style={{ width: '100%', display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'start', gap: 14, padding: '16px 18px', border: `1px solid ${BORDER}`, borderRadius: 20, background: CARD, boxShadow: SHADOW, cursor: 'pointer', textAlign: 'left' }}>
+                    <span style={{ width: 34, height: 34, borderRadius: 999, background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: INTER, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '.04em' }}>{String(i + 1).padStart(2, '0')}</span>
+                    <span><span style={{ display: 'block', fontFamily: INTER, fontSize: 16, fontWeight: 750, color: TEXT, letterSpacing: '-.015em' }}>{title}</span><span style={{ display: 'block', fontFamily: INTER, fontSize: 13.5, color: MUTED, marginTop: 3, lineHeight: 1.45 }}>{hint}</span></span>
                   </button>
                 </li>)}
               </ol>
-              <p style={{ fontFamily: INTER, fontSize: 12, color: MUTED, lineHeight: 1.55, margin: '4px 0 0' }}>Your property’s SOPs and your manager come first. In an emergency, call 911.</p>
+              <p style={{ fontFamily: INTER, fontSize: 12.5, color: MUTED, lineHeight: 1.55, margin: '6px 2px 0' }}>Your property’s SOPs and your manager come first. In an emergency, call 911.</p>
             </>}
 
             {log.map((m, i) => m.who === 'me'
@@ -391,28 +388,19 @@ export function NotedAssistant({
             <div style={{ height: 6, flexShrink: 0 }} />
           </div>
 
-          <form onSubmit={e => { e.preventDefault(); ask(input); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: isPhone ? '12px 16px calc(14px + env(safe-area-inset-bottom))' : '14px 24px 20px', borderTop: `1px solid ${BORDER}`, background: CARD, flexShrink: 0 }}>
-            <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} maxLength={600} autoComplete="off" enterKeyHint="send" data-testid="assistant-input"
-              placeholder={listening ? 'Listening…' : flow.current && flow.current.step === 'q' ? 'Type your answer' : 'Message'} aria-label={`Message ${name}`}
-              style={{ flex: 1, minWidth: 0, height: 48, padding: '0 18px', borderRadius: 999, border: `1.5px solid ${BORDER}`, background: CARD2, color: TEXT, fontFamily: INTER, fontSize: 15, outline: 'none' }} />
-            {input.trim()
-              ? <button type="submit" aria-label="Send" data-testid="assistant-send" disabled={busy} style={{ width: 48, height: 48, borderRadius: 999, border: 'none', background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, opacity: busy ? 0.5 : 1 }}><ArrowUp size={20} color="#fff" strokeWidth={2.4} /></button>
-              : <button type="button" onClick={toggleMic} aria-label={listening ? 'Stop listening' : 'Talk'} style={{ width: 48, height: 48, borderRadius: 999, border: `1px solid ${listening ? RED : BORDER}`, background: listening ? `${RED}14` : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><Mic size={19} color={listening ? RED : TEXT} /></button>}
+          <form onSubmit={e => { e.preventDefault(); ask(input); }} style={{ padding: `8px ${gutter} calc(${isPhone ? 14 : 22}px + env(safe-area-inset-bottom))`, flexShrink: 0 }}>
+            <style>{`.assistant-compose input:focus,.assistant-compose input:focus-visible{outline:none!important;box-shadow:none!important;border:none!important}.assistant-compose:focus-within{border-color:${ACCENT}!important;box-shadow:0 0 0 3px ${ACCENT}22!important}`}</style>
+            <div className="assistant-compose" style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 58, padding: '0 6px 0 22px', borderRadius: 999, border: `1.5px solid ${BORDER}`, background: CARD, boxShadow: SHADOW }}>
+              <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} maxLength={600} autoComplete="off" enterKeyHint="send" data-testid="assistant-input"
+                placeholder={listening ? 'Listening…' : flow.current && flow.current.step === 'q' ? 'Type your answer' : 'Message'} aria-label={`Message ${name}`}
+                style={{ flex: 1, minWidth: 0, height: 46, padding: 0, border: 'none', background: 'transparent', color: TEXT, fontFamily: INTER, fontSize: 16, outline: 'none' }} />
+              {input.trim()
+                ? <button type="submit" aria-label="Send" data-testid="assistant-send" disabled={busy} style={{ width: 44, height: 44, borderRadius: 999, border: 'none', background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, opacity: busy ? 0.5 : 1 }}><ArrowUp size={20} color="#fff" strokeWidth={2.4} /></button>
+                : <button type="button" onClick={toggleMic} aria-label={listening ? 'Stop listening' : 'Talk'} style={{ width: 44, height: 44, borderRadius: 999, border: 'none', background: listening ? `${RED}14` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><Mic size={21} color={listening ? RED : TEXT} /></button>}
+            </div>
           </form>
-        </motion.aside>
-      </>}
+        </motion.aside>}
     </AnimatePresence>
-  );
-}
-
-/* The round button that opens the assistant, bottom right of every desk screen. */
-export function AssistantButton({ onClick, isPhone = false, lifted = false, label = ASSISTANT_DEFAULT_NAME }) {
-  const { colors } = useTheme();
-  return (
-    <button type="button" onClick={onClick} aria-label={`Open ${label}`} title={label} data-testid="assistant-fab"
-      style={{ position: 'fixed', right: isPhone ? 16 : 28, bottom: (isPhone ? 16 : 28) + (lifted ? 64 : 0), zIndex: 58, width: 56, height: 56, borderRadius: 999, border: 'none', background: '#222222', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.24)' }}>
-      <Sparkles size={22} color={colors.ACCENT} strokeWidth={2.1} />
-    </button>
   );
 }
 

@@ -12,7 +12,7 @@ import {
   BarChart2, UserCog,
   ClipboardCheck, RefreshCw, Activity, Pencil, Sparkles, MessageSquare,
 } from 'lucide-react';
-import { NotedAssistant, AssistantButton } from '../assistant/NotedAssistant';
+import { NotedAssistant } from '../assistant/NotedAssistant';
 import { TeamMessagesPage } from './TeamMessagesPage';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
@@ -2106,7 +2106,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     ].map(view => ({ ...view, current:managerSummaryView===view.id, onSelect:() => setManagerSummaryView(view.id) }));
     return <main style={{width:'100%',maxWidth:1280,margin:'0 auto',display:'flex',flexDirection:'column',gap:isMobile?16:20}}>
       <ShiftViewHeader
-        propertyName={propertyName}
+        onAsk={() => setAssistantOpen(true)}
         navLabel="Operational summary"
         isPhone={isPhone}
         colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}
@@ -3774,7 +3774,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       </AnimatePresence>
 
       {/* ── Assistant ────────────────────────────────────────────────────────── */}
-      {!assistantOpen && tab === 'home' && <AssistantButton onClick={() => setAssistantOpen(true)} isPhone={isPhone} />}
       <NotedAssistant isOpen={assistantOpen} onClose={() => setAssistantOpen(false)} role="manager" user={authUser} propertyName={propertyName} isPhone={isPhone}
         requests={tasks} incidents={incidents}
         team={team.map(c => ({ ...c, onShift: c.status === 'on_shift' }))}

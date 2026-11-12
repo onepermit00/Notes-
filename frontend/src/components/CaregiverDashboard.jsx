@@ -19,7 +19,7 @@ import { TaskStatus, UserRole } from '../types';
 import { TaskCard } from './TaskCard';
 import { TaskRequestCard }  from './TaskRequestCard';
 import { TaskCompletionModal } from './TaskCompletionModal';
-import { NotedAssistant, AssistantButton } from '../assistant/NotedAssistant';
+import { NotedAssistant } from '../assistant/NotedAssistant';
 import { IncidentReportPage } from './IncidentReportPage';
 import { LoanersDashboard } from './LoanersDashboard';
 import { LockoutPage } from './LockoutPage';
@@ -1344,7 +1344,7 @@ export const CaregiverDashboard = ({
       </AnimatePresence>
 
       {isShiftActive && <ShiftViewHeader
-        propertyName={propertyName}
+        onAsk={() => setShowCopilot(true)}
         subtitle={viewingHandoff ? 'Prepare the handoff. Leave clear context for the next concierge.' : undefined}
         navLabel="Daily activity report views"
         isPhone={isPhone}
@@ -2928,7 +2928,6 @@ export const CaregiverDashboard = ({
       )}
 
       {/* Assistant */}
-      {!showCopilot && !sectionWorkflow && <AssistantButton onClick={() => setShowCopilot(true)} isPhone={isPhone} lifted={!isShiftActive && activeTab === 'home'} />}
       <NotedAssistant isOpen={showCopilot} onClose={() => setShowCopilot(false)} role="concierge" user={authUser} propertyName={propertyName} isPhone={isPhone}
         shiftActive={isShiftActive} requests={managerRequests} incidents={incidents} todayLog={selfTasks} handoff={assistantHandoff}
         followUps={followUps.items} shiftStartMs={shiftStartMs} actions={assistantActions} />
