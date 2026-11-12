@@ -77,3 +77,20 @@ async def test_invite_returns_link_when_email_not_sent(client):
 async def test_health_reports_email_setup(client):
     data = (await client.get('/api/health')).json()
     assert data['email'] == 'not configured'
+
+
+def test_requests_send_a_user_agent(monkeypatch):
+    seen = {}
+
+    class Resp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return b'{}'
+
+    def fake_urlopen(req, timeout=0):
+        seen.update(req.header_items())
+        return Resp()
+
+    monkeypatch.setattr(core.urllib.request, 'urlopen', fake_urlopen)
+    core._post_json('https://api.resend.com/emails', {}, {'Authorization': 'Bearer x'})
+    assert 'Noted/' in seen.get('User-agent', '')
