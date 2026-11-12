@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from core import _ensure_indexes, client, logger
+from core import _ensure_indexes, client, email_provider, logger
 from core import FORGOT_PW_RATE_LIMIT, _hash_token, db, verify_pw  # noqa: F401  re-exported for tests and scripts
 from routes import analytics, auth, incidents, messages, packages, residents, shifts, tasks, team
 
@@ -35,7 +35,12 @@ async def root():
 
 @api.get('/health')
 async def health():
-    return {'status': 'healthy'}
+    # Non-secret setup hints, so deploy problems can be spotted from a browser.
+    return {
+        'status': 'healthy',
+        'email': email_provider() or 'not configured',
+        'frontend_url_set': bool(os.environ.get('FRONTEND_URL')),
+    }
 
 
 for module in (auth, team, shifts, tasks, incidents, messages, residents, analytics, packages):

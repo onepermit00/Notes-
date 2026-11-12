@@ -340,6 +340,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [addForm,   setAddForm]   = useState(EMPTY_ADD);
   const [addLoading, setAddLoading] = useState(false);
   const [addError,   setAddError]   = useState('');
+  const [inviteNotice, setInviteNotice] = useState(null); // { email, link, reason } when the invite email didn't go out
   const [taskOpen,  setTaskOpen]  = useState(false);
   const [taskStep,  setTaskStep]  = useState(1);
   const [taskForm,  setTaskForm]  = useState(EMPTY_TASK);
@@ -367,6 +368,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [showAddContact,  setShowAddContact]  = useState(false);
   const [newContactDraft, setNewContactDraft] = useState({ label:'', number:'' });
   const [leasingOpen,     setLeasingOpen]     = useState(false);
+  useEffect(() => { if (!leasingOpen) setInviteNotice(null); }, [leasingOpen]);
   const [leasingForm,     setLeasingForm]     = useState({ teamName:'', contact:'', phone:'', email:'' });
   const [showPw,          setShowPw]          = useState(false);
   const [profileOpen,     setProfileOpen]     = useState(false);
@@ -4360,9 +4362,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     title:      leasingForm.role || 'Concierge',
                   });
                   setTeam(p => [...p, newC]);
-                  setLeasingOpen(false);
                   setLeasingForm({ teamName:'', contact:'', phone:'', email:'' });
                   setAddError('');
+                  if (newC.emailSent) {
+                    setLeasingOpen(false);
+                  } else {
+                    // Keep the panel open so the manager can share the link by hand.
+                    setInviteNotice({ email: newC.email, link: newC.inviteLink, reason: newC.emailError });
+                  }
                 } catch (err) {
                   setAddError(err?.response?.data?.detail || 'Failed to add member. Check the email is not already in use.');
                 } finally { setAddLoading(false); }
@@ -4370,6 +4377,31 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               return (
                 <div style={{ flexShrink:0, padding: isMobile ? '12px 20px 20px' : '16px 32px 24px', background:CARD, borderTop:`1px solid ${BORDER}` }}>
                   {addError && <p style={{ fontFamily:INTER, fontSize:13, color:RED, marginBottom:10, fontWeight:600 }}>{addError}</p>}
+                  {inviteNotice && (
+                    <div style={{ marginBottom:12, padding:14, borderRadius:12, background:'rgba(255,149,0,0.08)', border:'1px solid rgba(255,149,0,0.35)' }}>
+                      <p style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:TEXT, margin:'0 0 4px' }}>
+                        {inviteNotice.email} was added, but the invitation email was not sent.
+                      </p>
+                      {inviteNotice.reason && <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'0 0 8px' }}>{inviteNotice.reason}</p>}
+                      {inviteNotice.link && (
+                        <>
+                          <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'0 0 6px' }}>Send them this link yourself (text or email). It lets them set their password.</p>
+                          <div style={{ display:'flex', gap:8 }}>
+                            <input readOnly value={inviteNotice.link} onFocus={e => e.target.select()}
+                              style={{ flex:1, minWidth:0, padding:'8px 10px', borderRadius:8, border:`1px solid ${BORDER}`, fontFamily:INTER, fontSize:12, color:TEXT, background:CARD }} />
+                            <button onClick={() => { try { navigator.clipboard.writeText(inviteNotice.link); } catch (e) {} }}
+                              style={{ padding:'8px 12px', borderRadius:8, border:'none', background:GREEN, color:'white', fontFamily:INTER, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                              Copy link
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      <button onClick={() => { setInviteNotice(null); setLeasingOpen(false); }}
+                        style={{ marginTop:10, padding:0, border:'none', background:'none', fontFamily:INTER, fontSize:12, fontWeight:700, color:MUTED, cursor:'pointer', textDecoration:'underline' }}>
+                        Done
+                      </button>
+                    </div>
+                  )}
                   <button
                     disabled={!lValid || addLoading}
                     onClick={handleAddMember}

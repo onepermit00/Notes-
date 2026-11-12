@@ -178,7 +178,12 @@ export const authApi = {
 
   async inviteConcierge(payload) {
     const { data } = await api.post('/manager/concierge/invitations', payload);
-    return normalizeConcierge({ ...data, status: 'invited' });
+    return {
+      ...normalizeConcierge({ ...data, status: 'invited' }),
+      emailSent:  data.email_sent !== false,
+      emailError: data.email_error || '',
+      inviteLink: data.invite_link || '',
+    };
   },
 
   async getConcierges() {
