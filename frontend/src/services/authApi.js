@@ -196,6 +196,10 @@ export const authApi = {
     await api.delete(`/manager/concierge/${conciergeId}`);
   },
 
+  async cancelInvitation(invitationId) {
+    await api.delete(`/manager/concierge/invitations/${invitationId}`);
+  },
+
   async resendCredentials(conciergeId) {
     const { data } = await api.post(`/manager/concierge/${conciergeId}/resend-credentials`);
     return data;
