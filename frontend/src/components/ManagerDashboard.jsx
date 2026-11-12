@@ -2107,7 +2107,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     return <main style={{width:'100%',maxWidth:1280,margin:'0 auto',display:'flex',flexDirection:'column',gap:isMobile?16:20}}>
       <ShiftViewHeader
         propertyName={propertyName}
-        subtitle="Today’s shift"
         navLabel="Operational summary"
         isPhone={isPhone}
         colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}

@@ -1345,11 +1345,11 @@ export const CaregiverDashboard = ({
 
       {isShiftActive && <ShiftViewHeader
         propertyName={propertyName}
-        subtitle={viewingHandoff ? 'Prepare the handoff. Leave clear context for the next concierge.' : viewingMedia ? 'Photos added during this shift.' : viewingPreviousDar ? 'Previous shift. Review the completed record from the prior shift.' : 'Today’s shift'}
+        subtitle={viewingHandoff ? 'Prepare the handoff. Leave clear context for the next concierge.' : undefined}
         navLabel="Daily activity report views"
         isPhone={isPhone}
         colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}
-        style={{ maxWidth:1280, margin:'0 auto 20px' }}
+        style={{ maxWidth:1280, margin:isPhone ? '0 auto 22px' : '0 auto 26px' }}
         views={[
           { id:'previous', label:'Previous shift', current:viewingPreviousDar, disabled:!previousShiftData, onSelect:() => { setShowHandover(false); setShowMedia(false); setShowPreviousDar(true); }, aria:'Show the previous shift report' },
           { id:'current', label:'Current shift', current:!viewingPreviousDar && !viewingHandoff && !viewingMedia, onSelect:() => { setShowHandover(false); setShowMedia(false); setShowPreviousDar(false); }, aria:'Show the current shift report' },
