@@ -26,7 +26,7 @@ import {
   DASHBOARD_ACCENT, DASHBOARD_ACTIVE_NAV, DASHBOARD_DANGER, DASHBOARD_FONT,
   DASHBOARD_SIDEBAR_COLLAPSED, DASHBOARD_SIDEBAR_EXPANDED,
   DASHBOARD_SUCCESS, DASHBOARD_WARNING, DashboardCard, DashboardEyebrow,
-  DashboardPage, DashboardSectionTitle, DashboardSidebar, DashboardStatusBadge, DailyActivityReport,
+  DashboardPage, DashboardSectionTitle, DashboardSidebar, DashboardStatusBadge, DailyActivityReport, ShiftViewHeader,
 } from './dashboard';
 
 /* ─── Static brand tokens ────────────────────────────────────────────────────── */
@@ -2099,35 +2099,25 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       });
       return items;
     }, new Map()).values());
-    const card = { border:`1px solid ${BORDER}`, borderRadius:20, background:CARD, boxShadow:SHADOW };
-    const metrics = [
-      { id:'previous', label:'Previous DAR', aria:'Show the previous completed DAR', disabled:!previousDAR },
-      { id:'dar', label:'Current DAR', aria:`Current DAR: ${todayShift?(todayShift.clockOut?'complete':'live'):'not started'}` },
-      { id:'media', label:'Media', aria:`Show ${mediaItems.length} uploaded media item${mediaItems.length===1?'':'s'}` },
-    ];
+    const shiftViews = [
+      { id:'previous', label:'Previous shift', aria:'Show the previous completed shift report', disabled:!previousDAR },
+      { id:'dar', label:'Current shift', aria:`Current shift report: ${todayShift?(todayShift.clockOut?'complete':'live'):'not started'}` },
+      { id:'media', label:'Photos', aria:`Show ${mediaItems.length} uploaded photo${mediaItems.length===1?'':'s'}` },
+    ].map(view => ({ ...view, current:managerSummaryView===view.id, onSelect:() => setManagerSummaryView(view.id) }));
     return <main style={{width:'100%',maxWidth:1280,margin:'0 auto',display:'flex',flexDirection:'column',gap:isMobile?16:20}}>
-      <DashboardCard style={{...card}}>
-        <div style={{padding:isPhone?'20px 20px 15px':'26px 30px 19px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16}}>
-          <div style={{minWidth:0,marginLeft:8}}>
-            <div style={{display:'flex',alignItems:'center',marginBottom:11}}><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.22em',textTransform:'uppercase'}}>{propertyName}</span></div>
-            <h1 style={{fontFamily:INTER,fontSize:isPhone?28:34,fontWeight:800,color:TEXT,letterSpacing:'-.045em',lineHeight:.98,margin:0}}>Today’s shift.</h1>
-          </div>
-          <button type="button" onClick={() => window.print()} aria-label="Export DAR as PDF" title="Export DAR as PDF" className="touch-target" style={{width:44,height:44,padding:0,borderRadius:999,border:`1px solid ${BORDER}`,background:CARD2,color:TEXT,display:'inline-flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>
-            <Printer size={17}/>
-          </button>
-        </div>
-        <nav aria-label="Operational summary" style={{padding:isPhone?'0 14px 16px':'0 24px 20px'}}>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:4,padding:4,background:CARD2,border:`1px solid ${BORDER}`,borderRadius:14}}>
-            {metrics.map((metric)=>{const current=managerSummaryView===metric.id;return <button type="button" key={metric.id} onClick={()=>!metric.disabled&&setManagerSummaryView(metric.id)} disabled={metric.disabled} aria-label={metric.aria} aria-current={current?'page':undefined} className="touch-target" style={{minWidth:0,minHeight:54,padding:isPhone?'9px 8px':'9px 12px',borderRadius:11,border:current?`1px solid ${BORDER}`:'1px solid transparent',background:current?'rgba(255,56,92,.055)':'transparent',boxShadow:current?'0 2px 8px rgba(0,0,0,.07)':'none',textAlign:'center',cursor:metric.disabled?'not-allowed':'pointer',opacity:metric.disabled ? .46 : 1,color:TEXT,font:'inherit',transition:'all 160ms'}}>
-              <div style={{fontFamily:INTER,fontSize:isPhone?10:11,fontWeight:750,color:TEXT,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{metric.label}</div>
-            </button>})}
-          </div>
-        </nav>
-      </DashboardCard>
+      <ShiftViewHeader
+        propertyName={propertyName}
+        subtitle="Today’s shift"
+        navLabel="Operational summary"
+        isPhone={isPhone}
+        colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}
+        action={managerSummaryView !== 'media' && <button type="button" onClick={() => window.print()} aria-label="Export DAR as PDF" title="Export DAR as PDF" className="touch-target" style={{width:44,height:44,padding:0,borderRadius:999,border:`1px solid ${BORDER}`,background:CARD,color:TEXT,display:'inline-flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><Printer size={17}/></button>}
+        views={shiftViews}
+      />
 
       <div id="manager-live-dar-section" style={{scrollMarginTop:20}}>
         {managerSummaryView === 'media' ? (
-          mediaItems.length ? <section aria-label="Shift media" style={{display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:18}}>{mediaItems.map(item=><article key={item.key} style={{border:`1px solid ${BORDER}`,borderRadius:20,overflow:'hidden',background:CARD,boxShadow:SHADOW}}><button type="button" onClick={()=>setManagerMedia({urls:item.urls,index:0,title:item.title})} style={{display:'block',width:'100%',padding:0,border:0,background:CARD2,cursor:'pointer'}}><img src={item.urls[0]} alt={item.title} style={{display:'block',width:'100%',aspectRatio:'16 / 9',objectFit:'cover'}}/></button><div style={{padding:'14px 16px'}}><div style={{fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.12em',textTransform:'uppercase'}}>{item.category}{item.urls.length>1?` · ${item.urls.length} photos`:''}</div><h3 style={{fontSize:14,fontWeight:800,color:TEXT,margin:'5px 0 3px'}}>{item.title}</h3><p style={{fontSize:11,color:MUTED,margin:0}}>{item.shiftLabel}</p></div></article>)}</section> : <div style={{minHeight:220,background:CARD,border:`1px solid ${BORDER}`,borderRadius:20,boxShadow:SHADOW,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24}}><Image size={28} color={MUTED}/><h3 style={{fontSize:17,fontWeight:800,color:TEXT,margin:'12px 0 6px'}}>No shift media yet</h3><p style={{fontSize:13,color:MUTED,margin:0}}>Photos uploaded from concierge activities will appear here.</p></div>
+          mediaItems.length ? <section aria-label="Shift photos" style={{display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:18}}>{mediaItems.map(item=><article key={item.key} style={{border:`1px solid ${BORDER}`,borderRadius:20,overflow:'hidden',background:CARD,boxShadow:SHADOW}}><button type="button" onClick={()=>setManagerMedia({urls:item.urls,index:0,title:item.title})} style={{display:'block',width:'100%',padding:0,border:0,background:CARD2,cursor:'pointer'}}><img src={item.urls[0]} alt={item.title} style={{display:'block',width:'100%',aspectRatio:'16 / 9',objectFit:'cover'}}/></button><div style={{padding:'14px 16px'}}><div style={{fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.12em',textTransform:'uppercase'}}>{item.category}{item.urls.length>1?` · ${item.urls.length} photos`:''}</div><h3 style={{fontSize:14,fontWeight:800,color:TEXT,margin:'5px 0 3px'}}>{item.title}</h3><p style={{fontSize:11,color:MUTED,margin:0}}>{item.shiftLabel}</p></div></article>)}</section> : <div style={{minHeight:220,background:CARD,border:`1px solid ${BORDER}`,borderRadius:20,boxShadow:SHADOW,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24}}><Image size={28} color={MUTED}/><h3 style={{fontSize:17,fontWeight:800,color:TEXT,margin:'12px 0 6px'}}>No photos yet</h3><p style={{fontSize:13,color:MUTED,margin:0}}>Photos uploaded from concierge activities will appear here.</p></div>
         ) : <DailyActivityReport
           testId="manager-live-dar"
           mode="manager"

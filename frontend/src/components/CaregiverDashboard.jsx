@@ -48,7 +48,7 @@ import {
   DASHBOARD_SIDEBAR_COLLAPSED, DASHBOARD_SIDEBAR_EXPANDED,
   DASHBOARD_SUCCESS, DASHBOARD_WARNING,
   DashboardCard as Card, DashboardEyebrow as SectionLabel,
-  DashboardPage, DashboardSectionTitle as SectionTitle, DailyActivityReport,
+  DashboardPage, DashboardSectionTitle as SectionTitle, DailyActivityReport, ShiftViewHeader,
 } from './dashboard';
 
 // ─── Static / brand tokens (theme-independent) ────────────────────────────────
@@ -1343,27 +1343,20 @@ export const CaregiverDashboard = ({
         )}
       </AnimatePresence>
 
-      {isShiftActive && <section aria-label="DAR shift continuity" style={{ maxWidth: 1280, margin: '0 auto 18px', border:`1px solid ${BORDER}`, borderRadius: 20, background: '#fff', overflow: 'hidden', boxShadow: SHADOW }}>
-        <div style={{ padding: isPhone ? '20px 20px 15px' : '26px 30px 19px', display: 'flex', alignItems:'flex-start', justifyContent: 'space-between', gap: 16 }}>
-          <div style={{minWidth:0,marginLeft:8}}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 11 }}><span style={{ fontFamily: INTER, fontSize: 9, fontWeight: 800, color: BLUE, letterSpacing: '.22em', textTransform: 'uppercase' }}>{propertyName}</span></div>
-            <h1 style={{ fontFamily: INTER, fontSize: isPhone ? 28 : 34, fontWeight: 800, color: '#222', letterSpacing: '-.045em', lineHeight: .98, margin: 0 }}>{viewingHandoff?'Prepare the handoff':viewingMedia?'Shift media':viewingPreviousDar?'Previous shift':'Today’s shift'}</h1>
-            {(viewingHandoff || viewingPreviousDar) && <p style={{fontFamily:INTER,fontSize:12,color:'#717171',margin:'9px 0 0',lineHeight:1.5}}>{viewingHandoff?'Leave clear context for the next concierge.':'Review the completed record from the prior shift.'}</p>}
-          </div>
-          <div style={{display:'flex',gap:8,flexShrink:0}}>
-            {!viewingHandoff && !viewingMedia && <button onClick={() => window.print()} aria-label="Export DAR" className="touch-target" style={{ width:44, height:44, padding:0, borderRadius:999, border:`1px solid ${BORDER}`, background:CARD2, color:'#222', display:'inline-flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><Printer size={17}/></button>}
-          </div>
-        </div>
-        <nav aria-label="Daily activity report views" style={{padding:isPhone?'0 14px 16px':'0 24px 20px'}}><div style={{display:'flex',padding:4,background:'#f7f7f7',border:`1px solid ${BORDER}`,borderRadius:14}}>
-          {[
-            { label: 'Previous DAR', current: viewingPreviousDar, disabled: !previousShiftData, action: () => { if (previousShiftData) { setShowHandover(false); setShowMedia(false); setShowPreviousDar(true); } }, aria: 'Show the previous shift DAR' },
-            { label: 'Current DAR', current: !viewingPreviousDar && !viewingHandoff && !viewingMedia, action: () => { setShowHandover(false); setShowMedia(false); setShowPreviousDar(false); }, aria: 'Show the current shift DAR' },
-            { label: 'Media', current: viewingMedia, action: () => { setShowHandover(false); setShowPreviousDar(false); setShowMedia(true); }, aria: 'Show shift media' },
-          ].map((step) => <button type="button" key={step.label} onClick={step.action} disabled={step.disabled} aria-label={step.aria} aria-current={step.current ? 'page' : undefined} className="touch-target" style={{flex:1,minHeight:46,padding:isPhone?'8px 6px':'8px 12px',borderRadius:11,border:step.current?`1px solid ${BORDER}`:'1px solid transparent',background:step.current?'rgba(255,56,92,.055)':'transparent',boxShadow:step.current?'0 2px 8px rgba(0,0,0,.07)':'none',minWidth:0,textAlign:'center',cursor:step.disabled?'not-allowed':'pointer',opacity:step.disabled ? .46 : 1,font:'inherit',transition:'all 160ms'}}>
-            <div style={{fontFamily:INTER,fontSize:isPhone?10:11,fontWeight:750,color:'#222',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{step.label}</div>
-          </button>)}
-        </div></nav>
-      </section>}
+      {isShiftActive && <ShiftViewHeader
+        propertyName={propertyName}
+        subtitle={viewingHandoff ? 'Prepare the handoff. Leave clear context for the next concierge.' : viewingMedia ? 'Photos added during this shift.' : viewingPreviousDar ? 'Previous shift. Review the completed record from the prior shift.' : 'Today’s shift'}
+        navLabel="Daily activity report views"
+        isPhone={isPhone}
+        colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}
+        style={{ maxWidth:1280, margin:'0 auto 20px' }}
+        action={!viewingHandoff && !viewingMedia && <button onClick={() => window.print()} aria-label="Export DAR" className="touch-target" style={{ width:44, height:44, padding:0, borderRadius:999, border:`1px solid ${BORDER}`, background:CARD, color:TEXT, display:'inline-flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><Printer size={17}/></button>}
+        views={[
+          { id:'previous', label:'Previous shift', current:viewingPreviousDar, disabled:!previousShiftData, onSelect:() => { setShowHandover(false); setShowMedia(false); setShowPreviousDar(true); }, aria:'Show the previous shift report' },
+          { id:'current', label:'Current shift', current:!viewingPreviousDar && !viewingHandoff && !viewingMedia, onSelect:() => { setShowHandover(false); setShowMedia(false); setShowPreviousDar(false); }, aria:'Show the current shift report' },
+          { id:'photos', label:'Photos', current:viewingMedia, onSelect:() => { setShowHandover(false); setShowPreviousDar(false); setShowMedia(true); }, aria:'Show shift photos' },
+        ]}
+      />}
 
       {/* DAR overview */}
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
@@ -1394,7 +1387,7 @@ export const CaregiverDashboard = ({
                   </div>
                 </section>
         ) : viewingMedia ? (
-          <section aria-label="Shift media" style={{background:'transparent'}}>
+          <section aria-label="Shift photos" style={{background:'transparent'}}>
             {mediaItems.length ? <div style={{display:'grid',gridTemplateColumns:isPhone?'minmax(0,1fr)':'repeat(2,minmax(0,1fr))',gap:isPhone?14:18,width:'100%',margin:0}}>
               {mediaItems.map(item => <MediaCarouselCard
                 key={item.key}
@@ -1405,7 +1398,7 @@ export const CaregiverDashboard = ({
                 onOpen={(imageIndex)=>setGallery({urls:item.urls,idx:imageIndex})}
               />)}
             </div> : <div style={{minHeight:220,background:CARD,border:`1px solid ${BORDER}`,borderRadius:20,boxShadow:SHADOW,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24}}>
-              <Image size={28} color={MUTED}/><h3 style={{fontFamily:INTER,fontSize:17,fontWeight:800,color:TEXT,margin:'12px 0 6px'}}>No shift media yet</h3><p style={{fontFamily:INTER,fontSize:13,color:MUTED,margin:0,lineHeight:1.5}}>Photos and other evidence added during this shift will appear here.</p>
+              <Image size={28} color={MUTED}/><h3 style={{fontFamily:INTER,fontSize:17,fontWeight:800,color:TEXT,margin:'12px 0 6px'}}>No photos yet</h3><p style={{fontFamily:INTER,fontSize:13,color:MUTED,margin:0,lineHeight:1.5}}>Photos and other evidence added during this shift will appear here.</p>
             </div>}
           </section>
         ) : (
