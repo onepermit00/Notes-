@@ -12,7 +12,7 @@ import {
   BarChart2, UserCog,
   ClipboardCheck, RefreshCw, Activity, Pencil, Sparkles, MessageSquare,
 } from 'lucide-react';
-import { NotedAssistant, AssistantButton } from '../assistant/NotedAssistant';
+import { NotedAssistant } from '../assistant/NotedAssistant';
 import { TeamMessagesPage } from './TeamMessagesPage';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
@@ -3774,7 +3774,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       </AnimatePresence>
 
       {/* ── Assistant ────────────────────────────────────────────────────────── */}
-      {!assistantOpen && tab === 'home' && <AssistantButton onClick={() => setAssistantOpen(true)} isPhone={isPhone} />}
       <NotedAssistant isOpen={assistantOpen} onClose={() => setAssistantOpen(false)} role="manager" user={authUser} propertyName={propertyName} isPhone={isPhone}
         requests={tasks} incidents={incidents}
         team={team.map(c => ({ ...c, onShift: c.status === 'on_shift' }))}
