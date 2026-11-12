@@ -270,7 +270,10 @@ def _sender() -> tuple:
 def _post_json(url: str, payload: dict, headers: dict):
     req = urllib.request.Request(
         url, data=_json.dumps(payload).encode(),
-        headers={'Content-Type': 'application/json', 'Accept': 'application/json', **headers},
+        # Resend sits behind Cloudflare, which rejects Python's default User-Agent
+        # (error 1010), so always send our own.
+        headers={'Content-Type': 'application/json', 'Accept': 'application/json',
+                 'User-Agent': 'Noted/1.0 (+https://notes-six-orcin.vercel.app)', **headers},
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
@@ -279,7 +282,7 @@ def _post_json(url: str, payload: dict, headers: dict):
         body = e.read().decode(errors='replace')[:500]
         try:
             parsed = _json.loads(body)
-            body = parsed.get('message') or parsed.get('error') or body
+            body = parsed.get('message') or parsed.get('title') or parsed.get('error') or body
         except Exception:
             pass
         raise RuntimeError(f'{e.code}: {body}') from None
