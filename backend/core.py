@@ -237,32 +237,75 @@ async def _check_rate_limit(key: str, limit: int, window_minutes: int):
     await db.rate_limit_events.insert_one({'key': key, 'created_at': datetime.now(timezone.utc)})
 
 
-def _send_resend(to_email: str, subject: str, html: str):
-    api_key = os.environ.get('RESEND_API_KEY', '')
-    payload = _json.dumps({
-        'from': 'Notes <onboarding@resend.dev>',
-        'to': [to_email],
-        'subject': subject,
-        'html': html,
-    }).encode()
-    req = urllib.request.Request(
-        'https://api.resend.com/emails',
-        data=payload,
-        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-    )
-    with urllib.request.urlopen(req, timeout=15) as r:
-        r.read()
+# ── Email ──────────────────────────────────────────────────────────────────────
+# Two providers are supported, both over HTTPS (Render's free plan blocks SMTP):
+#   RESEND_API_KEY  → resend.com  (needs a verified domain to email anyone but yourself)
+#   BREVO_API_KEY   → brevo.com   (can send from a single verified address, no domain needed)
+# EMAIL_FROM sets the sender, e.g. "Noted <hello@yourdomain.com>".
 
-async def send_email(to_email: str, subject: str, html: str):
-    if not os.environ.get('RESEND_API_KEY'):
-        logger.info(f'Resend not configured — skipping email to {to_email}')
-        return
+def email_provider() -> Optional[str]:
+    if os.environ.get('RESEND_API_KEY'):
+        return 'resend'
+    if os.environ.get('BREVO_API_KEY'):
+        return 'brevo'
+    return None
+
+
+def _sender() -> tuple:
+    """Split EMAIL_FROM ("Name <addr>" or "addr") into (name, address)."""
+    raw = os.environ.get('EMAIL_FROM', '').strip() or 'Noted <onboarding@resend.dev>'
+    if '<' in raw and raw.endswith('>'):
+        name, addr = raw[:-1].split('<', 1)
+        return name.strip().strip('"') or 'Noted', addr.strip()
+    return 'Noted', raw
+
+
+def _post_json(url: str, payload: dict, headers: dict):
+    req = urllib.request.Request(
+        url, data=_json.dumps(payload).encode(),
+        headers={'Content-Type': 'application/json', 'Accept': 'application/json', **headers},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            r.read()
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors='replace')[:500]
+        try:
+            parsed = _json.loads(body)
+            body = parsed.get('message') or parsed.get('error') or body
+        except Exception:
+            pass
+        raise RuntimeError(f'{e.code}: {body}') from None
+
+
+def _send_sync(provider: str, to_email: str, subject: str, html: str):
+    name, addr = _sender()
+    if provider == 'resend':
+        _post_json('https://api.resend.com/emails', {
+            'from': f'{name} <{addr}>', 'to': [to_email], 'subject': subject, 'html': html,
+        }, {'Authorization': f"Bearer {os.environ['RESEND_API_KEY']}"})
+    else:
+        _post_json('https://api.brevo.com/v3/smtp/email', {
+            'sender': {'name': name, 'email': addr},
+            'to': [{'email': to_email}], 'subject': subject, 'htmlContent': html,
+        }, {'api-key': os.environ['BREVO_API_KEY']})
+
+
+async def send_email(to_email: str, subject: str, html: str) -> tuple:
+    """Send one email. Returns (sent, reason) and never raises, so callers can
+    either fire-and-forget it or await it and tell the user what happened."""
+    provider = email_provider()
+    if not provider:
+        logger.warning(f'Email not configured (no RESEND_API_KEY or BREVO_API_KEY) — skipping email to {to_email}')
+        return False, 'Email sending is not set up on the server yet.'
     try:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _send_resend, to_email, subject, html)
-        logger.info(f'Email sent → {to_email}')
+        await loop.run_in_executor(None, _send_sync, provider, to_email, subject, html)
+        logger.info(f'Email sent via {provider} → {to_email}')
+        return True, ''
     except Exception as e:
-        logger.error(f'Email failed: {e}')
+        logger.error(f'Email via {provider} to {to_email} failed: {e}')
+        return False, f'The email provider rejected the message ({e}).'
 
 
 async def _resolve_user(request, session_token):
