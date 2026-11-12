@@ -19,7 +19,7 @@ import { TaskStatus, UserRole } from '../types';
 import { TaskCard } from './TaskCard';
 import { TaskRequestCard }  from './TaskRequestCard';
 import { TaskCompletionModal } from './TaskCompletionModal';
-import { AICopilot } from './AICopilot';
+import { NotedAssistant, AssistantButton } from '../assistant/NotedAssistant';
 import { IncidentReportPage } from './IncidentReportPage';
 import { LoanersDashboard } from './LoanersDashboard';
 import { LockoutPage } from './LockoutPage';
@@ -200,98 +200,6 @@ const SH_CAT_COLOR = {
 
 const mkShAct = (items) => items.map((x, i) => ({ id: i + 1, ...x }));
 
-const SHIFT_DATA = {
-  '2026-06-22': {
-    concierge: { name:'George Nwachukwu', init:'GN', co:'Maverick Concierge Services' },
-    clockIn:'8:00 AM', clockOut:null, status:'active', duration:'6h 45m (ongoing)',
-    activities: mkShAct([
-      { time:'8:00 AM',  title:'Shift started',                                       category:'Administrative',      notes:'GPS verified · The Hannah'         },
-      { time:'8:45 AM',  title:'Package delivery · UPS → Unit 524',                   category:'Delivery',            notes:'2 packages · Luxer Locker'         },
-      { time:'9:12 AM',  title:'Guest arrival · John Smith → Maria Lopez · Unit 312', category:'Resident Assist',     notes:'Personal Visit'                    },
-      { time:'9:30 AM',  title:'Vendor check-in · City Plumbing Co. · Plumbing',      category:'Vendor / Contractor', notes:'Unit 802 · Auth: Maria Lopez'      },
-      { time:'10:15 AM', title:'Pool opened',                                          category:'Amenity',             notes:''                                  },
-      { time:'10:22 AM', title:'Package pickup · Maria Lopez · Unit 312',              category:'Delivery',            notes:''                                  },
-      { time:'11:05 AM', title:'Lockout · James Chen · Unit 715',                     category:'Safety / Security',   notes:'Forgot Key · Master Key'           },
-      { time:'11:30 AM', title:'Tour · Alex Rivera · 1 Bed / 1 Bath',                 category:'Resident Assist',     notes:'Walk-in'                           },
-      { time:'12:10 PM', title:'Package room audit · Match',                           category:'Administrative',      notes:'Luxer: 8 · Physical: 8'           },
-      { time:'12:45 PM', title:'Loaner checkout · Luggage Cart #1 · Unit 412',        category:'Amenity',             notes:''                                  },
-      { time:'1:20 PM',  title:'Rounds check · All floors clear',                      category:'Safety / Security',   notes:'Floors 1–14 checked'              },
-      { time:'2:05 PM',  title:'Package delivery · Amazon → Unit 715',                 category:'Delivery',            notes:'1 package'                         },
-    ]),
-    note: 'All systems operational. Package room at capacity ~noon — leasing notified.',
-    incidents: ['Unauthorized vehicle – P2','Package room at capacity'],
-    metrics: { packages:4, guests:2, vendors:1, lockouts:1, tours:1 },
-    leasingTeam: 'The Hannah Leasing',
-  },
-  '2026-06-21': {
-    concierge: { name:'Kevin Thompson', init:'KT', co:'Maverick Concierge Services' },
-    clockIn:'8:00 AM', clockOut:'4:00 PM', status:'completed', duration:'8h 0m',
-    activities: mkShAct([
-      { time:'8:00 AM',  title:'Shift started',                           category:'Administrative',      notes:'GPS verified'                          },
-      { time:'8:30 AM',  title:'Lobby Opening Check',                     category:'Administrative',      notes:'All clear · lights checked'            },
-      { time:'9:00 AM',  title:'Package delivery · FedEx → Unit 108',    category:'Delivery',            notes:'1 package'                             },
-      { time:'10:15 AM', title:'Gym opened',                              category:'Amenity',             notes:''                                      },
-      { time:'10:45 AM', title:'Vendor check-in · HVAC Services',         category:'Vendor / Contractor', notes:'Roof mechanical · Auth: Mike Rodriguez' },
-      { time:'11:20 AM', title:'Vendor check-out · HVAC Services',        category:'Vendor / Contractor', notes:'Work completed'                        },
-      { time:'12:30 PM', title:'Package room audit · Match',              category:'Administrative',      notes:'Luxer: 5 · Physical: 5'               },
-      { time:'2:00 PM',  title:'Tour · Jennifer Kim · Studio',            category:'Resident Assist',     notes:'Scheduled · Strong interest in 704'    },
-      { time:'3:45 PM',  title:'Shift handover notes logged',             category:'Administrative',      notes:'HVAC issue flagged for PM'             },
-    ]),
-    note: 'Quiet Saturday. HVAC roof inspection completed.',
-    incidents: ['Gym HVAC: slight warm temp reported'],
-    metrics: { packages:1, guests:0, vendors:2, lockouts:0, tours:1 },
-    leasingTeam: 'The Hannah Leasing',
-  },
-  '2026-06-20': {
-    concierge: { name:'Maria Santos', init:'MS', co:'Maverick Concierge Services' },
-    clockIn:'8:00 AM', clockOut:'4:00 PM', status:'completed', duration:'8h 0m',
-    activities: mkShAct([
-      { time:'8:00 AM',  title:'Shift started',                              category:'Administrative',    notes:'GPS verified'                          },
-      { time:'8:15 AM',  title:'Move-in setup · Unit 1204 · Elevator booked',category:'Administrative',    notes:'9 AM–1 PM window'                     },
-      { time:'9:05 AM',  title:'Package delivery · UPS → Unit 304',          category:'Delivery',          notes:'3 packages'                            },
-      { time:'9:30 AM',  title:'Move-in · Emily & David Park · Unit 1204',   category:'Resident Assist',   notes:'Elevator reserved · Luggage cart out'  },
-      { time:'11:15 AM', title:'Lockout · Sophia Wright · Unit 302',         category:'Safety / Security', notes:'Key fob issue · Temp access issued'    },
-      { time:'12:00 PM', title:'Package room audit · +1 unaccounted',        category:'Administrative',    notes:'Luxer: 7 · Physical: 8 · Reported'    },
-      { time:'2:30 PM',  title:'Package delivery · Amazon → Unit 712',       category:'Delivery',          notes:'2 packages'                            },
-      { time:'3:00 PM',  title:'Pool closed · weather advisory',             category:'Amenity',           notes:'Storm approaching'                     },
-    ]),
-    note: 'Move-in for 1204 smooth. Package audit +1 discrepancy — reported to Luxer.',
-    incidents: ['Package count discrepancy · Luxer +1'],
-    metrics: { packages:5, guests:2, vendors:0, lockouts:1, tours:0 },
-  },
-  '2026-06-19': {
-    concierge: { name:'George Nwachukwu', init:'GN', co:'Maverick Concierge Services' },
-    clockIn:'8:00 AM', clockOut:'4:00 PM', status:'completed', duration:'8h 0m',
-    activities: mkShAct([
-      { time:'8:00 AM',  title:'Shift started',                          category:'Administrative',      notes:'GPS verified'                          },
-      { time:'8:30 AM',  title:'Lobby Opening Check',                    category:'Administrative',      notes:'Broken light #3 — ticket #4435 created' },
-      { time:'9:00 AM',  title:'Package delivery · UPS → Unit 901',     category:'Delivery',            notes:'1 package'                             },
-      { time:'10:30 AM', title:'Tour · Marcus Bell · 1 Bed / 1 Bath',   category:'Resident Assist',     notes:'Scheduled · Model 501'                 },
-      { time:'11:30 AM', title:'Vendor check-in · Cleaning Services',    category:'Vendor / Contractor', notes:'Common areas · Auth: Sarah Thompson'   },
-      { time:'12:15 PM', title:'Package room audit · Match',             category:'Administrative',      notes:'Luxer: 3 · Physical: 3'               },
-      { time:'2:45 PM',  title:'Package delivery · Amazon → Unit 215',  category:'Delivery',            notes:'2 packages'                            },
-    ]),
-    note: 'Lobby light #3 flagged, ticket #4435. Marcus Bell tour — interested in 1BR.',
-    incidents: ['Lobby light #3 burned out — ticket #4435'],
-    metrics: { packages:3, guests:0, vendors:2, lockouts:0, tours:1 },
-    leasingTeam: 'The Hannah Leasing',
-  },
-  '2026-06-18': {
-    concierge: { name:'Kevin Thompson', init:'KT', co:'Maverick Concierge Services' },
-    clockIn:'8:00 AM', clockOut:'4:00 PM', status:'completed', duration:'8h 0m',
-    activities: mkShAct([
-      { time:'8:00 AM',  title:'Shift started',                           category:'Administrative',    notes:'GPS verified'                      },
-      { time:'9:15 AM',  title:'Package delivery · FedEx → Unit 601',    category:'Delivery',          notes:'1 package'                         },
-      { time:'9:45 AM',  title:'Package delivery · USPS → Unit 814',     category:'Delivery',          notes:'2 packages'                        },
-      { time:'10:30 AM', title:'Guest arrival · Tom Clark → Unit 1105',  category:'Resident Assist',   notes:'Furniture delivery assistance'     },
-      { time:'12:00 PM', title:'Package room audit · Match',              category:'Administrative',    notes:'Luxer: 4 · Physical: 4'           },
-      { time:'3:15 PM',  title:'Lockout · Robert Wu · Unit 414',         category:'Safety / Security', notes:'Lost fob · Temp key issued'       },
-    ]),
-    note: 'Furniture delivery assistance for 1105. Lost fob for Unit 414 flagged.',
-    incidents: [],
-    metrics: { packages:4, guests:1, vendors:0, lockouts:1, tours:0 },
-  },
-};
 const SHIFT_DATES = new Set([
   '2026-06-22','2026-06-21','2026-06-20','2026-06-19','2026-06-18',
 ]);
@@ -316,7 +224,7 @@ export const CaregiverDashboard = ({
   const SIDEBAR = colors.SIDEBAR;
   const NAV_SURFACE = isDarkMode ? '#21171A' : '#FFF8FA';
   const HEADER_SURFACE = isDarkMode ? '#1C1718' : colors.WARM;
-  const propertyName = authUser?.property_name || BUILDING_PROFILE.name;
+  const propertyName = authUser?.property_name || 'Your property';
   const glass     = () => ({ background: CARD, boxShadow: SHADOW });
   const glassCard = () => ({ background: CARD, boxShadow: SHADOW, borderRadius: 24, overflow: 'hidden' });
   const glassRow  = { background: CARD, boxShadow: SHADOW, borderRadius: 20 };
@@ -341,6 +249,7 @@ export const CaregiverDashboard = ({
   const [isShiftActive, setIsShiftActive]     = useState(false);
   const [shiftStarted,  setShiftStarted]     = useState(false);
   const [shiftStartTime, setShiftStartTime]   = useState('');
+  const [shiftStartMs, setShiftStartMs]       = useState(0);
   const [clockOutTime, setClockOutTime]       = useState(null);
   const [currentShiftId, setCurrentShiftId]  = useState(null);
   const [previousShiftData, setPreviousShiftData] = useState(undefined); // undefined = loading
@@ -405,6 +314,11 @@ export const CaregiverDashboard = ({
   const [summaryText,      setSummaryText]      = useState('');
   const [summaryCopied,    setSummaryCopied]    = useState(false);
   const followUps = useFollowUps();
+  // The property's real contact directory. Nothing here is made up: it is what the manager entered.
+  const [propertyContacts, setPropertyContacts] = useState([]);
+  const [propertyManagerContact, setPropertyManagerContact] = useState(null);
+  useEffect(() => { authApi.getContacts().then(r => { setPropertyContacts(r.contacts); setPropertyManagerContact(r.manager); }).catch(() => {}); }, [showContacts]);
+  const propertyTeam = propertyManagerContact && propertyManagerContact.name ? [{ id: 'manager', ...propertyManagerContact }] : [];
   const [searchQuery,      setSearchQuery]      = useState('');
   const [shCalDate,    setShCalDate]    = useState(new Date());
   const [shCalView,    setShCalView]    = useState('month');
@@ -471,7 +385,7 @@ export const CaregiverDashboard = ({
           setCurrentShiftId(s.shift_id);
           setIsShiftActive(true);
           setShiftStarted(true);
-          setShiftStartTime(new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+          setShiftStartTime(new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })); setShiftStartMs(new Date(s.clock_in).getTime() || Date.now());
           // Restore only today's activities as selfTasks
           const prevActivities = (s.activities || []).filter(t => {
             if (!t.created_at) return false;
@@ -581,6 +495,7 @@ export const CaregiverDashboard = ({
           filedBy: i.created_by || '',
           filedAt: i.created_at ? new Date(i.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '',
           note: i.notes || '', status: i.status || 'new',
+          createdAtMs: i.created_at ? new Date(i.created_at).getTime() : Date.now(),
           unit_number: i.unit_number || '', person_involved: i.person_involved || '',
           photos: (incidentPhotos.current[i.incident_id] || []).map(url => ({ url })),
         }));
@@ -755,7 +670,7 @@ export const CaregiverDashboard = ({
       setCurrentShiftId(shift.shift_id);
       setIsShiftActive(true);
       setSelfTasks([]);
-      setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+      setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })); setShiftStartMs(new Date(shift.clock_in).getTime() || Date.now());
       setClockOutTime(null);
       setClockAlertTitle('Clocked In');
       setClockAlertMsg('Shift started. GPS location verified. Read the handoff notes before beginning rounds.');
@@ -815,6 +730,29 @@ export const CaregiverDashboard = ({
       sourceSection: resolvedSource,
     }).then(saved => setTasks(p => [saved, ...p])).catch(() => {});
   }, [authUser]);
+
+  // What the assistant is allowed to do. Each one goes through the same path as the form it stands in for.
+  const assistantHandoff = previousShiftData ? { from: previousShiftData.concierge?.name || '', note: previousShiftData.note || '', openItems: previousShiftData.openItems || [] } : null;
+  const assistantActions = {
+    logActivity: (entry) => handleActivityLogged(entry),
+    createIncident: async (form) => {
+      const saved = await authApi.createIncident(form);
+      setIncidents(prev => prev.some(i => i.incident_id === saved.incident_id) ? prev : [{ ...saved, photos: [] }, ...prev]);
+    },
+    addFollowUp: (item) => followUps.add(item),
+    openHandoff: ({ notes, items }) => {
+      handleTabChange('home'); setShowPreviousDar(false); setShowMedia(false);
+      if (notes) setHandoverNotes(notes);
+      if (items) setHandoverItems(Array.isArray(items) ? items.join('\n') : items);
+      setShowHandover(true);
+    },
+    open: (place) => {
+      if (place === 'contacts') setShowContacts(true);
+      else if (place === 'new-task') setShowNewTask(true);
+      else if (place === 'handoff') { handleTabChange('home'); setShowPreviousDar(false); setShowMedia(false); setShowHandover(true); }
+      else handleTabChange(place);
+    },
+  };
 
   const handleSectionActivityLogged = (entry) => {
     handleActivityLogged(entry);
@@ -895,7 +833,7 @@ export const CaregiverDashboard = ({
         setIsShiftActive(true);
         setShiftStarted(true);
         setSelfTasks([]);
-          setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+          setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })); setShiftStartMs(new Date(shift.clock_in).getTime() || Date.now());
       } finally { setShiftStarting(false); }
     };
 
@@ -1719,7 +1657,7 @@ export const CaregiverDashboard = ({
             </button>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12 }}>
               <MapPin size={13} color={MUTED} />
-              <span style={{ fontFamily: INTER, fontSize: 12, color: MUTED }}>GPS verification · {BUILDING_PROFILE.address}</span>
+              <span style={{ fontFamily: INTER, fontSize: 12, color: MUTED }}>Clock in when you arrive at the desk</span>
             </div>
           </div>
         </Card>
@@ -1854,8 +1792,6 @@ export const CaregiverDashboard = ({
           </div>
           <div>
             <div style={{ fontFamily: INTER, fontSize: 13, fontWeight: 700, color: TEXT, marginBottom: 3 }}>{propertyName}</div>
-            <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED }}>{BUILDING_PROFILE.company} · {BUILDING_PROFILE.units} units</div>
-            <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 2 }}>{BUILDING_PROFILE.address}</div>
           </div>
         </div>
 
@@ -2252,6 +2188,7 @@ export const CaregiverDashboard = ({
     calendar: 'Your shift schedule and history',
     'shift-history': 'Past shifts and daily reports',
     messages: 'Team messages for this property',
+    followup: 'Reminders and loose ends that carry into your handoff',
     guests: 'Visitor check-ins and authorizations',
     settings: 'Account, appearance, and preferences',
     profile: 'Your account and certifications',
@@ -2263,6 +2200,9 @@ export const CaregiverDashboard = ({
     { id: 'home',          Icon: Home,           label: "Today's"             },
     { id: 'new-task',      Icon: Plus,           label: 'New Task',           action: () => setShowNewTask(true) },
     { id: 'requests',      Icon: Bell,           label: 'Requests'            },
+    { id: 'assistant',     Icon: Sparkles,       label: 'Assistant',          action: () => setShowCopilot(true) },
+    { id: 'messages',      Icon: MessageSquare,  label: 'Messages'            },
+    { id: 'followup',      Icon: Clock,          label: 'Follow-ups'          },
     { id: 'packages',      Icon: Package,        label: 'Packages'            },
     { id: 'guests',        Icon: UserCheck,      label: 'Guests'              },
     { id: 'lockout',       Icon: Lock,           label: 'Lockouts'            },
@@ -2278,7 +2218,7 @@ export const CaregiverDashboard = ({
     { id: 'emergency',     Icon: Phone,          label: 'Emergency Contacts', action: () => setShowContacts(true) },
   ];
   const NAV_GROUPS = [
-    { label: 'Shift record', ids: ['home', 'new-task', 'requests', 'handoff'] },
+    { label: 'Shift record', ids: ['home', 'new-task', 'requests', 'followup', 'messages', 'handoff', 'assistant'] },
     { label: 'Front desk', ids: ['packages', 'guests', 'lockout', 'vendors', 'tours', 'loaners', 'incident'] },
     { label: 'Property guide', ids: ['sops', 'training'] },
     { label: 'Account & support', ids: ['calendar', 'settings', 'emergency'] },
@@ -2776,7 +2716,8 @@ export const CaregiverDashboard = ({
                   {activeTab === 'calendar'      && renderShifts()}
                   {activeTab === 'shift-history' && <HistoryPage />}
                   {activeTab === 'profile'       && renderProfileContent()}
-                  {activeTab === 'messages'      && <TeamMessagesPage />}
+                  {activeTab === 'messages'      && <TeamMessagesPage user={authUser} isPhone={isPhone} />}
+                  {activeTab === 'followup'      && <div style={{ padding: isPhone ? '18px 16px 40px' : '24px 32px 48px' }}><FollowUpTracker colors={colors} INTER={INTER} followUps={followUps} /></div>}
                   {activeTab === 'settings'      && renderSettingsContent()}
                   {activeTab === 'sops'          && renderSOPs()}
                   {activeTab === 'training'      && renderTrainingContent()}
@@ -2955,8 +2896,11 @@ export const CaregiverDashboard = ({
         </>
       )}
 
-      {/* AI Copilot */}
-      <AICopilot isOpen={showCopilot} onClose={() => setShowCopilot(false)} role="concierge" patientName={propertyName} />
+      {/* Assistant */}
+      {!showCopilot && !sectionWorkflow && <AssistantButton onClick={() => setShowCopilot(true)} isPhone={isPhone} lifted={!isShiftActive && activeTab === 'home'} />}
+      <NotedAssistant isOpen={showCopilot} onClose={() => setShowCopilot(false)} role="concierge" user={authUser} propertyName={propertyName} isPhone={isPhone}
+        shiftActive={isShiftActive} requests={managerRequests} incidents={incidents} todayLog={selfTasks} handoff={assistantHandoff}
+        followUps={followUps.items} shiftStartMs={shiftStartMs} actions={assistantActions} />
 
       {/* Clock alert */}
       <AnimatePresence>
@@ -3024,17 +2968,13 @@ export const CaregiverDashboard = ({
                       <AlertTriangle size={20} color={RED} />
                       <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Emergency Numbers</h2>
                     </div>
-                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED, flexShrink: 0 }}>7</span>
+                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED, flexShrink: 0 }}>{2 + propertyContacts.length}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {[
                       { label: 'Police / Fire / EMS',    number: '911',                                              urgent: true  },
-                      { label: 'Non-Emergency Police',   number: BUILDING_CONTACTS.emergency.nonEmergencyPolice,    urgent: false },
-                      { label: 'Building Emergency Line',number: BUILDING_CONTACTS.emergency.buildingEmergency,     urgent: false },
-                      { label: 'Elevator Emergency',     number: BUILDING_CONTACTS.emergency.elevatorEmergency,     urgent: false },
-                      { label: 'Gas Emergency',          number: BUILDING_CONTACTS.emergency.gasEmergency,          urgent: false },
-                      { label: 'Electricity Outage',     number: BUILDING_CONTACTS.emergency.electricityOutage,     urgent: false },
-                      { label: 'Poison Control',         number: BUILDING_CONTACTS.emergency.poisonControl,         urgent: false },
+                      { label: 'Poison Control',         number: '(800) 222-1222',         urgent: false },
+                      ...propertyContacts.map(c => ({ label: c.label, number: c.number, urgent: false })),
                     ].map(({ label, number, urgent }) => (
                       <div key={label} style={{ background: CARD, border: `1px solid ${urgent ? 'rgba(255,59,48,0.3)' : BORDER}`, borderRadius: 16, padding: 20, display: 'flex', alignItems: 'center', gap: 16, boxShadow: urgent ? '0 4px 20px rgba(255,59,48,0.08)' : '0 2px 8px rgba(0,0,0,0.05)' }}>
                         <div style={{ width: 48, height: 48, borderRadius: 14, background: urgent ? 'rgba(255,59,48,0.10)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -3060,11 +3000,12 @@ export const CaregiverDashboard = ({
                       <Users size={20} color={BLUE} />
                       <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Property Team</h2>
                     </div>
-                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED, flexShrink: 0 }}>5</span>
+                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED, flexShrink: 0 }}>{propertyTeam.length}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {['propertyManager','maintenance','headConcierge','leasing','maverickDispatch'].map(key => {
-                      const c = BUILDING_CONTACTS[key];
+                    {propertyTeam.length === 0 && <p style={{ fontFamily: INTER, fontSize: 14, color: MUTED, margin: 0 }}>Your property manager has not added a phone number yet.</p>}
+                    {propertyTeam.map(c => {
+                      const key = c.id;
                       return (
                         <div key={key} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: c.phone ? 14 : 0 }}>
@@ -3081,7 +3022,7 @@ export const CaregiverDashboard = ({
                               {c.available && <p style={{ fontFamily: INTER, fontSize: 12, color: MUTED, margin: 0 }}>{c.available}</p>}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
-                              <a href={`tel:${c.phone?.replace(/\D/g,'')}`}
+                              <a href={c.phone ? `tel:${c.phone.replace(/\D/g,'')}` : `mailto:${c.email || ''}`}
                                 style={{ padding: '9px 20px', background: BLUE, color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', textAlign: 'center', boxShadow: '0 4px 14px rgba(255,56,92,0.28)' }}>
                                 Call
                               </a>

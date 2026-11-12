@@ -1,5 +1,6 @@
 """Tasks and recurring scheduled tasks."""
 import hashlib
+import re
 import uuid
 from datetime import date, datetime, timezone
 from fastapi import APIRouter, Cookie, HTTPException, Request
@@ -101,7 +102,14 @@ async def get_tasks(request: Request, session_token: Optional[str] = Cookie(defa
         query = {
             'manager_id': mgr_id,
             '$and': [
-                {'$or': [{'assigned_to_id': cid}, {'assigned_to': {'$regex': cname.split()[0], '$options': 'i'}}]},
+                {'$or': [
+                    {'assigned_to_id': cid},
+                    {'created_by': cid},
+                    # older tasks were assigned by name only; match the full name, never a fragment of it
+                    {'assigned_to_id': {'$in': [None, '']}, 'assigned_to': {'$regex': f'^{re.escape(cname)}$', '$options': 'i'}},
+                    # a manager request addressed to nobody in particular goes to whoever is at the desk
+                    {'assigned_to_id': {'$in': [None, '']}, 'assigned_to': {'$in': [None, '']}, 'created_by_type': 'manager'},
+                ]},
                 {'$or': [{'source_section': {'$ne': 'scheduled'}}, {'occurrence_date': datetime.now(timezone.utc).date().isoformat()}]},
             ],
         }

@@ -1,4 +1,5 @@
 """Manager tools for concierge accounts and invitations."""
+from core import esc
 import asyncio
 import os
 import uuid
@@ -50,19 +51,19 @@ async def add_concierge(data: AddConciergeRequest, request: Request, session_tok
     <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
       <div style="background:#FF385C;border-radius:16px 16px 0 0;padding:32px;text-align:center">
         <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 8px">Noted</p>
-        <h1 style="color:white;font-size:22px;font-weight:800;margin:0">You've been added to {property_name}</h1>
+        <h1 style="color:white;font-size:22px;font-weight:800;margin:0">You've been added to {esc(property_name)}</h1>
       </div>
       <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
-        <p style="color:#444;font-size:15px;line-height:1.7">Hi {data.first_name},</p>
+        <p style="color:#444;font-size:15px;line-height:1.7">Hi {esc(data.first_name)},</p>
         <p style="color:#444;font-size:15px;line-height:1.7">
-          <strong>{manager_name}</strong> has added you as a <strong>{data.title}</strong>
-          at <strong>{property_name}</strong> on the Noted platform.
+          <strong>{esc(manager_name)}</strong> has added you as a <strong>{esc(data.title)}</strong>
+          at <strong>{esc(property_name)}</strong> on the Noted platform.
         </p>
         <p style="color:#444;font-size:15px;line-height:1.7">
-          Sign in with <strong>{data.email}</strong>. Your manager will give you a temporary password in person,
+          Sign in with <strong>{esc(data.email)}</strong>. Your manager will give you a temporary password in person,
           or you can choose your own with <strong>Forgot password</strong> on the sign-in screen.
         </p>
-        <a href="{frontend_url}/login" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px">Sign In to Noted</a>
+        <a href="{esc(frontend_url)}/login" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px">Sign In to Noted</a>
       </div>
     </div>"""
     asyncio.create_task(send_email(data.email, f"You've been added to {property_name} on Noted", html))
@@ -147,12 +148,12 @@ async def resend_credentials(concierge_id: str, request: Request, session_token:
         <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Set a new password</h1>
       </div>
       <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
-        <p style="color:#444;font-size:15px;line-height:1.7">Hi {con['first_name']},</p>
+        <p style="color:#444;font-size:15px;line-height:1.7">Hi {esc(con['first_name'])},</p>
         <p style="color:#444;font-size:15px;line-height:1.7">
-          <strong>{manager_name}</strong> sent you a link to set a new password for <strong>{property_name}</strong>.
-          It expires in {RESET_TOKEN_MINUTES} minutes.
+          <strong>{esc(manager_name)}</strong> sent you a link to set a new password for <strong>{esc(property_name)}</strong>.
+          It expires in {esc(RESET_TOKEN_MINUTES)} minutes.
         </p>
-        <a href="{reset_link}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Set new password</a>
+        <a href="{esc(reset_link)}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Set new password</a>
         <p style="color:#aaa;font-size:13px">If you weren't expecting this, you can ignore this email. Your current password still works.</p>
       </div>
     </div>"""
@@ -223,15 +224,15 @@ async def create_concierge_invitation(data: CreateInvitationRequest, request: Re
     <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
       <div style="background:#FF385C;border-radius:16px 16px 0 0;padding:32px;text-align:center">
         <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 8px">Noted</p>
-        <h1 style="color:white;font-size:22px;font-weight:800;margin:0">You've been invited to {property_name}</h1>
+        <h1 style="color:white;font-size:22px;font-weight:800;margin:0">You've been invited to {esc(property_name)}</h1>
       </div>
       <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
-        <p style="color:#444;font-size:15px;line-height:1.7">Hi {data.first_name},</p>
+        <p style="color:#444;font-size:15px;line-height:1.7">Hi {esc(data.first_name)},</p>
         <p style="color:#444;font-size:15px;line-height:1.7">
-          <strong>{manager_name}</strong> has invited you to join <strong>{property_name}</strong> as a <strong>{data.title or 'Concierge'}</strong> on the Noted platform.
+          <strong>{esc(manager_name)}</strong> has invited you to join <strong>{esc(property_name)}</strong> as a <strong>{data.title or 'Concierge'}</strong> on the Noted platform.
         </p>
-        <a href="{invite_link}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Accept invitation</a>
-        <p style="color:#aaa;font-size:13px">This link expires in {INVITE_TOKEN_DAYS} days and lets you set your own password.</p>
+        <a href="{esc(invite_link)}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Accept invitation</a>
+        <p style="color:#aaa;font-size:13px">This link expires in {esc(INVITE_TOKEN_DAYS)} days and lets you set your own password.</p>
       </div>
     </div>"""
     email_sent, email_error = await send_email(email, f"You've been invited to {property_name} on Noted", html)
