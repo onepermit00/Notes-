@@ -10,6 +10,7 @@ os.environ['DB_NAME'] = 'adltrack_test'
 os.environ['MONGO_URL'] = 'mongodb://127.0.0.1:27017'
 os.environ.setdefault('FRONTEND_URL', 'http://localhost:3000')
 os.environ.pop('RESEND_API_KEY', None)  # exercise the "email delivery skipped" path
+os.environ.pop('BREVO_API_KEY', None)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

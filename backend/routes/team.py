@@ -235,7 +235,7 @@ async def create_concierge_invitation(data: CreateInvitationRequest, request: Re
         <p style="color:#aaa;font-size:13px">This link expires in {esc(INVITE_TOKEN_DAYS)} days and lets you set your own password.</p>
       </div>
     </div>"""
-    asyncio.create_task(send_email(email, f"You've been invited to {property_name} on Noted", html))
+    email_sent, email_error = await send_email(email, f"You've been invited to {property_name} on Noted", html)
 
     return {
         'invitation_id': inv_id,
@@ -245,5 +245,9 @@ async def create_concierge_invitation(data: CreateInvitationRequest, request: Re
         'title':         data.title or 'Concierge',
         'property_name': property_name,
         'expires_at':    expires_at.isoformat(),
-        'message':       'Invitation sent.',
+        # The manager who issued the invite can share the link by hand if email fails.
+        'invite_link':   invite_link,
+        'email_sent':    email_sent,
+        'email_error':   email_error,
+        'message':       'Invitation sent.' if email_sent else 'Invitation created, but the email could not be sent.',
     }
