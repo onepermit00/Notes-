@@ -22,14 +22,16 @@ const sourceOf = (entry = {}) => {
   return 'tasks';
 };
 
-export const buildDailyActivitySections = (shift, { taskEntries, incidents, customSections = [] } = {}) => {
+// hiddenSections: ids a manager switched off for this concierge. A hidden
+// section still shows if it already has entries, so nothing recorded is lost.
+export const buildDailyActivitySections = (shift, { taskEntries, incidents, customSections = [], hiddenSections = [] } = {}) => {
   const activities = shift?.activities || [];
   const buckets = Object.fromEntries(DEFAULT_SECTIONS.map(([id]) => [id, []]));
   activities.forEach(entry => (buckets[sourceOf(entry)] ||= []).push(entry));
   if (taskEntries) buckets.tasks = taskEntries;
   if (shift?.note) buckets.tasks = [{ id:'shift-note', text:shift.note }, ...buckets.tasks];
   buckets.incidents = incidents ?? shift?.incidents ?? [];
-  return [
+  const all = [
     ...DEFAULT_SECTIONS.map(([id, title]) => ({ id, title, entries: buckets[id], critical: id === 'incidents', wide: ['tasks', 'security', 'incidents'].includes(id) })),
     ...customSections.map(section => ({
       id: section.id,
@@ -38,6 +40,15 @@ export const buildDailyActivitySections = (shift, { taskEntries, incidents, cust
       wide: !!section.wide,
     })),
   ];
+  const visible = all.filter(section => !hiddenSections.includes(section.id) || (section.entries || []).length > 0);
+  // Half-width blocks sit in pairs; one left without a partner takes the full row.
+  let run = 0;
+  return visible.map((section, i) => {
+    if (section.wide) { run = 0; return section; }
+    run += 1;
+    const next = visible[i + 1];
+    return run % 2 === 1 && (!next || next.wide) ? { ...section, wide: true } : section;
+  });
 };
 
 const ReportEntry = ({ entry }) => {
@@ -58,14 +69,14 @@ const ReportEntry = ({ entry }) => {
 };
 
 export function DailyActivityReport({
-  mode = 'concierge', shift, sections, customSections, taskEntries, incidents,
+  mode = 'concierge', shift, sections, customSections, hiddenSections, taskEntries, incidents,
   editable = false, showConciergeIdentity = true, propertyName = 'The Hannah',
   propertyAddress = '1306 Callowhill Street · Philadelphia PA 19123', dateLabel,
   loading = false, emptyAction, emptyActionLabel = 'Start Shift',
   colors = {}, className = '', style, testId,
 }) {
   const palette = { card:'#fff', card2:'#f7f7f7', text:'#222', muted:'#717171', border:'#e5e5e5', shadow:'0 2px 12px rgba(0,0,0,.06)', ...colors };
-  const reportSections = sections || buildDailyActivitySections(shift, { taskEntries, incidents, customSections });
+  const reportSections = sections || buildDailyActivitySections(shift, { taskEntries, incidents, customSections, hiddenSections });
   const reportDate = dateLabel || shift?.dateLabel || new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
 
   return <article className={`daily-activity-report dar-print-target ${className}`} data-testid={testId} data-mode={mode} data-editable={editable || undefined} style={{ '--dar-card':palette.card, '--dar-card-2':palette.card2, '--dar-text':palette.text, '--dar-muted':palette.muted, '--dar-border':palette.border, '--dar-shadow':palette.shadow, ...style }}>
