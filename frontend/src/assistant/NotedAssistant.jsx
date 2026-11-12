@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUp, Check, ChevronLeft, ChevronRight, Mic, Phone } from 'lucide-react';
+import { ArrowUp, Check, ChevronLeft, ChevronRight, Mic, Phone, X } from 'lucide-react';
 import { AssistantFace } from './AssistantFace';
 import { useTheme } from '../context/ThemeContext';
 import { authApi } from '../services/authApi';
@@ -8,7 +8,8 @@ import {
   ASSISTANT_DEFAULT_NAME, PLACES, TASK_NAMES, answer, fromAI, nextQuestion, nudges, ready, skip, startFlow, understand,
 } from './engine';
 
-/* The Noted assistant: a full page that opens over any desk screen, from the avatar on Today's shift or the menu.
+/* The Noted assistant: opens over any desk screen from the avatar on Today's shift or the menu.
+   It slides in from the right like the Assign Task panel: a side panel on the web, the whole screen on phone and tablet.
    It understands a request in plain words (typed or spoken), asks what's missing one question at a time,
    and shows a Ready to save card. Nothing is saved until Save is tapped, and it is saved through the same
    handlers as the app's own forms (passed in as `actions`), so entries land in the same report.
@@ -37,6 +38,8 @@ const SUGGEST = {
 };
 const KIND_TAG = { resident: 'Resident', request: 'Request', incident: 'Incident', entry: 'Today’s report', teammate: 'Team' };
 const KIND_PLACE = { concierge: { request: 'requests', incident: 'incident', entry: 'home' }, manager: { request: 'tasks', incident: 'home', resident: 'residents', teammate: 'team' } };
+/* Same cut-off the dashboards use for their phone and tablet layout. */
+const isCompactScreen = () => { const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (touch ? 1366 : 768); };
 const tel = phone => `tel:${String(phone || '').replace(/[^\d+]/g, '')}`;
 
 export function NotedAssistant({
@@ -47,6 +50,8 @@ export function NotedAssistant({
   const { colors, isDarkMode } = useTheme();
   const { BG, CARD, CARD2, BORDER, TEXT, MUTED, SHADOW, INTER, ACCENT, GREEN, RED } = colors;
   const who = role === 'manager' ? 'manager' : 'concierge';
+  const [compact, setCompact] = useState(isCompactScreen);
+  useEffect(() => { const onResize = () => setCompact(isCompactScreen()); window.addEventListener('resize', onResize); return () => window.removeEventListener('resize', onResize); }, []);
 
   const [log, setLog] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -334,17 +339,20 @@ export function NotedAssistant({
 
   const empty = !log.length;
   const av = isPhone ? 84 : 92;
-  const gutter = isPhone ? '18px' : 'max(26px, calc((100% - 720px) / 2))';
+  const full = isPhone || compact;   // phone and tablet: whole screen; web: a panel on the right, like Assign Task
+  const gutter = isPhone ? '18px' : full ? 'max(26px, calc((100% - 720px) / 2))' : '32px';
   const round = { width: 48, height: 48, borderRadius: 999, border: `1px solid ${BORDER}`, background: CARD, boxShadow: SHADOW, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 };
   return (
     <AnimatePresence>
+      {isOpen && <motion.div key="assistant-bg" data-testid="assistant-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} onClick={onClose}
+          style={{ position: 'fixed', inset: 0, zIndex: 110, background: 'rgba(0,0,0,0.32)', backdropFilter: 'blur(2px)' }} />}
       {isOpen && <motion.aside key="assistant" role="dialog" aria-modal="true" aria-label={name} data-testid="assistant-panel"
-          initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }}
-          style={{ position: 'fixed', inset: 0, zIndex: 111, background: BG, display: 'flex', flexDirection: 'column', fontFamily: INTER }}>
+          initial={{ x: '110%' }} animate={{ x: 0 }} exit={{ x: '110%' }} transition={{ type: 'spring', damping: 32, stiffness: 300 }}
+          style={{ position: 'fixed', top: 0, bottom: 0, right: 0, ...(full ? { left: 0 } : { width: Math.min(720, window.innerWidth - 280), borderLeft: `1px solid ${BORDER}` }), zIndex: 111, background: BG, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: INTER }}>
 
           <header style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, height: av + 70, padding: `calc(16px + env(safe-area-inset-top)) ${gutter} 0`, boxSizing: 'border-box', display: 'flex', justifyContent: 'center', pointerEvents: 'none', background: `linear-gradient(${BG} 0%, ${BG} 30%, transparent 100%)` }}>
             <button type="button" onClick={onClose} aria-label="Close assistant" data-testid="assistant-close"
-              style={{ ...round, position: 'absolute', left: isPhone ? 18 : gutter, top: 'calc(22px + env(safe-area-inset-top))', pointerEvents: 'auto' }}><ChevronLeft size={22} color={TEXT} strokeWidth={2} /></button>
+              style={{ ...round, position: 'absolute', ...(full ? { left: gutter } : { right: gutter, width: 44, height: 44, boxShadow: 'none' }), top: 'calc(22px + env(safe-area-inset-top))', pointerEvents: 'auto' }}>{full ? <ChevronLeft size={22} color={TEXT} strokeWidth={2} /> : <X size={19} color={TEXT} />}</button>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'auto' }}>
               <button type="button" onClick={() => setRenaming(v => !v)} title="Rename your assistant" aria-label={`Rename ${name}`} data-testid="assistant-avatar"
                 style={{ display: 'block', width: av, height: av, padding: 0, borderRadius: '50%', overflow: 'hidden', border: `4px solid ${CARD}`, boxSizing: 'border-box', background: 'transparent', boxShadow: '0 6px 18px rgba(40,30,10,.18)', cursor: 'pointer' }}><AssistantFace /></button>
