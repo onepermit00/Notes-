@@ -1344,7 +1344,7 @@ export const CaregiverDashboard = ({
       </AnimatePresence>
 
       {isShiftActive && <ShiftViewHeader
-        propertyName={propertyName}
+        onAsk={() => setShowCopilot(true)}
         subtitle={viewingHandoff ? 'Prepare the handoff. Leave clear context for the next concierge.' : undefined}
         navLabel="Daily activity report views"
         isPhone={isPhone}

@@ -2106,7 +2106,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     ].map(view => ({ ...view, current:managerSummaryView===view.id, onSelect:() => setManagerSummaryView(view.id) }));
     return <main style={{width:'100%',maxWidth:1280,margin:'0 auto',display:'flex',flexDirection:'column',gap:isMobile?16:20}}>
       <ShiftViewHeader
-        propertyName={propertyName}
+        onAsk={() => setAssistantOpen(true)}
         navLabel="Operational summary"
         isPhone={isPhone}
         colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}
