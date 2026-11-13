@@ -27,7 +27,7 @@ export const TaskRequestCard = ({ task, onAccept, onDecline, onComplete }) => {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ marginBottom:5,display:'flex',gap:6,alignItems:'center',flexWrap:'wrap' }}>
-              <span style={{ fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,background:'rgba(255,56,92,.09)',borderRadius:999,padding:'4px 8px',textTransform:'uppercase',letterSpacing:'.08em' }}>{task.sourceSection === 'scheduled' ? 'Scheduled request' : 'Management request'}</span>
+              <span style={{ fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,background:'rgba(255,56,92,.09)',borderRadius:999,padding:'4px 8px',textTransform:'uppercase',letterSpacing:'.08em' }}>{task.sourceSection === 'scheduled' ? 'Planned task' : 'Management request'}</span>
               {task.timingLabel&&<span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:task.timingLabel==='Upcoming'?MUTED:BLUE,background:CARD2,borderRadius:999,padding:'4px 8px',textTransform:'uppercase',letterSpacing:'.08em'}}>{task.timingLabel}</span>}
             </div>
             <h3 style={{ fontFamily:INTER,fontSize:14,fontWeight:800,color:TEXT,margin:0,lineHeight:1.35 }}>{task.title}</h3>

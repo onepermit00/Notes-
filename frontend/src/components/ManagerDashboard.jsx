@@ -10,9 +10,10 @@ import {
   Upload, FileText, Eye, EyeOff, Image,
   GraduationCap, Video, Play, Trash2,
   BarChart2, UserCog,
-  ClipboardCheck, RefreshCw, Activity, Pencil, Sparkles, MessageSquare,
+  ClipboardCheck, CalendarClock, RefreshCw, Activity, Pencil, Sparkles, MessageSquare,
 } from 'lucide-react';
 import { NotedAssistant } from '../assistant/NotedAssistant';
+import { PlannedTasksPage } from './manager/PlannedTasksPage';
 import { TeamMessagesPage } from './TeamMessagesPage';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
@@ -160,7 +161,7 @@ const NAV = [
   { id:'team',        Icon:Users,         label:'Team'                },
   { id:'residents',   Icon:UserCog,       label:'Residents'           },
   { id:'analytics',   Icon:BarChart2,     label:'Analytics'           },
-  { id:'scheduled',   Icon:ClipboardCheck,label:'Requests'           },
+  { id:'scheduled',   Icon:CalendarClock, label:'Planned tasks'      },
   { id:'more',        Icon:BookOpen,      label:'SOPs'                },
   { id:'training',    Icon:GraduationCap, label:'Training'            },
   { id:'sections',    Icon:Sliders,       label:'Shift Sections'      },
@@ -169,9 +170,9 @@ const NAV = [
 ];
 
 const MANAGER_NAV_GROUPS = [
-  { label:'Command center', ids:['home', 'tasks', 'assign-task', 'incidents', 'messages', 'assistant'] },
+  { label:'Command center', ids:['home', 'tasks', 'scheduled', 'assign-task', 'incidents', 'messages', 'assistant'] },
   { label:'People & coverage', ids:['shifts', 'team', 'residents'] },
-  { label:'Operations setup', ids:['scheduled', 'sections'] },
+  { label:'Operations setup', ids:['sections'] },
   { label:'Property guide', ids:['more', 'training'] },
   { label:'Insights', ids:['analytics'] },
   { label:'Account & support', ids:['settings', 'emergency'] },
@@ -372,7 +373,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       }).map(t => ({
         id:       t.task_id,
         time:     new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-        title:    t.created_by_type === 'manager' ? `Request completed · ${t.title}` : t.title,
+        title:    t.created_by_type === 'manager' ? (t.source_section === 'scheduled' ? `Planned task done · ${t.title}` : `Request completed · ${t.title}`) : t.title,
         notes:    t.notes || '',
         category: t.category || 'Other',
         sourceSection: t.created_by_type === 'manager' ? 'tasks' : (t.source_section || ''),
@@ -1400,440 +1401,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     );
   };
 
-  /* ── Scheduled Tasks ──────────────────────────────────────────────────────── */
-  const [schedTasks,    setSchedTasks]    = useState([]);
-  const [schedLoading,  setSchedLoading]  = useState(false);
-  const localDateInput = (offsetDays = 0) => { const d = new Date(); d.setDate(d.getDate() + offsetDays); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-  const defaultSchedForm = () => ({ title:'', notes:'', category:'Administrative', priority:'Standard', recurrence:'daily', scheduledHour:8, scheduledTime:'08:00', startDate:localDateInput(), endDate:localDateInput(30), daysOfWeek:[0,1,2,3,4,5,6], active:true, shiftWindow:'all', assignedConciergeId:'', assignedConciergeName:'' });
-  const [schedForm,     setSchedForm]     = useState(defaultSchedForm);
-  const [schedAddOpen,  setSchedAddOpen]  = useState(false);
-  const [schedSaving,   setSchedSaving]   = useState(false);
-  const [schedStep,     setSchedStep]     = useState(1);
-  const [schedEditingId,setSchedEditingId]= useState(null);
-  const [schedError,    setSchedError]    = useState('');
-  const [schedSuccess,  setSchedSuccess]  = useState('');
-
-  useEffect(() => {
-    setSchedLoading(true);
-    authApi.getScheduledTasks().then(list => { setSchedTasks(list); setSchedError(''); setSchedLoading(false); }).catch(() => { setSchedError('Scheduled tasks could not be loaded.'); setSchedLoading(false); });
-  }, []);
-
-  const EMPTY_SCHED_FORM = defaultSchedForm();
-
-  const saveScheduled = async () => {
-    if (!schedForm.title.trim() || !schedForm.startDate || !schedForm.endDate || !schedForm.scheduledTime || !schedForm.daysOfWeek.length) return;
-    if (schedForm.endDate < schedForm.startDate) { setSchedError('End date must be on or after the start date.'); return; }
-    setSchedSaving(true); setSchedError('');
-    try {
-      if (schedEditingId) {
-        const patch = { title:schedForm.title, notes:schedForm.notes, category:schedForm.category, priority:schedForm.priority, recurrence:'daily', scheduled_hour:Number((schedForm.scheduledTime||'08:00').split(':')[0]), scheduled_time:schedForm.scheduledTime, start_date:schedForm.startDate, end_date:schedForm.endDate, days_of_week:schedForm.daysOfWeek, active:schedForm.active, shift_window:schedForm.shiftWindow, assigned_concierge_id:schedForm.assignedConciergeId, assigned_concierge_name:schedForm.assignedConciergeName, assigned_to:schedForm.assignedConciergeName, assigned_to_id:schedForm.assignedConciergeId };
-        const updated = await authApi.updateScheduledTask(schedEditingId, patch);
-        setSchedTasks(prev => prev.map(t => t.scheduled_task_id === schedEditingId ? updated : t));
-        setSchedSuccess('Scheduled task updated.');
-      } else {
-        const created = await authApi.createScheduledTask(schedForm);
-        setSchedTasks(prev => [created, ...prev]);
-        setSchedSuccess('Scheduled task created.');
-      }
-      setSchedForm(EMPTY_SCHED_FORM);
-      setSchedEditingId(null);
-      setSchedAddOpen(false);
-      window.setTimeout(() => setSchedSuccess(''), 5000);
-    } catch { setSchedError('The schedule could not be saved. Check the details and try again.'); } finally { setSchedSaving(false); }
-  };
-
-  const toggleSchedActive = async (taskId, currentActive) => {
-    const updated = await authApi.updateScheduledTask(taskId, { active: !currentActive });
-    setSchedTasks(prev => prev.map(t => t.scheduled_task_id === taskId ? { ...t, active: updated.active } : t));
-  };
-
-  const deleteScheduled = async (id) => {
-    try {
-      await authApi.deleteScheduledTask(id);
-      setSchedTasks(prev => prev.filter(t => t.scheduled_task_id !== id));
-    } catch {}
-  };
-
-  const editScheduled = task => {
-    setSchedForm({ title:task.title || '', notes:task.notes || '', category:task.category || 'Administrative', priority:task.priority || 'Standard', recurrence:'daily', scheduledHour:task.scheduled_hour ?? 8, scheduledTime:task.scheduled_time || `${String(task.scheduled_hour ?? 8).padStart(2,'0')}:00`, startDate:task.start_date || localDateInput(), endDate:task.end_date || localDateInput(30), daysOfWeek:Array.isArray(task.days_of_week) ? task.days_of_week : [0,1,2,3,4,5,6], active:task.active !== false, shiftWindow:task.shift_window || 'all', assignedConciergeId:task.assigned_concierge_id || task.assigned_to_id || '', assignedConciergeName:task.assigned_concierge_name || task.assigned_to || '' });
-    setSchedEditingId(task.scheduled_task_id); setSchedStep(1); setSchedError(''); setSchedAddOpen(true);
-  };
-
-  const RECURRENCE_LABELS = { shift_start: 'Every Shift Start', daily: 'Daily at Hour' };
-  const SCHED_CATEGORIES  = ['Administrative', 'Safety / Security', 'Delivery', 'Amenity', 'Maintenance', 'Other'];
-  const PRIORITIES        = ['Low', 'Standard', 'High', 'Urgent'];
-  const SHIFT_WINDOWS     = [
-    { val:'all',       label:'All Shifts',              color:'#717171', hours:'Always fires' },
-    { val:'morning',   label:'Morning',                 color:'#F59E0B', hours:'6 AM – 2 PM' },
-    { val:'afternoon', label:'Afternoon',               color:'#3B82F6', hours:'2 PM – 10 PM' },
-    { val:'night',     label:'Night',                   color:'#8B5CF6', hours:'10 PM – 6 AM' },
-  ];
-  const windowMeta = w => SHIFT_WINDOWS.find(s => s.val === w) || SHIFT_WINDOWS[0];
-
-  const renderScheduled = () => {
-    const glassCard  = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
-    const baseInput  = { width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box' };
-    const priColor   = { Urgent:RED, High:ORANGE, Standard:BLUE, Low:'#717171' };
-
-    const SCHED_CATS = [
-      { id:'Administrative',  Icon:ClipboardList, desc:'Checklists, logs, and documentation tasks'        },
-      { id:'Safety / Security', Icon:Shield,      desc:'Lock checks, patrol rounds, access verification'  },
-      { id:'Delivery',        Icon:Package,       desc:'Package audits, courier handoffs, mail sorting'   },
-      { id:'Amenity',         Icon:Waves,         desc:'Pool, gym, lounge, and facility readiness'        },
-      { id:'Maintenance',     Icon:Wrench,        desc:'Equipment checks, repair follow-ups, upkeep'      },
-      { id:'Other',           Icon:HelpCircle,    desc:'Any recurring task not listed above'              },
-    ];
-
-    /* ── Wizard form view ── */
-    if (schedAddOpen) {
-      const cat       = SCHED_CATS.find(c => c.id === schedForm.category);
-      const step2Ok   = !!schedForm.title.trim();
-      const isLastStep = schedStep === 3;
-      const isDisabled = (schedStep === 1 && !schedForm.category) || (schedStep === 2 && !step2Ok);
-
-      const handleNext = () => { if (schedStep < 3) setSchedStep(s => s + 1); };
-      const handleBack = () => {
-        if (schedStep > 1) setSchedStep(s => s - 1);
-        else { setSchedAddOpen(false); setSchedEditingId(null); setSchedStep(1); setSchedForm(EMPTY_SCHED_FORM); }
-      };
-
-      return (
-        <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
-
-          {/* Wizard header — exact incident report header */}
-          <div style={{ flexShrink:0, paddingBottom:14, borderBottom:`1px solid ${BORDER}`, marginBottom:24 }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-              <div>
-                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>{schedEditingId ? 'Edit Preset Request' : 'New Preset Request'}</h2>
-                <p style={{ fontSize:13, color:MUTED, margin:'2px 0 0' }}>Step {schedStep} of 3</p>
-              </div>
-              <button onClick={() => { setSchedAddOpen(false); setSchedEditingId(null); setSchedStep(1); setSchedForm(EMPTY_SCHED_FORM); }}
-                style={{ padding:'10px 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontSize:14, fontWeight:600, color:TEXT, cursor:'pointer', fontFamily:INTER }}>
-                Cancel
-              </button>
-            </div>
-            {/* Step progress bar — exact incident report bar */}
-            <div style={{ display:'flex', gap:6 }}>
-              {[1,2,3].map(s => (
-                <div key={s} style={{ height:4, flex:1, borderRadius:999, background: s <= schedStep ? BLUE : 'rgba(0,0,0,0.10)' }} />
-              ))}
-            </div>
-          </div>
-
-          {/* ── Step 1: Category selection cards ── */}
-          {schedStep === 1 && (
-            <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
-              <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:20 }}>
-                What type of recurring task?
-              </h3>
-              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                {SCHED_CATS.map(c => {
-                  const sel = schedForm.category === c.id;
-                  return (
-                    <button key={c.id} onClick={() => setSchedForm(p => ({ ...p, category:c.id }))}
-                      style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%',
-                        background: sel ? `${BLUE}08` : CARD,
-                        border:     sel ? `2px solid ${BLUE}` : `2px solid ${BORDER}`,
-                        boxShadow:  sel ? `0 4px 20px ${BLUE}20` : '0 2px 8px rgba(0,0,0,0.04)',
-                      }}>
-                      <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: sel ? `${BLUE}14` : CARD2 }}>
-                        <c.Icon size={24} color={sel ? BLUE : MUTED} />
-                      </div>
-                      <div style={{ flex:1 }}>
-                        <p style={{ fontWeight:700, color:TEXT, fontSize:18, marginBottom:2 }}>{c.id}</p>
-                        <p style={{ fontSize:14, color:MUTED, margin:0 }}>{c.desc}</p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── Step 2: Details ── */}
-          {schedStep === 2 && (
-            <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-              <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Task details</h3>
-
-              {/* Shift Window — severity-button style */}
-              <div>
-                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Shift Window</h3>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
-                  {SHIFT_WINDOWS.map(sw => {
-                    const sel = schedForm.shiftWindow === sw.val;
-                    return (
-                      <button key={sw.val} onClick={() => setSchedForm(p => ({ ...p, shiftWindow:sw.val }))}
-                        style={{ padding:'12px 0', borderRadius:12, textAlign:'center', fontFamily:INTER, fontSize:12, fontWeight:600, cursor:'pointer',
-                          background: sel ? sw.color : CARD2,
-                          border:     sel ? 'none' : `1px solid ${BORDER}`,
-                          color:      sel ? 'white' : MUTED,
-                        }}>
-                        {sw.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Priority — severity-button style */}
-              <div>
-                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Priority</h3>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
-                  {PRIORITIES.map(p => {
-                    const sel = schedForm.priority === p;
-                    const pc  = priColor[p] || MUTED;
-                    return (
-                      <button key={p} onClick={() => setSchedForm(f => ({ ...f, priority:p }))}
-                        style={{ padding:'12px 0', borderRadius:12, textAlign:'center', fontFamily:INTER, fontSize:13, fontWeight:600, cursor:'pointer',
-                          background: sel ? pc : CARD2,
-                          border:     sel ? 'none' : `1px solid ${BORDER}`,
-                          color:      sel ? 'white' : MUTED,
-                        }}>
-                        {p}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Title */}
-              <div>
-                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Task Title *</h3>
-                <input value={schedForm.title} onChange={e => setSchedForm(p => ({ ...p, title:e.target.value }))}
-                  placeholder="e.g. Lobby round check, Elevator log"
-                  style={{ ...baseInput, border:schedForm.title ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}` }} />
-              </div>
-
-              {/* Assign to Concierge */}
-              <div>
-                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Assign to Concierge</h3>
-                <select value={schedForm.assignedConciergeId}
-                  onChange={e => { const c = team.find(x => x.id === e.target.value); setSchedForm(p => ({ ...p, assignedConciergeId:e.target.value, assignedConciergeName:c?c.name:'' })); }}
-                  style={{ ...baseInput, border:`1.5px solid ${schedForm.assignedConciergeId ? BLUE : BORDER}` }}>
-                  <option value=''>All Concierges — fires for everyone</option>
-                  {team.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                {schedForm.assignedConciergeId && (
-                  <p style={{ fontFamily:INTER, fontSize:12, color:BLUE, margin:'6px 0 0' }}>
-                    Only appears for {schedForm.assignedConciergeName} when they clock in
-                  </p>
-                )}
-              </div>
-
-              {/* Notes */}
-              <div>
-                <h3 style={{ fontFamily:INTER, fontSize:'1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:10 }}>Instructions / Notes</h3>
-                <textarea value={schedForm.notes} onChange={e => setSchedForm(p => ({ ...p, notes:e.target.value }))} rows={3}
-                  placeholder="Steps or details for the concierge…"
-                  style={{ ...baseInput, border:schedForm.notes ? `1.5px solid ${BLUE}` : `1.5px solid ${BORDER}`, resize:'none' }} />
-              </div>
-            </div>
-          )}
-
-          {/* ── Step 3: Schedule & Review ── */}
-          {schedStep === 3 && (
-            <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-              <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Schedule & Review</h3>
-
-              <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:12}}>
-                <label style={{fontSize:13,fontWeight:700,color:TEXT}}>Start Date
-                  <input aria-label="Start Date" type="date" value={schedForm.startDate} onChange={e=>setSchedForm(p=>({...p,startDate:e.target.value}))} style={{...baseInput,border:`1.5px solid ${BORDER}`,marginTop:8}}/>
-                </label>
-                <label style={{fontSize:13,fontWeight:700,color:TEXT}}>End Date
-                  <input aria-label="End Date" type="date" min={schedForm.startDate} value={schedForm.endDate} onChange={e=>setSchedForm(p=>({...p,endDate:e.target.value}))} style={{...baseInput,border:`1.5px solid ${BORDER}`,marginTop:8}}/>
-                </label>
-              </div>
-              <label style={{fontSize:13,fontWeight:700,color:TEXT}}>Scheduled Time
-                <input aria-label="Scheduled Time" type="time" value={schedForm.scheduledTime} onChange={e=>setSchedForm(p=>({...p,scheduledTime:e.target.value,scheduledHour:Number(e.target.value.split(':')[0])}))} style={{...baseInput,border:`1.5px solid ${BLUE}`,marginTop:8,maxWidth:220}}/>
-              </label>
-              <div>
-                <h3 style={{fontFamily:INTER,fontSize:'1rem',fontWeight:700,color:TEXT,margin:'0 0 10px'}}>Days</h3>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:6}}>
-                  {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((label,day)=>{const selected=schedForm.daysOfWeek.includes(day);return <button type="button" aria-pressed={selected} key={label} onClick={()=>setSchedForm(p=>({...p,daysOfWeek:selected?p.daysOfWeek.filter(d=>d!==day):[...p.daysOfWeek,day].sort()}))} style={{padding:'11px 2px',borderRadius:10,border:selected?'none':`1px solid ${BORDER}`,background:selected?BLUE:CARD2,color:selected?'white':MUTED,fontSize:11,fontWeight:700,cursor:'pointer'}}>{label}</button>;})}
-                </div>
-                {!schedForm.daysOfWeek.length&&<p style={{fontSize:12,color:RED,margin:'7px 0 0'}}>Select at least one day.</p>}
-              </div>
-              <label style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'14px 16px',background:CARD2,border:`1px solid ${BORDER}`,borderRadius:12,fontSize:14,fontWeight:700,color:TEXT}}>Active
-                <input aria-label="Active schedule" type="checkbox" checked={schedForm.active} onChange={e=>setSchedForm(p=>({...p,active:e.target.checked}))}/>
-              </label>
-
-              {/* Review card — exact incident Step 5 summary card */}
-              <div style={{ ...glassCard, padding:20 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, paddingBottom:16, borderBottom:`1px solid ${BORDER}` }}>
-                  {cat && (
-                    <>
-                      <div style={{ width:48, height:48, background:`${BLUE}12`, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <cat.Icon size={24} color={BLUE} />
-                      </div>
-                      <span style={{ fontWeight:700, color:TEXT, fontSize:18 }}>{schedForm.category}</span>
-                    </>
-                  )}
-                  <span style={{ marginLeft:'auto', padding:'6px 14px', borderRadius:10, fontSize:12, fontWeight:700, background:priColor[schedForm.priority]||MUTED, color:'white' }}>
-                    {(schedForm.priority||'Standard').toUpperCase()}
-                  </span>
-                </div>
-                {[
-                  { label:'Task Title',    value:schedForm.title                                                    },
-                  { label:'Shift Window',  value:windowMeta(schedForm.shiftWindow).label + ' · ' + windowMeta(schedForm.shiftWindow).hours },
-                  { label:'Schedule',      value:`${schedForm.scheduledTime} · ${schedForm.startDate} through ${schedForm.endDate}` },
-                  { label:'Days',          value:schedForm.daysOfWeek.map(d=>['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d]).join(', ') || 'None selected' },
-                  { label:'Status',        value:schedForm.active ? 'Active' : 'Inactive' },
-                  { label:'Assigned To',   value:schedForm.assignedConciergeName || 'All Concierges'               },
-                  { label:'Notes',         value:schedForm.notes || '—'                                             },
-                ].map(({ label, value }) => (
-                  <div key={label} style={{ marginBottom:12 }}>
-                    <p style={{ fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', marginBottom:4 }}>{label}</p>
-                    <p style={{ fontSize:14, color:TEXT, margin:0, lineHeight:1.5 }}>{value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {schedError && <div role="alert" style={{marginTop:20,padding:'11px 13px',borderRadius:10,background:`${RED}10`,border:`1px solid ${RED}30`,color:RED,fontSize:13}}>{schedError}</div>}
-
-          {/* Footer — exact incident Back + Continue/Submit pattern */}
-          <div style={{ paddingTop:24, borderTop:`1px solid ${BORDER}`, marginTop:24 }}>
-            <div style={{ display:'flex', gap:12 }}>
-              <button onClick={handleBack}
-                style={{ flex:1, padding:'16px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
-                {schedStep === 1 ? 'Cancel' : 'Back'}
-              </button>
-              {!isLastStep ? (
-                <button onClick={handleNext} disabled={isDisabled}
-                  style={{ flex:2, padding:'16px 0', background:isDisabled?CARD2:BLUE, border:isDisabled?`1px solid ${BORDER}`:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:isDisabled?MUTED:'white', cursor:isDisabled?'not-allowed':'pointer', boxShadow:isDisabled?'none':`0 8px 24px ${BLUE}40` }}>
-                  Continue
-                </button>
-              ) : (
-                <button onClick={saveScheduled} disabled={schedSaving}
-                  style={{ flex:2, padding:'16px 0', background:BLUE, border:'none', borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:schedSaving?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:`0 8px 24px ${BLUE}40` }}>
-                  {schedSaving ? 'Saving…' : schedEditingId ? 'Save Changes' : 'Create Schedule'}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    /* ── List view ── */
-    const active = schedTasks.filter(t => t.active !== false);
-    const paused = schedTasks.filter(t => t.active === false);
-    const nextRunLabel = t => {
-      if (t.active === false) return 'Paused';
-      if (t.end_date && t.end_date < localDateInput()) return 'Expired';
-      const [hour, minute] = (t.scheduled_time || `${String(t.scheduled_hour ?? 8).padStart(2,'0')}:00`).split(':').map(Number);
-      const next = new Date();
-      if (next.getHours() > hour || (next.getHours() === hour && next.getMinutes() >= minute)) next.setDate(next.getDate() + 1);
-      next.setHours(hour, minute, 0, 0);
-      const allowed = Array.isArray(t.days_of_week) ? t.days_of_week : [0,1,2,3,4,5,6];
-      for (let i=0;i<7&&!allowed.includes((next.getDay()+6)%7);i++) next.setDate(next.getDate()+1);
-      return next.toLocaleString('en-US', { weekday:'short', hour:'numeric', minute:'2-digit' });
-    };
-
-    const SchedCard = ({ t }) => {
-      const wm    = windowMeta(t.shift_window || 'all');
-      const isOff = t.active === false;
-      const CIcon = CAT_ICON[t.category] ?? ClipboardCheck;
-      const tc    = CAT_COLOR[t.category] ?? MUTED;
-      return (
-        <div data-testid="scheduled-task-row" style={{ ...glassCard, padding:isMobile?15:18, display:'flex', alignItems:'flex-start', gap:13, opacity: isOff ? 0.68 : 1, transition:'opacity 0.2s', boxShadow:'none' }}>
-          <div style={{ width:40, height:40, borderRadius:12, background:`${tc}10`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <CIcon size={19} color={isOff ? MUTED : tc} />
-          </div>
-          {/* Content */}
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}><p style={{ fontWeight:700, color:TEXT, fontSize:15, margin:0 }}>{t.title}</p><DashboardStatusBadge color={isOff?MUTED:GREEN}>{isOff?'Paused':'Active'}</DashboardStatusBadge></div>
-            <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr 1fr':'repeat(4,minmax(0,1fr))', gap:'9px 16px', marginTop:12 }}>
-              {[
-                ['Time',t.scheduled_time || `${String(t.scheduled_hour ?? 8).padStart(2,'0')}:00`],
-                ['Date range',t.start_date&&t.end_date?`${t.start_date} – ${t.end_date}`:'Ongoing'],
-                ['Assignee',t.assigned_concierge_name || t.assigned_to || 'All concierges'],
-                ['Next run',nextRunLabel(t)],
-              ].map(([label,value])=><div key={label}><span style={{display:'block',fontSize:9,fontWeight:750,color:MUTED,textTransform:'uppercase',letterSpacing:'.09em'}}>{label}</span><span style={{display:'block',fontSize:12,color:TEXT,marginTop:3,lineHeight:1.35}}>{value}</span></div>)}
-            </div>
-            {t.notes && <p style={{ fontSize:12, color:MUTED, margin:'10px 0 0',lineHeight:1.5 }}>{t.notes}</p>}
-            <div style={{ display:'flex', gap:6, marginTop:10 }}>
-              <button onClick={() => editScheduled(t)}
-                style={{ padding:'6px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:600, color:TEXT, cursor:'pointer' }}>
-                Edit
-              </button>
-              <button onClick={() => toggleSchedActive(t.scheduled_task_id, t.active !== false)}
-                style={{ padding:'6px 12px', background: isOff ? `${BLUE}12` : 'rgba(255,149,0,0.10)', border:`1px solid ${isOff ? BLUE : ORANGE}`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:600, color: isOff ? BLUE : ORANGE, cursor:'pointer' }}>
-                {isOff ? 'Resume' : 'Pause'}
-              </button>
-              <button onClick={() => deleteScheduled(t.scheduled_task_id)}
-                style={{ padding:'6px 12px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.20)`, borderRadius:8, fontFamily:INTER, fontSize:12, fontWeight:600, color:RED, cursor:'pointer' }}>
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    };
-
-    return (
-      <div style={{ fontFamily:INTER, display:'flex', flexDirection:'column', gap:0 }}>
-
-        {schedSuccess&&<div role="status" style={{display:'flex',alignItems:'center',gap:9,padding:'11px 13px',marginBottom:16,border:`1px solid ${GREEN}40`,borderRadius:12,background:`${GREEN}10`,fontSize:13,color:TEXT}}><CheckCircle size={16} color={GREEN}/>{schedSuccess}</div>}
-        <div style={{display:'flex',alignItems:isMobile?'stretch':'center',flexDirection:isMobile?'column':'row',justifyContent:'space-between',gap:14,paddingBottom:20}}><div><DashboardEyebrow>Requests</DashboardEyebrow><DashboardSectionTitle as="h3" style={{margin:'5px 0 0'}}>Preset & scheduled requests</DashboardSectionTitle><p style={{fontSize:13,color:MUTED,margin:'6px 0 0'}}>Create recurring operational requests once; concierges receive them automatically on applicable days.</p></div><button onClick={() => { setSchedForm(defaultSchedForm()); setSchedEditingId(null); setSchedError(''); setSchedStep(1); setSchedAddOpen(true); }} style={{minHeight:44,padding:'0 16px',background:BLUE,color:'white',border:0,borderRadius:12,fontFamily:INTER,fontSize:13,fontWeight:750,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8}}><Plus size={17}/>New preset request</button></div>
-
-        {schedLoading ? (
-          <div style={{ ...glassCard, padding:40, textAlign:'center' }}>
-            <div style={{ width:80, height:80, background:CARD2, borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
-              <ClipboardCheck size={40} color={MUTED} strokeWidth={1.5} />
-            </div>
-            <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>Loading…</p>
-          </div>
-        ) : schedError ? (
-          <div role="alert" style={{ ...glassCard, padding:32, textAlign:'center' }}><AlertTriangle size={24} color={RED}/><p style={{fontWeight:700,color:TEXT,margin:'10px 0 5px'}}>Scheduled tasks couldn’t load</p><p style={{fontSize:13,color:MUTED,margin:0}}>{schedError}</p></div>
-        ) : schedTasks.length === 0 ? (
-          /* Empty state — exact incident pattern */
-          <div style={{ ...glassCard, padding:40, textAlign:'center' }}>
-            <div style={{ width:80, height:80, background:CARD2, borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
-              <ClipboardCheck size={40} color={MUTED} strokeWidth={1.5} />
-            </div>
-            <p style={{ fontWeight:700, color:TEXT, fontSize:17, marginBottom:6 }}>No preset requests yet</p>
-            <p style={{ fontSize:14, color:MUTED }}>Create tasks that auto-appear when a concierge starts their shift</p>
-          </div>
-        ) : (
-          <>
-            {/* Active section */}
-            {active.length > 0 && (
-              <div style={{ marginBottom:28 }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <CheckCircle size={20} color={GREEN} />
-                    <h2 style={{ fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Active</h2>
-                  </div>
-                  <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED }}>{active.length}</span>
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                  {active.map(t => <SchedCard key={t.scheduled_task_id} t={t} />)}
-                </div>
-              </div>
-            )}
-            {/* Paused section */}
-            {paused.length > 0 && (
-              <div>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <Clock size={20} color={MUTED} />
-                    <h2 style={{ fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Paused</h2>
-                  </div>
-                  <span style={{ width:32, height:32, borderRadius:'50%', background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:MUTED }}>{paused.length}</span>
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                  {paused.map(t => <SchedCard key={t.scheduled_task_id} t={t} />)}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    );
-  };
-
   /* ── Global Search (replaces Audit Log tab) ────────────────────────────────── */
   const [gsOpen,     setGsOpen]     = useState(false);
   const [gsQuery,    setGsQuery]    = useState('');
@@ -2525,7 +2092,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           const done=t.status==='completed'; const declined=t.status==='declined'; const overdue=isOverdue(t); const TIcon=CAT_ICON[t.category]||ClipboardList; const pc=PRIORITY_COLOR[t.priority]||MUTED;
           return <article key={t.id} data-testid="manager-task-row" style={{display:'grid',gridTemplateColumns:isMobile?'36px minmax(0,1fr)':'40px minmax(0,1fr) auto',gap:12,padding:isMobile?'15px 14px':'17px 18px',borderTop:index?`1px solid ${BORDER}`:'none',alignItems:'start'}}><div style={{width:36,height:36,borderRadius:11,background:done?`${GREEN}12`:overdue?`${RED}12`:CARD2,display:'grid',placeItems:'center'}}><TIcon size={17} color={done?GREEN:overdue?RED:MUTED}/></div><div style={{minWidth:0}}><div style={{display:'flex',gap:7,alignItems:'center',flexWrap:'wrap'}}><strong style={{fontSize:14,lineHeight:1.4,color:done?MUTED:TEXT,textDecoration:done?'line-through':'none'}}>{t.title}</strong>{t.priority&&t.priority!=='Standard'&&<DashboardStatusBadge dot={false} color={pc} style={{fontSize:9,padding:'3px 6px'}}>{t.priority}</DashboardStatusBadge>}</div><div style={{display:'flex',gap:6,flexWrap:'wrap',fontSize:12,color:MUTED,marginTop:5}}><span>{t.assignedTo||'Unassigned'}</span><span>·</span><span style={{color:overdue?RED:MUTED}}>Due {t.dueTime||'not set'}</span><span>·</span><span>{t.category||'Other'}</span>{done&&t.completedAt&&<><span>·</span><span>Done {t.completedAt}{t.completedByName?` by ${t.completedByName}`:''}</span></>}{declined&&<><span>·</span><span style={{color:RED}}>Declined{t.declinedByName?` by ${t.declinedByName}`:''}{t.declinedAt?` · ${t.declinedAt}`:''}</span></>}</div>{t.notes&&<p style={{fontSize:12,color:MUTED,lineHeight:1.5,margin:'7px 0 0'}}>{t.notes}</p>}{(done||declined)&&t.completionNote&&<p style={{fontSize:12,color:TEXT,lineHeight:1.5,margin:'7px 0 0',overflowWrap:'anywhere'}}><b>{declined?'Reason:':'Desk note:'}</b> {t.completionNote}</p>}{done&&t.evidenceUrls?.length>0&&<div style={{display:'flex',gap:6,marginTop:8}}>{t.evidenceUrls.map((url,i)=><button key={i} type="button" onClick={()=>setManagerMedia({urls:t.evidenceUrls,index:i,title:t.title})} aria-label={`Open photo ${i+1}`} style={{width:44,height:44,padding:0,border:`1px solid ${BORDER}`,borderRadius:8,overflow:'hidden',cursor:'pointer',background:CARD2}}><img src={url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></button>)}</div>}<div style={{display:'flex',gap:7,marginTop:11}}>{declined&&<button onClick={()=>updateStatus(t,'pending')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,fontWeight:700,cursor:'pointer'}}>Send to the desk again</button>}{!done&&!declined&&<button onClick={()=>updateStatus(t,'completed')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,fontWeight:700,cursor:'pointer',background:TEXT,color:BG,borderColor:TEXT}}>Mark done</button>}</div></div><DashboardStatusBadge color={done?GREEN:(overdue||declined)?RED:t.status==='in_progress'?ORANGE:MUTED} style={{display:isMobile?'none':'inline-flex'}}>{done?'Completed':declined?'Declined':overdue?'Overdue':t.status==='in_progress'?'Active':'Waiting'}</DashboardStatusBadge></article>;
         })}</div></section>})}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:4,borderTop:`1px solid ${BORDER}`,fontSize:12,color:MUTED}}><span>Recurring work is managed separately.</span><button onClick={()=>setTab('scheduled')} style={{border:0,background:'transparent',color:TEXT,fontWeight:700,cursor:'pointer',padding:8}}>Scheduled tasks <ChevronRight size={13} style={{verticalAlign:'middle'}}/></button></div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:4,borderTop:`1px solid ${BORDER}`,fontSize:12,color:MUTED}}><span>Recurring work is planned separately.</span><button onClick={()=>setTab('scheduled')} style={{border:0,background:'transparent',color:TEXT,fontWeight:700,cursor:'pointer',padding:8}}>Planned tasks <ChevronRight size={13} style={{verticalAlign:'middle'}}/></button></div>
     </div>;
   };
 
@@ -3702,10 +3269,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:12 }}>{propertyName}</div>
                   <h2 style={{ fontFamily:INTER, fontSize: isMobile ? 32 : 42, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-0.045em', lineHeight:0.95 }}>
-                    {{ shifts:'Shift Calendar', tasks:'Tasks', incidents:'Incidents', team:'Team', residents:'Residents Directory', analytics:'Analytics', scheduled:'Preset Requests', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings', messages:'Messages' }[tab]}
+                    {{ shifts:'Shift Calendar', tasks:'Tasks', incidents:'Incidents', team:'Team', residents:'Residents Directory', analytics:'Analytics', scheduled:'Planned Tasks', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings', messages:'Messages' }[tab]}
                   </h2>
                   <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>
-                    {{ incidents:'Reports filed by the front desk, for your review', messages:'One thread for the manager and the front desk', shifts:'Browse shift history and daily activity reports', tasks:'Assign, track, and verify shift tasks', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', scheduled:'Recurring requests that appear automatically on scheduled days', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
+                    {{ incidents:'Reports filed by the front desk, for your review', messages:'One thread for the manager and the front desk', shifts:'Browse shift history and daily activity reports', tasks:'Assign, track, and verify shift tasks', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', scheduled:'Tasks planned ahead for each team member', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
                   </p>
                 </div>
                 <button onClick={() => setTab('home')} aria-label="Close panel" data-testid="panel-close-btn"
@@ -3723,7 +3290,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 {tab==='team'      && renderTeam()}
                 {tab==='residents' && renderResidents()}
                 {tab==='analytics' && renderAnalytics()}
-                {tab==='scheduled' && renderScheduled()}
+                {tab==='scheduled' && <PlannedTasksPage team={team} isMobile={isMobile} />}
                 {tab==='more'      && renderMore()}
                 {tab==='training'  && renderTraining()}
                 {tab==='sections'  && renderConciergeSetup()}

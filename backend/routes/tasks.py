@@ -1,4 +1,5 @@
 """Tasks and recurring scheduled tasks."""
+import calendar
 import hashlib
 import re
 import uuid
@@ -35,10 +36,61 @@ def _validate_schedule_fields(start_date: Optional[str], end_date: Optional[str]
         raise HTTPException(422, 'days_of_week values must be between 0 (Monday) and 6 (Sunday).')
 
 
-async def _materialize_scheduled_tasks(concierge: dict, shift_id: Optional[str] = None):
-    """Create today's concierge-specific occurrences once, preserving per-day completion."""
+REPEATS = ('once', 'daily', 'days', 'weekly', 'monthly')
+MAX_YEARS_AHEAD = 5
+
+
+def _schedule_repeat(schedule: dict) -> str:
+    """Older schedules have no repeat field: they ran on their chosen weekdays."""
+    repeat = schedule.get('repeat')
+    if repeat in REPEATS:
+        return repeat
+    days = schedule.get('days_of_week')
+    return 'daily' if days is None or sorted(days) == list(range(7)) else 'days'
+
+
+def occurs_on(schedule: dict, day: date) -> bool:
+    """Whether a planned task is due on this day (the desk's local date)."""
+    start = _parse_schedule_date(schedule.get('start_date'), 'start_date')
+    end = _parse_schedule_date(schedule.get('end_date'), 'end_date')
+    if start and day < start:
+        return False
+    repeat = _schedule_repeat(schedule)
+    if repeat == 'once':
+        return bool(start) and day == start
+    if end and day > end:
+        return False
+    if repeat == 'daily':
+        return True
+    if repeat == 'days':
+        return day.weekday() in (schedule.get('days_of_week') or [])
+    if repeat == 'weekly':
+        return bool(start) and day.weekday() == start.weekday()
+    if repeat == 'monthly':
+        if not start:
+            return False
+        last_day = calendar.monthrange(day.year, day.month)[1]
+        return day.day == min(start.day, last_day)
+    return False
+
+
+def desk_day(value: Optional[str]) -> date:
+    """The desk's own calendar date. The browser sends it because a property's
+    evening is already tomorrow in UTC; anything more than a day off is ignored."""
+    utc_today = datetime.now(timezone.utc).date()
+    try:
+        day = date.fromisoformat(value) if value else None
+    except ValueError:
+        day = None
+    if day and abs((day - utc_today).days) <= 1:
+        return day
+    return utc_today
+
+
+async def _materialize_scheduled_tasks(concierge: dict, shift_id: Optional[str] = None, day: Optional[date] = None):
+    """Create the day's concierge-specific occurrences once, preserving per-day completion."""
     now = datetime.now(timezone.utc)
-    today = now.date()
+    today = day or now.date()
     schedules = await db.scheduled_tasks.find({
         'manager_id': concierge['manager_id'],
         'active': True,
@@ -48,12 +100,7 @@ async def _materialize_scheduled_tasks(concierge: dict, shift_id: Optional[str] 
         assigned_id = schedule.get('assigned_concierge_id') or schedule.get('assigned_to_id') or ''
         if assigned_id and assigned_id != concierge['concierge_id']:
             continue
-        start = _parse_schedule_date(schedule.get('start_date'), 'start_date')
-        end = _parse_schedule_date(schedule.get('end_date'), 'end_date')
-        if start and today < start or end and today > end:
-            continue
-        days = schedule.get('days_of_week')
-        if days is not None and today.weekday() not in days:
+        if not occurs_on(schedule, today):
             continue
 
         scheduled_time = schedule.get('scheduled_time')
@@ -64,7 +111,6 @@ async def _materialize_scheduled_tasks(concierge: dict, shift_id: Optional[str] 
         task_doc = {
             'task_id': task_id,
             'manager_id': concierge['manager_id'],
-            'shift_id': shift_id,
             'scheduled_task_id': schedule['scheduled_task_id'],
             'schedule_occurrence_key': occurrence_key,
             'occurrence_date': today.isoformat(),
@@ -78,24 +124,40 @@ async def _materialize_scheduled_tasks(concierge: dict, shift_id: Optional[str] 
             'scheduled_time': scheduled_time,
             'status': 'pending',
             'created_by_type': 'manager',
+            'created_by_name': schedule.get('created_by_name', ''),
             'source_section': 'scheduled',
             'requires_photo': False,
             'created_at': now,
         }
-        await db.tasks.update_one(
-            {'schedule_occurrence_key': occurrence_key},
-            {'$setOnInsert': task_doc, '$set': {'shift_id': shift_id} if shift_id else {}},
-            upsert=True,
-        )
+        if shift_id:
+            # The occurrence belongs to whichever shift is open when it is picked up.
+            await db.tasks.update_one(
+                {'schedule_occurrence_key': occurrence_key},
+                {'$setOnInsert': task_doc, '$set': {'shift_id': shift_id}},
+                upsert=True,
+            )
+        else:
+            await db.tasks.update_one(
+                {'schedule_occurrence_key': occurrence_key},
+                {'$setOnInsert': {**task_doc, 'shift_id': None}},
+                upsert=True,
+            )
+
+
+async def _drop_waiting_occurrences(scheduled_task_id: str, mgr_id: str):
+    """Take a planned task's not-yet-started occurrences off the desk. Anything
+    already done, declined or in progress stays, so the reports keep their history."""
+    await db.tasks.delete_many({'manager_id': mgr_id, 'scheduled_task_id': scheduled_task_id, 'status': 'pending'})
 
 
 @api.get('/tasks')
-async def get_tasks(request: Request, session_token: Optional[str] = Cookie(default=None)):
+async def get_tasks(request: Request, day: Optional[str] = None, session_token: Optional[str] = Cookie(default=None)):
     user, user_type, mgr_id = await _resolve_user(request, session_token)
     query = {'manager_id': mgr_id}
     if user_type == 'concierge':
+        today = desk_day(day)
         active_shift = await db.shifts.find_one({'concierge_id': user['concierge_id'], 'status': 'active'}, {'shift_id': 1})
-        await _materialize_scheduled_tasks(user, (active_shift or {}).get('shift_id'))
+        await _materialize_scheduled_tasks(user, (active_shift or {}).get('shift_id'), today)
         # concierge only sees tasks assigned to them (by id or name)
         cid = user['concierge_id']
         cname = f"{user['first_name']} {user['last_name']}"
@@ -110,7 +172,7 @@ async def get_tasks(request: Request, session_token: Optional[str] = Cookie(defa
                     # a manager request addressed to nobody in particular goes to whoever is at the desk
                     {'assigned_to_id': {'$in': [None, '']}, 'assigned_to': {'$in': [None, '']}, 'created_by_type': 'manager'},
                 ]},
-                {'$or': [{'source_section': {'$ne': 'scheduled'}}, {'occurrence_date': datetime.now(timezone.utc).date().isoformat()}]},
+                {'$or': [{'source_section': {'$ne': 'scheduled'}}, {'occurrence_date': today.isoformat()}]},
             ],
         }
     tasks = await db.tasks.find(query, {'_id': 0}).sort('created_at', -1).to_list(200)
@@ -225,6 +287,7 @@ class ScheduledTaskCreate(BaseModel):
     end_date:                Optional[str] = None
     scheduled_time:          Optional[str] = '08:00'
     days_of_week:            Optional[List[int]] = None  # Monday=0 ... Sunday=6
+    repeat:                  Optional[str] = None  # once | daily | days | weekly | monthly
     active:                  bool = True
 
 class ScheduledTaskUpdate(BaseModel):
@@ -244,6 +307,46 @@ class ScheduledTaskUpdate(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     days_of_week: Optional[List[int]] = None
+    repeat: Optional[str] = None
+    clear_end_date: Optional[bool] = None   # true = runs until the manager removes it
+
+
+def _validate_plan(repeat: str, start_date: Optional[str], end_date: Optional[str], days_of_week: Optional[List[int]]):
+    if repeat not in REPEATS:
+        raise HTTPException(422, 'Repeat must be once, daily, days, weekly or monthly.')
+    if not start_date:
+        raise HTTPException(422, 'Pick the day the task starts.')
+    if repeat == 'days' and not days_of_week:
+        raise HTTPException(422, 'Pick the days it repeats.')
+    end = _parse_schedule_date(end_date, 'end_date')
+    today = date.today()
+    if end and end > date(today.year + MAX_YEARS_AHEAD, today.month, min(today.day, 28)):
+        raise HTTPException(422, f'A planned task can run up to {MAX_YEARS_AHEAD} years ahead.')
+
+
+async def _plan_history(mgr_id: str, ids: List[str]) -> dict:
+    """How often each planned task was done, and its most recent days."""
+    if not ids:
+        return {}
+    rows = await db.tasks.find(
+        {'manager_id': mgr_id, 'scheduled_task_id': {'$in': ids}},
+        {'_id': 0, 'scheduled_task_id': 1, 'occurrence_date': 1, 'status': 1, 'assigned_to': 1,
+         'completed_by_name': 1, 'completed_at': 1, 'completion_note': 1},
+    ).sort('occurrence_date', -1).to_list(5000)
+    out = {}
+    for r in rows:
+        h = out.setdefault(r['scheduled_task_id'], {'done_count': 0, 'last_done': None, 'recent': []})
+        if r.get('status') == 'completed':
+            h['done_count'] += 1
+            if not h['last_done']:
+                at = r.get('completed_at')
+                h['last_done'] = {'date': r.get('occurrence_date'), 'by': r.get('completed_by_name') or r.get('assigned_to') or '',
+                                  'at': at.isoformat() if isinstance(at, datetime) else at}
+        if len(h['recent']) < 14:
+            h['recent'].append({'date': r.get('occurrence_date'), 'status': r.get('status'),
+                                'by': r.get('completed_by_name') or r.get('assigned_to') or '',
+                                'note': r.get('completion_note') or ''})
+    return out
 
 
 @api.get('/scheduled-tasks')
@@ -252,8 +355,12 @@ async def list_scheduled_tasks(request: Request, session_token: Optional[str] = 
     if user_type != 'manager':
         raise HTTPException(403, 'Manager access required.')
     docs = await db.scheduled_tasks.find({'manager_id': mgr_id}, {'_id': 0}).sort('created_at', -1).to_list(500)
+    history = await _plan_history(mgr_id, [d['scheduled_task_id'] for d in docs])
+    empty = {'done_count': 0, 'last_done': None, 'recent': []}
     for d in docs:
         if isinstance(d.get('created_at'), datetime): d['created_at'] = d['created_at'].isoformat()
+        d['repeat'] = _schedule_repeat(d)
+        d['history'] = history.get(d['scheduled_task_id'], empty)
     return {'scheduled_tasks': docs}
 
 @api.post('/scheduled-tasks')
@@ -262,6 +369,9 @@ async def create_scheduled_task(data: ScheduledTaskCreate, request: Request, ses
     if user_type != 'manager':
         raise HTTPException(403, 'Manager access required.')
     _validate_schedule_fields(data.start_date, data.end_date, data.scheduled_time, data.days_of_week)
+    repeat = data.repeat or _schedule_repeat({'days_of_week': data.days_of_week})
+    data.start_date = data.start_date or datetime.now(timezone.utc).date().isoformat()
+    _validate_plan(repeat, data.start_date, data.end_date, data.days_of_week)
     task_id = f'sched_{uuid.uuid4().hex[:12]}'
     now = datetime.now(timezone.utc)
     doc = {
@@ -279,7 +389,9 @@ async def create_scheduled_task(data: ScheduledTaskCreate, request: Request, ses
         'assigned_to':            data.assigned_to or '',
         'assigned_to_id':         data.assigned_to_id or '',
         'start_date':             data.start_date,
-        'end_date':               data.end_date,
+        'end_date':               None if repeat == 'once' else data.end_date,
+        'repeat':                 repeat,
+        'created_by_name':        f"{user['first_name']} {user['last_name']}".strip(),
         'scheduled_time':         data.scheduled_time or f"{int(data.scheduled_hour or 8):02d}:00",
         'days_of_week':           data.days_of_week if data.days_of_week is not None else list(range(7)),
         'active':                 data.active,
@@ -288,6 +400,7 @@ async def create_scheduled_task(data: ScheduledTaskCreate, request: Request, ses
     await db.scheduled_tasks.insert_one(doc)
     doc.pop('_id', None)
     doc['created_at'] = now.isoformat()
+    doc['history'] = {'done_count': 0, 'last_done': None, 'recent': []}
     await _audit(mgr_id, user['manager_id'], 'manager', 'create', 'scheduled_task', task_id, {'title': data.title})
     return doc
 
@@ -296,7 +409,9 @@ async def update_scheduled_task(task_id: str, data: ScheduledTaskUpdate, request
     user, user_type, mgr_id = await _resolve_user(request, session_token)
     if user_type != 'manager':
         raise HTTPException(403, 'Manager access required.')
-    patch = {k: v for k, v in data.dict().items() if v is not None}
+    patch = {k: v for k, v in data.dict().items() if v is not None and k != 'clear_end_date'}
+    if data.clear_end_date:
+        patch['end_date'] = None
     if not patch:
         raise HTTPException(400, 'Nothing to update.')
     existing = await db.scheduled_tasks.find_one({'scheduled_task_id': task_id, 'manager_id': mgr_id})
@@ -308,10 +423,20 @@ async def update_scheduled_task(task_id: str, data: ScheduledTaskUpdate, request
         patch.get('scheduled_time', existing.get('scheduled_time')),
         patch.get('days_of_week', existing.get('days_of_week')),
     )
+    merged = {**existing, **patch}
+    if {'repeat', 'start_date', 'end_date', 'days_of_week'} & set(patch):
+        _validate_plan(_schedule_repeat(merged), merged.get('start_date'), merged.get('end_date'), merged.get('days_of_week'))
+    if _schedule_repeat(merged) == 'once':
+        patch['end_date'] = None
     await db.scheduled_tasks.update_one({'scheduled_task_id': task_id, 'manager_id': mgr_id}, {'$set': patch})
+    # Waiting copies on the desk are rebuilt from the new details on the next load.
+    await _drop_waiting_occurrences(task_id, mgr_id)
     doc = await db.scheduled_tasks.find_one({'scheduled_task_id': task_id}, {'_id': 0})
     if doc and isinstance(doc.get('created_at'), datetime):
         doc['created_at'] = doc['created_at'].isoformat()
+    if doc:
+        doc['repeat'] = _schedule_repeat(doc)
+        doc['history'] = (await _plan_history(mgr_id, [task_id])).get(task_id, {'done_count': 0, 'last_done': None, 'recent': []})
     return doc or {}
 
 @api.delete('/scheduled-tasks/{task_id}')
@@ -320,5 +445,6 @@ async def delete_scheduled_task(task_id: str, request: Request, session_token: O
     if user_type != 'manager':
         raise HTTPException(403, 'Manager access required.')
     await db.scheduled_tasks.delete_one({'scheduled_task_id': task_id, 'manager_id': mgr_id})
+    await _drop_waiting_occurrences(task_id, mgr_id)
     await _audit(mgr_id, user['manager_id'], 'manager', 'delete', 'scheduled_task', task_id, {})
     return {'message': 'Deleted.'}

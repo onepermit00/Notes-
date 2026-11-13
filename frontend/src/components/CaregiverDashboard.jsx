@@ -9,7 +9,8 @@ import {
   Waves, Activity, Sun, Coffee, Briefcase, Film, Heart, Bike, Leaf, Flame,
   Menu, Lock, ShoppingCart, ClipboardList, PlusCircle, Wrench, Search,
   Tag, Navigation, Flag, ChevronLeft, UserCheck, Truck, HelpCircle, Star, LogOut, Mail, Moon,
-  GraduationCap, FileText, Image, Video, Play, Eye
+  GraduationCap, FileText, Image, Video, Play, Eye,
+  CalendarClock,
 } from 'lucide-react';
 import { PackageDashboard } from './PackageDashboard';
 import { ToursDashboard } from './ToursDashboard';
@@ -37,6 +38,7 @@ import {
   BUILDING_PROFILE, BUILDING_CONTACTS,
   BUILDING_STATUS, BUILDING_SOPS, SHIFT_HISTORY,
 } from '../services/mockData';
+import { clockText } from '../lib/plannedTasks';
 import { authApi, normalizeTask, normalizeIncident } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
 import { useSharedData } from '../context/SharedDataContext';
@@ -160,9 +162,13 @@ const TASK_CATEGORY_CONFIG = [
   { id: 'Other',               Icon: HelpCircle,     desc: 'Task not listed above'                    },
 ];
 
+// The report line for finished manager work: a planned task reads differently from a one-off request.
+const managerDoneTitle = t => ((t.source_section || t.sourceSection) === 'scheduled' ? `Planned task done · ${t.title}` : `Request completed · ${t.title}`);
+
 const inferDarSource = ({ source_section, sourceSection, title = '', category = '', created_by_type, createdByType } = {}) => {
   const persisted = source_section || sourceSection;
-  if (persisted) return persisted;
+  // Planned tasks are manager work too: they go under Tasks Completed with requests.
+  if (persisted) return persisted === 'scheduled' ? 'requests' : persisted;
   if ((created_by_type || createdByType) === 'manager') return 'requests';
   const value = title.toLowerCase();
   if (/package|delivery|rts|carrier pickup/.test(value) || category === 'Delivery') return 'packages';
@@ -195,7 +201,7 @@ const mapPreviousShift = (s) => {
     activities: (s.activities || []).map(t => ({
       id: t.task_id,
       time: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
-      title: t.created_by_type === 'manager' ? `Request completed · ${t.title}` : t.title,
+      title: t.created_by_type === 'manager' ? managerDoneTitle(t) : t.title,
       notes: t.notes || '',
       category: t.category || 'Other',
       evidenceUrls: Array.isArray(t.evidence_urls) ? t.evidence_urls : [],
@@ -460,7 +466,7 @@ export const CaregiverDashboard = ({
           }).map(t => ({
             id: t.task_id,
             evidenceUrls: Array.isArray(t.evidence_urls) ? t.evidence_urls : [],
-            title: t.created_by_type === 'manager' ? `Request completed · ${t.title}` : t.title,
+            title: t.created_by_type === 'manager' ? managerDoneTitle(t) : t.title,
             category: t.category || 'Other',
             notes: t.notes || '',
             completedAt: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
@@ -1197,7 +1203,7 @@ export const CaregiverDashboard = ({
     const taskCatMap = { packages:'Delivery', mail:'Delivery', patrol:'Safety / Security', amenity:'Amenity', opening:'Administrative', coverage:'Administrative', documentation:'Administrative' };
     const todayLabel = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
     const isToday = ts => ts && ts.startsWith(todayLabel + ',');
-    const completedTaskActs = isShiftActive ? displayTasks.filter(t=>t.createdByType==='manager'&&t.status===TaskStatus.COMPLETED&&isToday(t.completedAt)&&!restoredRequestIds.has(t.id)).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:`Request completed · ${t.title}`, notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] })) : [];
+    const completedTaskActs = isShiftActive ? displayTasks.filter(t=>t.createdByType==='manager'&&t.status===TaskStatus.COMPLETED&&isToday(t.completedAt)&&!restoredRequestIds.has(t.id)).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:managerDoneTitle(t), notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] })) : [];
     const selfTaskActs = viewingPreviousDar
       ? (activeShift?.activities || []).map(t=>({ id:`previous-${t.id}`, time:t.time||t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t.sourceSection || inferDarSource(t) }))
       : selfTasks.map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t._source || inferDarSource(t) }));
@@ -1410,6 +1416,34 @@ export const CaregiverDashboard = ({
             </div>}
           </section>
         ) : (
+          <>
+          {/* To do: today's planned tasks and manager requests, until each is done */}
+          {isShiftActive && !viewingPreviousDar && pendingRequests.length > 0 && (
+            <section aria-labelledby="todo-today-title" data-testid="todo-today" style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, boxShadow:SHADOW, overflow:'hidden' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, padding:isPhone?'14px 16px':'16px 22px', borderBottom:`1px solid ${BORDER}` }}>
+                <div>
+                  <div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:4 }}>To do today</div>
+                  <h3 id="todo-today-title" style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-.02em' }}>{pendingRequests.length} task{pendingRequests.length === 1 ? '' : 's'} from your manager</h3>
+                </div>
+                {!isPhone && <span style={{ fontFamily:INTER, fontSize:11, color:MUTED, textAlign:'right', maxWidth:200, lineHeight:1.4 }}>Done tasks go into your report</span>}
+              </div>
+              {pendingRequests.map((task, i) => {
+                const planned = task.sourceSection === 'scheduled';
+                const time = clockText(task.dueTime);
+                return (
+                  <div key={task.id || task.task_id} data-testid="todo-row" style={{ display:'grid', gridTemplateColumns:isPhone?'36px minmax(0,1fr)':'40px minmax(0,1fr) auto', gap:12, alignItems:'center', padding:isPhone?'13px 16px':'14px 22px', borderTop:i?`1px solid ${BORDER}`:'none' }}>
+                    <div style={{ width:isPhone?36:40, height:isPhone?36:40, borderRadius:11, background:`${BLUE}10`, display:'flex', alignItems:'center', justifyContent:'center' }}>{planned ? <CalendarClock size={18} color={BLUE} /> : <Bell size={18} color={BLUE} />}</div>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, lineHeight:1.35 }}>{task.title}</div>
+                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3 }}>{[time, planned ? 'Planned task' : 'Request', task.status === 'in_progress' ? 'In progress' : ''].filter(Boolean).join(' · ')}</div>
+                      {task.notes && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:5, lineHeight:1.45 }}>{task.notes}</div>}
+                    </div>
+                    <button onClick={() => handleStartTask(task)} aria-label={`Mark ${task.title} done`} style={{ gridColumn:isPhone?'2':'auto', justifySelf:isPhone?'start':'end', minHeight:40, padding:'0 16px', border:0, borderRadius:999, background:BLUE, color:'white', fontFamily:INTER, fontSize:13, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6 }}><Check size={15} />Done</button>
+                  </div>
+                );
+              })}
+            </section>
+          )}
           <DailyActivityReport
             mode="concierge"
             shift={activeShift}
@@ -1430,6 +1464,7 @@ export const CaregiverDashboard = ({
             colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER, shadow:SHADOW }}
             style={{ order:isMobile ? 1 : 0 }}
           />
+          </>
         )}
 
         {/* Right column */}

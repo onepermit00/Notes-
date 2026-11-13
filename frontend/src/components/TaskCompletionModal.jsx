@@ -102,10 +102,10 @@ export const TaskCompletionModal = ({ task, onClose, onComplete }) => {
         </div>
 
         {/* Instructions */}
-        <div style={{ ...glassInner, padding: '16px 18px', marginBottom: 20 }}>
+        {(task.instructions || task.description || task.notes) && <div style={{ ...glassInner, padding: '16px 18px', marginBottom: 20 }}>
           <p style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 8 }}>Instructions</p>
-          <p style={{ fontSize: 14, color: TEXT, lineHeight: 1.65 }}>{task.instructions || task.description}</p>
-        </div>
+          <p style={{ fontSize: 14, color: TEXT, lineHeight: 1.65 }}>{task.instructions || task.description || task.notes}</p>
+        </div>}
 
         {mode === 'complete' ? (
           <>

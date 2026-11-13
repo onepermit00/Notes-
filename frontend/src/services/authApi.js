@@ -4,6 +4,9 @@ const BACKEND = `${process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001'}
 
 const api = axios.create({ baseURL: BACKEND });
 
+// The desk's own calendar day, so planned tasks follow the property's date, not UTC.
+export const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 export function classifyAuthError(error) {
   if (!error?.response) return { kind: 'network', message: 'We could not reach Noted. Check your connection and try again.' };
   const status = error.response.status;
@@ -236,7 +239,7 @@ export const authApi = {
 
   // Shifts
   async startShift() {
-    const { data } = await api.post('/shifts/start', {});
+    const { data } = await api.post('/shifts/start', {}, { params: { day: localDay() } });
     return data; // { shift_id, concierge_name, clock_in, status }
   },
 
@@ -268,7 +271,7 @@ export const authApi = {
 
   // Tasks
   async getTasks() {
-    const { data } = await api.get('/tasks');
+    const { data } = await api.get('/tasks', { params: { day: localDay() } });
     return (data.tasks || []).map(normalizeTask);
   },
 
@@ -366,28 +369,15 @@ export const authApi = {
     try {
       const { data } = await api.get('/scheduled-tasks');
       return data.scheduled_tasks || [];
-    } catch { return []; }
+    } catch (e) {
+      if (e?.response?.status === 403) return [];
+      throw e;
+    }
   },
 
-  async createScheduledTask(form) {
-    const { data } = await api.post('/scheduled-tasks', {
-      title:                   form.title,
-      notes:                   form.notes || '',
-      category:                form.category || 'Administrative',
-      priority:                form.priority || 'Standard',
-      recurrence:              'daily',
-      scheduled_hour:          Number((form.scheduledTime || '08:00').split(':')[0]),
-      shift_window:            form.shiftWindow || 'all',
-      assigned_concierge_id:   form.assignedConciergeId || '',
-      assigned_concierge_name: form.assignedConciergeName || '',
-      assigned_to:             form.assignedConciergeName || '',
-      assigned_to_id:          form.assignedConciergeId || '',
-      start_date:              form.startDate,
-      end_date:                form.endDate,
-      scheduled_time:          form.scheduledTime,
-      days_of_week:            form.daysOfWeek,
-      active:                  form.active !== false,
-    });
+  // Planned tasks: the body is already in the server's shape (see PlannedTasksPage)
+  async createPlannedTask(body) {
+    const { data } = await api.post('/scheduled-tasks', body);
     return data;
   },
 
