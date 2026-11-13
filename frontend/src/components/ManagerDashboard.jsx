@@ -1659,21 +1659,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     const hasInvite = team.some(m => !m.concierge_id);
     const previousRawShift = allShifts.find(shift => shift.status === 'completed' || !!shift.clock_out);
     const previousDAR = previousRawShift ? shiftToDAR(previousRawShift, false) : null;
-    const mediaItems = Array.from(allShifts.reduce((items, shift) => {
-      const shiftLabel = [shift.concierge_name, shift.clock_in ? new Date(shift.clock_in).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : ''].filter(Boolean).join(' · ');
-      [...(shift.activities || []), ...(shift.incidents || [])].forEach(entry => {
-        const urls = Array.isArray(entry.evidence_urls) ? entry.evidence_urls : (entry.evidence_url ? [entry.evidence_url] : []);
-        if (!urls.length) return;
-        const title = entry.title || entry.description || entry.type || 'Shift evidence';
-        const key = `${shift.shift_id || shift.clock_in}|${entry.task_id || entry.incident_id || title}`;
-        items.set(key, { key, urls:[...new Set(urls)], title, notes:entry.completion_note || entry.notes || '', category:entry.category || entry.type || 'Shift activity', shiftLabel });
-      });
-      return items;
-    }, new Map()).values());
     const shiftViews = [
       { id:'previous', label:'Previous shift', aria:'Show the previous completed shift report', disabled:!previousDAR },
       { id:'dar', label:'Current shift', aria:`Current shift report: ${todayShift?(todayShift.clockOut?'complete':'live'):'not started'}` },
-      { id:'media', label:'Photos', aria:`Show ${mediaItems.length} uploaded photo${mediaItems.length===1?'':'s'}` },
     ].map(view => ({ ...view, current:managerSummaryView===view.id, onSelect:() => setManagerSummaryView(view.id) }));
     return <main style={{width:'100%',maxWidth:1280,margin:'0 auto',display:'flex',flexDirection:'column',gap:isMobile?16:20}}>
       <ShiftViewHeader
@@ -1695,9 +1683,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       </div>}
 
       <div id="manager-live-dar-section" style={{scrollMarginTop:20}}>
-        {managerSummaryView === 'media' ? (
-          mediaItems.length ? <section aria-label="Shift photos" style={{display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:18}}>{mediaItems.map(item=><article key={item.key} style={{border:`1px solid ${BORDER}`,borderRadius:20,overflow:'hidden',background:CARD,boxShadow:SHADOW}}><button type="button" onClick={()=>setManagerMedia({urls:item.urls,index:0,title:item.title})} style={{display:'block',width:'100%',padding:0,border:0,background:CARD2,cursor:'pointer'}}><img src={item.urls[0]} alt={item.title} style={{display:'block',width:'100%',aspectRatio:'16 / 9',objectFit:'cover'}}/></button><div style={{padding:'14px 16px'}}><div style={{fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.12em',textTransform:'uppercase'}}>{item.category}{item.urls.length>1?` · ${item.urls.length} photos`:''}</div><h3 style={{fontSize:14,fontWeight:800,color:TEXT,margin:'5px 0 3px'}}>{item.title}</h3><p style={{fontSize:11,color:MUTED,margin:0}}>{item.shiftLabel}</p></div></article>)}</section> : <div style={{minHeight:220,background:CARD,border:`1px solid ${BORDER}`,borderRadius:20,boxShadow:SHADOW,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24}}><Image size={28} color={MUTED}/><h3 style={{fontSize:17,fontWeight:800,color:TEXT,margin:'12px 0 6px'}}>No photos yet</h3><p style={{fontSize:13,color:MUTED,margin:0}}>Photos uploaded from concierge activities will appear here.</p></div>
-        ) : <DailyActivityReport
+        <DailyActivityReport
           testId="manager-live-dar"
           mode="manager"
           shift={managerSummaryView === 'previous' ? previousDAR : displayedDAR}
@@ -1715,7 +1701,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           emptyAction={hasDesk ? openTask : () => { setTab('team'); if (!hasInvite) setLeasingOpen(true); }}
           emptyActionLabel={hasDesk ? 'Assign a request' : hasInvite ? 'View team' : 'Invite a concierge'}
           colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER, shadow:SHADOW }}
-        />}
+        />
       </div>
       {managerMedia && <div role="dialog" aria-modal="true" aria-label={managerMedia.title} onClick={()=>setManagerMedia(null)} style={{position:'fixed',inset:0,zIndex:1000,background:'rgba(0,0,0,.88)',display:'grid',placeItems:'center',padding:24}}><button type="button" aria-label="Close media viewer" onClick={()=>setManagerMedia(null)} style={{position:'absolute',top:20,right:20,width:44,height:44,border:0,borderRadius:'50%',background:'rgba(255,255,255,.14)',color:'#fff',cursor:'pointer'}}><X size={22}/></button><img onClick={event=>event.stopPropagation()} src={managerMedia.urls[managerMedia.index]} alt={managerMedia.title} style={{maxWidth:'100%',maxHeight:'88vh',objectFit:'contain',borderRadius:12}}/></div>}
     </main>;
