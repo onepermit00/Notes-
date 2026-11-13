@@ -5,12 +5,12 @@ from fastapi import APIRouter, Cookie, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Optional
 from core import _audit, _resolve_user, db, get_session
-from routes.tasks import _materialize_scheduled_tasks
+from routes.tasks import _materialize_scheduled_tasks, desk_day
 
 api = APIRouter(prefix='/api')
 
 @api.post('/shifts/start')
-async def start_shift(request: Request, session_token: Optional[str] = Cookie(default=None)):
+async def start_shift(request: Request, day: Optional[str] = None, session_token: Optional[str] = Cookie(default=None)):
     session = await get_session(request, session_token)
     if not session or session['user_type'] != 'concierge':
         raise HTTPException(403, 'Concierge access required.')
@@ -41,7 +41,7 @@ async def start_shift(request: Request, session_token: Optional[str] = Cookie(de
     doc['created_at'] = now.isoformat()
 
     # Materialize all of today's applicable requests, including future times.
-    await _materialize_scheduled_tasks(concierge, shift_id)
+    await _materialize_scheduled_tasks(concierge, shift_id, desk_day(day))
 
     await _audit(concierge['manager_id'], concierge['concierge_id'], 'concierge',
                  'clock_in', 'shift', shift_id, {'concierge': doc['concierge_name']})
