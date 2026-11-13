@@ -82,43 +82,6 @@ const MANAGED_SECTION_TO_DAR = {
 
 function Ghost({ label }) { return null; }
 
-function MediaCarouselCard({ item, isPhone, colors, fontFamily, onOpen }) {
-  const { CARD, CARD2, BORDER, TEXT, MUTED, BLUE, SHADOW } = colors;
-  const urls = Array.isArray(item?.urls) ? item.urls.filter(Boolean) : [];
-  const imageCount = urls.length;
-  const itemTime = typeof item?.time === 'string' ? item.time : String(item?.time || '');
-  const itemTitle = typeof item?.title === 'string' ? item.title : String(item?.title || 'Shift evidence');
-  const completedLabel = itemTime
-    ? (/completed/i.test(itemTime) ? itemTime : `Completed at ${itemTime}`)
-    : 'Completed this shift';
-
-  if (!imageCount) return null;
-
-  return (
-    <article style={{ minWidth:0, border:`1px solid ${BORDER}`, borderRadius:20, overflow:'hidden', background:CARD, boxShadow:SHADOW }}>
-      <div style={{ position:'relative', width:'100%', background:CARD2 }}>
-        <div style={{ display:'flex', width:'100%', aspectRatio:'16 / 9', overflowX:'auto', overflowY:'hidden', scrollSnapType:'x mandatory', WebkitOverflowScrolling:'touch', scrollbarWidth:'none', overscrollBehaviorX:'contain' }}>
-          {urls.map((url, imageIndex) => <button
-            type="button"
-            key={`${imageIndex}-${url.slice(0, 80)}`}
-            onClick={() => onOpen(imageIndex)}
-            aria-label={`Open photo ${imageIndex + 1} of ${imageCount} for ${itemTitle}`}
-            style={{ minWidth:'100%', width:'100%', height:'100%', padding:0, border:0, background:CARD2, cursor:'pointer', scrollSnapAlign:'start', scrollSnapStop:'always' }}
-          ><img src={url} alt={`${itemTitle}, photo ${imageIndex + 1}`} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} /></button>)}
-        </div>
-        {imageCount > 1 && <div aria-label={`${imageCount} photos. Swipe to view more.`} style={{ position:'absolute', right:10, top:10, padding:'5px 8px', borderRadius:999, background:'rgba(20,20,22,.62)', color:'white', fontFamily, fontSize:10, fontWeight:800, letterSpacing:'.04em', backdropFilter:'blur(8px)', pointerEvents:'none' }}>1/{imageCount} · Swipe</div>}
-      </div>
-
-      <div style={{ padding:'7px 11px 8px' }}>
-        <div style={{ fontFamily, fontSize:7, fontWeight:800, color:BLUE, letterSpacing:'.12em', textTransform:'uppercase', marginBottom:2, lineHeight:1.15 }}>{String(item.category || 'Shift activity')}</div>
-        <h3 style={{ fontFamily, fontSize:12, fontWeight:800, color:TEXT, lineHeight:1.18, letterSpacing:'-.01em', margin:0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{itemTitle}</h3>
-        {item.notes && <p style={{ fontFamily, fontSize:10, color:TEXT, lineHeight:1.25, margin:'2px 0 0', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{String(item.notes)}</p>}
-        <div style={{ display:'flex', alignItems:'center', gap:4, fontFamily, fontSize:9, fontWeight:600, color:MUTED, marginTop:3, lineHeight:1.1 }}><Clock size={10} strokeWidth={2}/>{completedLabel}</div>
-      </div>
-    </article>
-  );
-}
-
 const statusLabel = (status) => {
   if (status === 'open')    return 'Open';
   if (status === 'nominal') return 'OK';
@@ -355,7 +318,6 @@ export const CaregiverDashboard = ({
   const [showSummary,      setShowSummary]      = useState(false);
   const [showHandover,      setShowHandover]      = useState(false);
   const [showPreviousDar,    setShowPreviousDar]    = useState(false);
-  const [showMedia,          setShowMedia]          = useState(false);
   const [handoverNotes,     setHandoverNotes]     = useState('');
   const [handoverItems,     setHandoverItems]     = useState('');
   const [handoverSaving,    setHandoverSaving]    = useState(false);
@@ -384,7 +346,7 @@ export const CaregiverDashboard = ({
   const handleTabChange = useCallback((id) => {
     if (id !== 'home') {
       setShowHandover(false);
-      setShowMedia(false);
+     
     }
     setSectionWorkflow(false);
     setActiveTab(id);
@@ -782,7 +744,7 @@ export const CaregiverDashboard = ({
     },
     addFollowUp: (item) => followUps.add(item),
     openHandoff: ({ notes, items }) => {
-      handleTabChange('home'); setShowPreviousDar(false); setShowMedia(false);
+      handleTabChange('home'); setShowPreviousDar(false);
       if (notes) setHandoverNotes(notes);
       if (items) setHandoverItems(Array.isArray(items) ? items.join('\n') : items);
       setShowHandover(true);
@@ -790,7 +752,7 @@ export const CaregiverDashboard = ({
     open: (place) => {
       if (place === 'contacts') setShowContacts(true);
       else if (place === 'new-task') setShowNewTask(true);
-      else if (place === 'handoff') { handleTabChange('home'); setShowPreviousDar(false); setShowMedia(false); setShowHandover(true); }
+      else if (place === 'handoff') { handleTabChange('home'); setShowPreviousDar(false); setShowHandover(true); }
       else handleTabChange(place);
     },
   };
@@ -1166,7 +1128,6 @@ export const CaregiverDashboard = ({
   const renderHomeContent = () => {
     const viewingPreviousDar = showPreviousDar;
     const viewingHandoff = showHandover;
-    const viewingMedia = showMedia;
     const currentDar = isShiftActive ? {
       concierge: { name: authUser?.name || 'Concierge' },
       clockIn:   shiftStartTime,
@@ -1201,39 +1162,6 @@ export const CaregiverDashboard = ({
     const selfTaskActs = viewingPreviousDar
       ? (activeShift?.activities || []).map(t=>({ id:`previous-${t.id}`, time:t.time||t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t.sourceSection || inferDarSource(t) }))
       : selfTasks.map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t._source || inferDarSource(t) }));
-    const rawMediaSources = [
-      ...completedTaskActs,
-      ...selfTaskActs,
-      ...(Array.isArray(activeShift?.incidents) ? activeShift.incidents : []),
-    ];
-    const mediaItems = Array.from(rawMediaSources.reduce((groups, source) => {
-      if (!source || typeof source !== 'object') return groups;
-      const evidence = Array.isArray(source.evidenceUrls)
-        ? source.evidenceUrls
-        : source.evidenceUrl
-          ? [source.evidenceUrl]
-          : [];
-      const urls = Array.from(new Set(evidence.filter(url => typeof url === 'string' && url.trim())));
-      if (!urls.length) return groups;
-      const title = String(source.title || source.text || 'Shift evidence');
-      const time = String(source.time || source.completedAt || '');
-      const category = String(source.category || (source.text ? 'Incident' : 'Shift activity'));
-      const groupKey = `${category}|${time}|${title}`;
-      const existing = groups.get(groupKey);
-      if (existing) {
-        existing.urls = Array.from(new Set([...existing.urls, ...urls]));
-      } else {
-        groups.set(groupKey, {
-          key: groupKey,
-          urls,
-          title,
-          time,
-          notes: String(source.notes || source.completionNote || source.description || ''),
-          category,
-        });
-      }
-      return groups;
-    }, new Map()).values());
     // dashboardActs = sub-dashboard inputs (Guests, Vendors, Loaners, Lockout, etc.)
     // wizardActs = Log New Task wizard entries — always go to Tasks Completed
     const dashboardActs = selfTaskActs.filter(a => !['new-task', 'requests'].includes(a._source));
@@ -1360,9 +1288,8 @@ export const CaregiverDashboard = ({
         colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}
         style={{ maxWidth:1280, margin:isPhone ? '0 auto 22px' : '0 auto 26px' }}
         views={[
-          { id:'previous', label:'Previous shift', current:viewingPreviousDar, disabled:!previousShiftData, onSelect:() => { setShowHandover(false); setShowMedia(false); setShowPreviousDar(true); }, aria:'Show the previous shift report' },
-          { id:'current', label:'Current shift', current:!viewingPreviousDar && !viewingHandoff && !viewingMedia, onSelect:() => { setShowHandover(false); setShowMedia(false); setShowPreviousDar(false); }, aria:'Show the current shift report' },
-          { id:'photos', label:'Photos', current:viewingMedia, onSelect:() => { setShowHandover(false); setShowPreviousDar(false); setShowMedia(true); }, aria:'Show shift photos' },
+          { id:'previous', label:'Previous shift', current:viewingPreviousDar, disabled:!previousShiftData, onSelect:() => { setShowHandover(false); setShowPreviousDar(true); }, aria:'Show the previous shift report' },
+          { id:'current', label:'Current shift', current:!viewingPreviousDar && !viewingHandoff, onSelect:() => { setShowHandover(false); setShowPreviousDar(false); }, aria:'Show the current shift report' },
         ]}
       />}
 
@@ -1394,21 +1321,6 @@ export const CaregiverDashboard = ({
                     </div>
                   </div>
                 </section>
-        ) : viewingMedia ? (
-          <section aria-label="Shift photos" style={{background:'transparent'}}>
-            {mediaItems.length ? <div style={{display:'grid',gridTemplateColumns:isPhone?'minmax(0,1fr)':'repeat(2,minmax(0,1fr))',gap:isPhone?14:18,width:'100%',margin:0}}>
-              {mediaItems.map(item => <MediaCarouselCard
-                key={item.key}
-                item={item}
-                isPhone={isPhone}
-                fontFamily={INTER}
-                colors={{CARD,CARD2,BORDER,TEXT,MUTED,BLUE,SHADOW}}
-                onOpen={(imageIndex)=>setGallery({urls:item.urls,idx:imageIndex})}
-              />)}
-            </div> : <div style={{minHeight:220,background:CARD,border:`1px solid ${BORDER}`,borderRadius:20,boxShadow:SHADOW,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24}}>
-              <Image size={28} color={MUTED}/><h3 style={{fontFamily:INTER,fontSize:17,fontWeight:800,color:TEXT,margin:'12px 0 6px'}}>No photos yet</h3><p style={{fontFamily:INTER,fontSize:13,color:MUTED,margin:0,lineHeight:1.5}}>Photos and other evidence added during this shift will appear here.</p>
-            </div>}
-          </section>
         ) : (
           <DailyActivityReport
             mode="concierge"
@@ -2263,7 +2175,7 @@ export const CaregiverDashboard = ({
     { id: 'tours',         Icon: Users,          label: 'Tours'               },
     { id: 'loaners',       Icon: ShoppingCart,   label: 'Loaners'             },
     { id: 'incident',      Icon: AlertTriangle,  label: 'Incident'            },
-    { id: 'handoff',       Icon: LogOut,         label: 'Next handoff', action: () => { handleTabChange('home'); setShowPreviousDar(false); setShowMedia(false); setShowHandover(true); } },
+    { id: 'handoff',       Icon: LogOut,         label: 'Next handoff', action: () => { handleTabChange('home'); setShowPreviousDar(false); setShowHandover(true); } },
     { id: 'sops',          Icon: BookOpen,       label: 'SOPs'                },
     { id: 'training',      Icon: GraduationCap,  label: 'Training'            },
     { id: 'calendar',      Icon: Calendar,       label: 'Shifts'              },
