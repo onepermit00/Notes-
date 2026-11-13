@@ -68,12 +68,12 @@ const RED     = DASHBOARD_DANGER;
 const ORANGE  = DASHBOARD_WARNING;
 
 const ROUTE_TO_TAB = {
-  today: 'home', handoff: 'home', knowledge: 'sops', tasks: 'requests',
+  today: 'home', handoff: 'home', knowledge: 'sops', tasks: 'home',
   incidents: 'incident', visitors: 'guests', vendors: 'vendors', packages: 'packages',
   history: 'shift-history', profile: 'profile', settings: 'settings', calendar: 'calendar',
 };
 const TAB_TO_ROUTE = {
-  home: 'today', sops: 'knowledge', requests: 'tasks',
+  home: 'today', sops: 'knowledge',
   incident: 'incidents', guests: 'visitors', vendors: 'vendors', packages: 'packages',
   'shift-history': 'history', profile: 'profile', settings: 'settings',
 };
@@ -353,6 +353,8 @@ export const CaregiverDashboard = ({
   const [isPhone,       setIsPhone]       = useState(() => window.innerWidth < 768);
 
   const handleTabChange = useCallback((id) => {
+    // Manager tasks live in the To do card above the report now, not on a Requests page.
+    if (id === 'requests') id = 'home';
     if (id !== 'home') {
       setShowHandover(false);
      
@@ -1338,7 +1340,7 @@ export const CaregiverDashboard = ({
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, padding:isPhone?'14px 16px':'16px 22px', borderBottom:`1px solid ${BORDER}` }}>
                 <div>
                   <div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:4 }}>To do today</div>
-                  <h3 id="todo-today-title" style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-.02em' }}>{pendingRequests.length} task{pendingRequests.length === 1 ? '' : 's'} from your manager</h3>
+                  <h3 id="todo-today-title" style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-.02em' }}>{pendingRequests.length} task{pendingRequests.length === 1 ? '' : 's'} for you</h3>
                 </div>
                 {!isPhone && <span style={{ fontFamily:INTER, fontSize:11, color:MUTED, textAlign:'right', maxWidth:200, lineHeight:1.4 }}>Done tasks go into your report</span>}
               </div>
@@ -1351,9 +1353,18 @@ export const CaregiverDashboard = ({
                     <div style={{ minWidth:0 }}>
                       <div style={{ fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, lineHeight:1.35 }}>{task.title}</div>
                       <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3 }}>{[time, planned ? 'Scheduled task' : 'Assigned task', task.status === 'in_progress' ? 'In progress' : ''].filter(Boolean).join(' · ')}</div>
+                      <div data-testid="todo-assigned-by" style={{ fontFamily:INTER, fontSize:12, color:TEXT, fontWeight:650, marginTop:3 }}>Assigned by {task.createdBy || task.created_by_name || 'your manager'}</div>
                       {task.notes && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:5, lineHeight:1.45 }}>{task.notes}</div>}
                     </div>
-                    <button onClick={() => handleStartTask(task)} aria-label={`Mark ${task.title} done`} style={{ gridColumn:isPhone?'2':'auto', justifySelf:isPhone?'start':'end', minHeight:40, padding:'0 16px', border:0, borderRadius:999, background:BLUE, color:'white', fontFamily:INTER, fontSize:13, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6 }}><Check size={15} />Done</button>
+                    <button data-testid="todo-start" onClick={() => {
+                      // Starting tells the manager the desk is on it; then the task opens to finish it.
+                      if (task.status === 'pending') {
+                        const taskId = task.id || task.task_id;
+                        setTasks(p => p.map(t => (t.id || t.task_id) === taskId ? { ...t, status: 'in_progress' } : t));
+                        authApi.updateTask(taskId, { status: 'in_progress' }).catch(() => {});
+                      }
+                      handleStartTask({ ...task, status: 'in_progress' });
+                    }} aria-label={`${task.status === 'in_progress' ? 'Continue' : 'Start'} ${task.title}`} style={{ gridColumn:isPhone?'2':'auto', justifySelf:isPhone?'start':'end', minHeight:40, padding:'0 16px', border:0, borderRadius:999, background:task.status === 'in_progress' ? TEXT : BLUE, color:task.status === 'in_progress' ? CARD : 'white', fontFamily:INTER, fontSize:13, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, whiteSpace:'nowrap' }}>{task.status === 'in_progress' ? <><Play size={14} />Continue task</> : <><Play size={14} />Start task</>}</button>
                   </div>
                 );
               })}
@@ -2194,8 +2205,6 @@ export const CaregiverDashboard = ({
   const NAV_ITEMS = [
     { id: 'home',          Icon: Home,           label: "Today's"             },
     { id: 'new-task',      Icon: Plus,           label: 'New Task',           action: () => setShowNewTask(true) },
-    { id: 'requests',      Icon: Bell,           label: 'Requests'            },
-    { id: 'assistant',     Icon: Sparkles,       label: 'Assistant',          action: () => setShowCopilot(true) },
     { id: 'messages',      Icon: MessageSquare,  label: 'Messages'            },
     { id: 'followup',      Icon: Clock,          label: 'Follow-ups'          },
     { id: 'packages',      Icon: Package,        label: 'Packages'            },
@@ -2205,7 +2214,6 @@ export const CaregiverDashboard = ({
     { id: 'tours',         Icon: Users,          label: 'Tours'               },
     { id: 'loaners',       Icon: ShoppingCart,   label: 'Loaners'             },
     { id: 'incident',      Icon: AlertTriangle,  label: 'Incident'            },
-    { id: 'handoff',       Icon: LogOut,         label: 'Next handoff', action: () => { handleTabChange('home'); setShowPreviousDar(false); setShowHandover(true); } },
     { id: 'sops',          Icon: BookOpen,       label: 'SOPs'                },
     { id: 'training',      Icon: GraduationCap,  label: 'Training'            },
     { id: 'calendar',      Icon: Calendar,       label: 'Shifts'              },
@@ -2213,7 +2221,7 @@ export const CaregiverDashboard = ({
     { id: 'emergency',     Icon: Phone,          label: 'Emergency Contacts', action: () => setShowContacts(true) },
   ];
   const NAV_GROUPS = [
-    { label: 'Shift record', ids: ['home', 'new-task', 'requests', 'followup', 'messages', 'handoff', 'assistant'] },
+    { label: 'Shift record', ids: ['home', 'new-task', 'followup', 'messages'] },
     { label: 'Front desk', ids: ['packages', 'guests', 'lockout', 'vendors', 'tours', 'loaners', 'incident'] },
     { label: 'Property guide', ids: ['sops', 'training'] },
     { label: 'Account & support', ids: ['calendar', 'settings', 'emergency'] },

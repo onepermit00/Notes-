@@ -2880,7 +2880,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     {{ shifts:'Shift Calendar', tasks:'Tasks', incidents:'Incidents', team:'Team', residents:'Residents Directory', analytics:'Analytics', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings', messages:'Messages' }[tab]}
                   </h2>
                   <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>
-                    {{ incidents:'Reports filed by the front desk, for your review', messages:'One thread for the manager and the front desk', shifts:'Browse shift history and daily activity reports', tasks:'Assign work for today, schedule it ahead, and see who did it', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
+                    {{ incidents:'Reports filed by the front desk, for your review', messages:'Team messages for this property', shifts:'Browse shift history and daily activity reports', tasks:'Assign work for today, schedule it ahead, and see who did it', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
                   </p>
                 </div>
                 <button onClick={() => setTab('home')} aria-label="Close panel" data-testid="panel-close-btn"
@@ -2890,7 +2890,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               </div>
 
               {/* Panel content */}
-              <div style={{ flex:1, overflowY:'auto', padding: tab === 'settings' ? 0 : (isMobile ? '16px 16px 48px' : '28px 32px 48px') }}>
+              <div style={{ flex:1, minHeight:0, ...(tab === 'messages' ? { display:'flex', flexDirection:'column', overflow:'hidden', padding:0 } /* same as the desk: messages scroll, the typing bar stays at the bottom */ : { overflowY:'auto', padding: tab === 'settings' ? 0 : (isMobile ? '16px 16px 48px' : '28px 32px 48px') }) }}>
                 {knowledgeError && (tab==='more' || tab==='training') && <div role="alert" style={{ marginBottom:16, padding:'12px 16px', borderRadius:12, border:`1px solid ${RED}40`, background:`${RED}0d`, fontFamily:INTER, fontSize:13, color:TEXT, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}><span>{knowledgeError}</span><button type="button" onClick={clearKnowledgeError} aria-label="Dismiss" style={{ border:0, background:'transparent', cursor:'pointer', display:'inline-flex' }}><X size={16} color={MUTED}/></button></div>}
                 {tab==='shifts'    && renderShifts()}
                 {tab==='tasks'     && renderTasks()}

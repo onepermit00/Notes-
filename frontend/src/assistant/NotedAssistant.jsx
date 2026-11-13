@@ -37,7 +37,7 @@ const SUGGEST = {
   ],
 };
 const KIND_TAG = { resident: 'Resident', request: 'Request', incident: 'Incident', entry: 'Today’s report', teammate: 'Team' };
-const KIND_PLACE = { concierge: { request: 'requests', incident: 'incident', entry: 'home' }, manager: { request: 'tasks', incident: 'home', resident: 'residents', teammate: 'team' } };
+const KIND_PLACE = { concierge: { request: 'home', incident: 'incident', entry: 'home' }, manager: { request: 'tasks', incident: 'home', resident: 'residents', teammate: 'team' } };
 /* Same cut-off the dashboards use for their phone and tablet layout. */
 const isCompactScreen = () => { const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return window.innerWidth < (touch ? 1366 : 768); };
 const tel = phone => `tel:${String(phone || '').replace(/[^\d+]/g, '')}`;
