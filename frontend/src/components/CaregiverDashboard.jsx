@@ -47,6 +47,9 @@ import { shrinkImages } from '../lib/shrinkImage';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { SignaturePad } from './SignaturePad';
 import { KnowledgeStatusBadge } from './knowledge/KnowledgeUI';
+import { ContactGroups } from './contacts/ContactDirectory';
+import { KnowledgeThumb, KnowledgeViewer } from './knowledge/KnowledgeMedia';
+import { hasKnowledgeFile, knowledgeTypeLabel } from '../lib/knowledgeFile';
 import {
   DASHBOARD_ACCENT, DASHBOARD_ACTIVE_NAV, DASHBOARD_DANGER, DASHBOARD_FONT,
   DASHBOARD_SIDEBAR_COLLAPSED, DASHBOARD_SIDEBAR_EXPANDED,
@@ -2008,7 +2011,7 @@ export const CaregiverDashboard = ({
 
     const categories = ['All', ...Array.from(new Set(uploadedSOPs.map(s => s.category).filter(Boolean)))];
     const q = sopSearch.trim().toLowerCase();
-    const results = uploadedSOPs.filter(sop => (sopFilter === 'All' || sop.category === sopFilter) && (!q || `${sop.title || ''} ${sop.category || ''} ${sop.fileName || ''}`.toLowerCase().includes(q)));
+    const results = uploadedSOPs.filter(sop => (sopFilter === 'All' || sop.category === sopFilter) && (!q || `${sop.title || ''} ${sop.category || ''} ${sop.fileName || ''} ${sop.body || ''}`.toLowerCase().includes(q)));
     const prompts = ['How does this work?', 'Where is this located?', 'What do I do if this happens?', 'Who should I contact?'];
     const closeSOPs = () => handleTabChange('home');
 
@@ -2055,18 +2058,15 @@ export const CaregiverDashboard = ({
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,minmax(0,1fr))', gap:10 }}>
             {results.map((sop, index) => {
-          const CatIcon = sop.fileType === 'image' ? Image : sop.fileType === 'pdf' ? FileText : (SOP_ICON_MAP[sop.category] || BookOpen);
+          const withFile = hasKnowledgeFile(sop);
+          const CatIcon = !withFile ? (SOP_ICON_MAP[sop.category] || BookOpen) : sop.fileType === 'image' ? Image : sop.fileType === 'video' ? Video : FileText;
           const catColor = SOP_COLOR_MAP[sop.category] || MUTED;
-          const typeLabel = sop.fileType === 'image' ? 'Visual guide' : sop.fileType === 'video' ? 'Video guide' : 'Document';
+          const typeLabel = !withFile ? 'Written steps' : sop.fileType === 'image' ? 'Visual guide' : sop.fileType === 'video' ? 'Video guide' : 'Document';
           return (
             <button key={sop.id} onClick={() => setFullscreenItem(sop)}
               style={{ minHeight:128, padding:14, borderRadius:14, textAlign:'left', display:'grid', gridTemplateColumns:'52px minmax(0,1fr) 18px', alignItems:'center', gap:13, cursor:'pointer', width:'100%', background:CARD, border:`1px solid ${BORDER}`, boxShadow:SHADOW, transition:'border-color 150ms, box-shadow 150ms' }}>
               <div style={{ width:52, height:72, borderRadius:11, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:CARD2, overflow:'hidden', position:'relative' }}>
-                {sop.fileType === 'image' ? (
-                  <img src={sop.dataURL} alt={sop.title} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                ) : (
-                  <CatIcon size={23} color={catColor} />
-                )}
+                <KnowledgeThumb item={sop} Icon={CatIcon} color={catColor} accent={BLUE} />
                 <span style={{ position:'absolute', top:5, left:5, fontFamily:INTER, fontSize:7, fontWeight:800, color:catColor }}>{String(index+1).padStart(2,'0')}</span>
               </div>
               <div style={{ flex:1, minWidth:0 }}>
@@ -2099,7 +2099,7 @@ export const CaregiverDashboard = ({
       setFullscreenItem({ ...item, _knowledgeType:'training' });
     };
     const q = trainingSearch.trim().toLowerCase();
-    const results = trainingItems.filter(item => (!q || `${item.title || ''} ${item.category || ''} ${item.fileName || ''}`.toLowerCase().includes(q)) && (trainingFilter === 'All' || (trainingFilter === 'Completed' ? completedTraining.has(item.id) : item.fileType === trainingFilter.toLowerCase())));
+    const results = trainingItems.filter(item => (!q || `${item.title || ''} ${item.category || ''} ${item.fileName || ''} ${item.body || ''}`.toLowerCase().includes(q)) && (trainingFilter === 'All' || (trainingFilter === 'Completed' ? completedTraining.has(item.id) : trainingFilter === 'pdf' ? ['pdf', 'doc'].includes(item.fileType) : item.fileType === trainingFilter)));
     const completedCount = trainingItems.filter(item=>completedTraining.has(item.id)).length;
     const resumeItem = trainingItems.find(item=>item.id===lastTrainingId && !completedTraining.has(item.id));
     const progress = trainingItems.length ? Math.round((completedCount/trainingItems.length)*100) : 0;
@@ -2134,23 +2134,18 @@ export const CaregiverDashboard = ({
             {resumeItem&&<button onClick={()=>openTraining(resumeItem)} style={{ minHeight:44, padding:'0 16px', borderRadius:14, border:0, background:BLUE, color:'white', fontFamily:INTER, fontSize:11, fontWeight:750, cursor:'pointer', boxShadow:`0 7px 22px ${BLUE}28`, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7 }}><Play size={13}/>Resume</button>}
           </section>
 
-          <section><div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:12, marginBottom:12 }}><div><div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>Desk learning</div><h3 style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT, letterSpacing:'-.03em', margin:0 }}>Assigned materials</h3></div><span aria-label={`${results.length} training materials shown`} style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:MUTED, whiteSpace:'nowrap' }}>{results.length} / {trainingItems.length}</span></div><div role="tablist" aria-label="Training material types" style={{ display:'flex', gap:4, padding:4, overflowX:'auto', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, scrollbarWidth:'none' }}>{['All','video','image','pdf','Completed'].map(filter=>{const selected=trainingFilter===filter;return <button key={filter} role="tab" aria-selected={selected} onClick={()=>setTrainingFilter(filter)} style={{ minHeight:42, padding:'0 14px', border:selected?`1px solid ${BORDER}`:'1px solid transparent', borderRadius:11, background:selected?CARD:'transparent', boxShadow:selected?'0 2px 8px rgba(0,0,0,.07)':'none', color:selected?TEXT:MUTED, fontFamily:INTER, fontSize:11, fontWeight:750, textTransform:filter==='pdf'?'uppercase':'capitalize', cursor:'pointer', whiteSpace:'nowrap', transition:'all 160ms' }}>{filter==='image'?'Photos':filter==='video'?'Videos':filter}</button>})}</div></section>
+          <section><div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:12, marginBottom:12 }}><div><div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>Desk learning</div><h3 style={{ fontFamily:INTER, fontSize:20, fontWeight:800, color:TEXT, letterSpacing:'-.03em', margin:0 }}>Assigned materials</h3></div><span aria-label={`${results.length} training materials shown`} style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:MUTED, whiteSpace:'nowrap' }}>{results.length} / {trainingItems.length}</span></div><div role="tablist" aria-label="Training material types" style={{ display:'flex', gap:4, padding:4, overflowX:'auto', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, scrollbarWidth:'none' }}>{['All','video','image','pdf','Completed'].map(filter=>{const selected=trainingFilter===filter;return <button key={filter} role="tab" aria-selected={selected} onClick={()=>setTrainingFilter(filter)} style={{ minHeight:42, padding:'0 14px', border:selected?`1px solid ${BORDER}`:'1px solid transparent', borderRadius:11, background:selected?CARD:'transparent', boxShadow:selected?'0 2px 8px rgba(0,0,0,.07)':'none', color:selected?TEXT:MUTED, fontFamily:INTER, fontSize:11, fontWeight:750, textTransform:'capitalize', cursor:'pointer', whiteSpace:'nowrap', transition:'all 160ms' }}>{filter==='image'?'Photos':filter==='video'?'Videos':filter==='pdf'?'Documents':filter}</button>})}</div></section>
 
           {trainingItems.length===0 ? <div style={{ minHeight:240, border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:'36px 24px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', boxShadow:SHADOW }}><div style={{ width:50, height:50, borderRadius:14, background:`${BLUE}10`, border:`1px solid ${BLUE}20`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:12 }}><GraduationCap size={22} color={BLUE} strokeWidth={1.6}/></div><h3 style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:TEXT, letterSpacing:'-.02em', margin:'0 0 7px' }}>No property training has been assigned yet</h3><p style={{ maxWidth:430, fontFamily:INTER, fontSize:13, color:MUTED, lineHeight:1.6, margin:0 }}>Your property manager can add approved videos, visual guides, and reference documents.</p></div> : results.length===0 ? <div style={{ minHeight:200, border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:'30px 22px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', boxShadow:SHADOW }}><Search size={24} color={MUTED}/><h3 style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT, margin:'12px 0 6px' }}>No training matches this view</h3><button onClick={()=>{setTrainingSearch('');setTrainingFilter('All');}} style={{ minHeight:40, padding:'0 14px', borderRadius:14, border:`1px solid ${BORDER}`, background:CARD2, color:TEXT, fontFamily:INTER, fontSize:11, fontWeight:700, cursor:'pointer' }}>Show all training</button></div> : <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,minmax(0,1fr))', gap:10 }}>
         {results.map((item) => {
           const CatIcon = TRAINING_ICON_MAP[item.category] || HelpCircle;
-          const typeLabel = item.fileType === 'video' ? 'Video' : item.fileType === 'image' ? 'Photo' : 'PDF';
-          const TypeIcon = item.fileType === 'video' ? Video : item.fileType === 'image' ? Image : FileText;
+          const typeLabel = knowledgeTypeLabel(item);
+          const TypeIcon = !hasKnowledgeFile(item) ? FileText : item.fileType === 'video' ? Video : item.fileType === 'image' ? Image : FileText;
           const done = completedTraining.has(item.id);
           return (
             <button key={item.id} onClick={() => openTraining(item)} style={{ minHeight:130, padding:14, borderRadius:14, textAlign:'left', display:'grid', gridTemplateColumns:'58px minmax(0,1fr) 18px', alignItems:'center', gap:13, cursor:'pointer', width:'100%', background:CARD, border:`1px solid ${done?`${GREEN}45`:BORDER}`, boxShadow:SHADOW, transition:'border-color 150ms, box-shadow 150ms' }}>
               <div style={{ width:58, height:78, borderRadius:11, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:CARD2, overflow:'hidden', position:'relative' }}>
-                {item.fileType === 'image' ? (
-                  <img src={item.dataURL} alt={item.title} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                ) : (
-                  <CatIcon size={24} color={MUTED} />
-                )}
-                {item.fileType==='video'&&<span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.08)' }}><Play size={18} color={BLUE}/></span>}
+                <KnowledgeThumb item={item} Icon={CatIcon} color={MUTED} accent={BLUE} />
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, textTransform:'uppercase', letterSpacing:'0.14em', margin:'0 0 6px' }}>{item.category}</p>
@@ -2967,39 +2962,9 @@ export const CaregiverDashboard = ({
 
               <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 20px 40px' : '28px 32px 48px', display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-                {/* Emergency Numbers */}
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <AlertTriangle size={20} color={RED} />
-                      <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Emergency Numbers</h2>
-                    </div>
-                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED, flexShrink: 0 }}>{2 + propertyContacts.length}</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {[
-                      { label: 'Police / Fire / EMS',    number: '911',                                              urgent: true  },
-                      { label: 'Poison Control',         number: '(800) 222-1222',         urgent: false },
-                      ...propertyContacts.map(c => ({ label: c.label, number: c.number, urgent: false })),
-                    ].map(({ label, number, urgent }) => (
-                      <div key={label} style={{ background: CARD, border: `1px solid ${urgent ? 'rgba(255,59,48,0.3)' : BORDER}`, borderRadius: 16, padding: 20, display: 'flex', alignItems: 'center', gap: 16, boxShadow: urgent ? '0 4px 20px rgba(255,59,48,0.08)' : '0 2px 8px rgba(0,0,0,0.05)' }}>
-                        <div style={{ width: 48, height: 48, borderRadius: 14, background: urgent ? 'rgba(255,59,48,0.10)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Phone size={22} color={urgent ? RED : MUTED} />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 15, margin: '0 0 2px' }}>{label}</p>
-                          <p style={{ fontFamily: INTER, fontSize: 14, color: MUTED, margin: 0 }}>{number}</p>
-                        </div>
-                        <a href={`tel:${number.replace(/\D/g,'')}`}
-                          style={{ padding: '10px 18px', background: urgent ? RED : BLUE, color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', flexShrink: 0, boxShadow: urgent ? '0 4px 14px rgba(255,59,48,0.30)' : '0 4px 14px rgba(255,56,92,0.28)' }}>
-                          Call
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Property Team */}
+                <ContactGroups contacts={propertyContacts} isPhone={isPhone}
+                  colors={{ accent:BLUE, danger:RED, warning:ORANGE, card:CARD, surface:CARD2, border:BORDER, text:TEXT, muted:MUTED, shadow:SHADOW }}
+                  afterEmergency={
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3051,6 +3016,7 @@ export const CaregiverDashboard = ({
                     })}
                   </div>
                 </div>
+                  } />
 
               </div>
             </motion.div>
@@ -4001,42 +3967,14 @@ export const CaregiverDashboard = ({
 
       {/* ── Fullscreen viewer (SOPs + Training) ─────────────────────────────── */}
       {fullscreenItem && (
-        <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.96)', display:'flex', flexDirection:'column' }}
-          onClick={() => setFullscreenItem(null)}>
-          <div style={{ flexShrink:0, display:'flex', alignItems:'center', gap:14, padding:'14px 20px', background:'rgba(0,0,0,0.7)', backdropFilter:'blur(10px)' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.45)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:2 }}>{fullscreenItem.category}</div>
-              <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', lineHeight:1.2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{fullscreenItem.title}</div>
-            </div>
-            <button onClick={() => setFullscreenItem(null)}
-              style={{ width:40, height:40, borderRadius:12, background:'rgba(255,255,255,0.12)', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
-              <X size={20} color="white" />
-            </button>
-          </div>
-          <div style={{ flex:1, minHeight:0, display:'flex', alignItems:'center', justifyContent:'center', padding:'12px', overflowY:'auto' }}
-            onClick={e => e.stopPropagation()}>
-            {fullscreenItem.fileType === 'image' ? (
-              <img src={fullscreenItem.dataURL} alt={fullscreenItem.title}
-                style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', borderRadius:8, display:'block' }} />
-            ) : fullscreenItem.fileType === 'video' ? (
-              <video src={fullscreenItem.dataURL} controls autoPlay
-                style={{ maxWidth:'100%', maxHeight:'100%', borderRadius:8, display:'block', outline:'none' }} />
-            ) : (
-              <iframe src={fullscreenItem.dataURL} title={fullscreenItem.title}
-                style={{ width:'100%', height:'100%', border:'none', borderRadius:8, display:'block', background:'white' }} />
-            )}
-          </div>
-          <div style={{ flexShrink:0, padding:'12px 20px 24px', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}
-            onClick={e => e.stopPropagation()}>
-            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:280 }}>{fullscreenItem.fileName}</span>
+        <KnowledgeViewer item={fullscreenItem} onClose={() => setFullscreenItem(null)} font={INTER}
+          footer={<>
             {fullscreenItem._knowledgeType === 'training' ? (
               <button onClick={() => {
                 setTrainingCompleted(fullscreenItem.id, !completedTraining.has(fullscreenItem.id));
               }} aria-pressed={completedTraining.has(fullscreenItem.id)} style={{ minHeight:42, padding:'0 15px', marginLeft:10, borderRadius:999, border:`1px solid ${completedTraining.has(fullscreenItem.id)?GREEN:'rgba(255,255,255,.22)'}`, background:completedTraining.has(fullscreenItem.id)?GREEN:'rgba(255,255,255,.10)', color:'white', fontFamily:INTER, fontSize:11, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:7 }}><Check size={14}/>{completedTraining.has(fullscreenItem.id)?'Reviewed':'Mark reviewed'}</button>
             ) : <><span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.20)' }}>·</span><span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)' }}>Tap outside to close</span></>}
-          </div>
-        </div>
+          </>} />
       )}
 
 

@@ -8,7 +8,7 @@ const SharedDataContext = createContext(null);
 
 export const MAX_KNOWLEDGE_FILE_BYTES = 6 * 1024 * 1024;
 
-const sameItem = (a, b) => a.title === b.title && a.category === b.category && a.fileName === b.fileName && a.dataURL === b.dataURL;
+const sameItem = (a, b) => a.title === b.title && a.category === b.category && a.fileName === b.fileName && a.dataURL === b.dataURL && (a.body || '') === (b.body || '');
 
 export function SharedDataProvider({ children }) {
   const [uploadedSOPs,  setSops]     = useState([]);
@@ -75,9 +75,42 @@ export function SharedDataProvider({ children }) {
     send(() => authApi.setTrainingCompleted(id, completed));
   }, [send]);
 
+  const putLocal = useCallback((kind, saved) => {
+    const list = lists.current[kind];
+    const next = list.some(item => item.id === saved.id) ? list.map(item => item.id === saved.id ? saved : item) : [...list, saved];
+    lists.current = { ...lists.current, [kind]: next };
+    (kind === 'sop' ? setSops : setTraining)(next);
+  }, []);
+
+  // Save an SOP or training item and wait for the server, uploading its file if
+  // there is one. Used by the manager's add/edit screen, which shows progress and errors.
+  const saveKnowledgeItem = useCallback(async (kind, item, { file = null, fileName = '', removeFile = false, onProgress } = {}) => {
+    const isNew = !item.id;
+    const id = item.id || `${kind === 'sop' ? 'sop' : 'training'}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    let saved = await authApi.saveKnowledge(kind, { ...item, id, dataURL: '' }, { fileToFollow: !!file, removeFile });
+    if (file) {
+      try {
+        saved = await authApi.uploadKnowledgeFile(id, file, fileName, onProgress);
+      } catch (error) {
+        if (isNew) await authApi.deleteKnowledge(id).catch(() => {});
+        else putLocal(kind, saved);
+        throw error;
+      }
+    }
+    putLocal(kind, saved);
+    return saved;
+  }, [putLocal]);
+
+  const deleteKnowledgeItem = useCallback(async (kind, id) => {
+    await authApi.deleteKnowledge(id);
+    const next = lists.current[kind].filter(item => item.id !== id);
+    lists.current = { ...lists.current, [kind]: next };
+    (kind === 'sop' ? setSops : setTraining)(next);
+  }, []);
+
   return (
     <SharedDataContext.Provider value={{
-      uploadedSOPs, setUploadedSOPs, trainingItems, setTrainingItems,
+      uploadedSOPs, setUploadedSOPs, trainingItems, setTrainingItems, saveKnowledgeItem, deleteKnowledgeItem,
       setKnowledgeItemStatus, setTrainingCompleted, refreshKnowledge,
       knowledgeError, clearKnowledgeError: () => setKnowledgeError(''),
     }}>

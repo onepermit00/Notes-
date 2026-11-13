@@ -1,5 +1,7 @@
 import React from 'react';
-import { BookOpen, CheckCircle, ChevronRight, FileText, Image, Play, Search, Video, X } from 'lucide-react';
+import { BookOpen, CheckCircle, ChevronRight, FileText, Image, Search, Video, X } from 'lucide-react';
+import { KnowledgeThumb } from './KnowledgeMedia';
+import { hasKnowledgeFile } from '../../lib/knowledgeFile';
 
 export const KnowledgeStatusBadge = ({ status = 'published', colors, label }) => {
   const palette = {
@@ -35,11 +37,12 @@ export const KnowledgeFilters = ({ search, onSearch, placeholder, categories, se
 );
 
 export const KnowledgeCard = ({ item, kind='sop', onOpen, actions, status, colors, icon: Icon=BookOpen }) => {
-  const TypeIcon = item.fileType === 'video' ? Video : item.fileType === 'image' ? Image : FileText;
-  const typeLabel = item.fileType === 'video' ? 'Video' : item.fileType === 'image' ? 'Visual guide' : 'Document';
+  const withFile = hasKnowledgeFile(item);
+  const TypeIcon = !withFile ? FileText : item.fileType === 'video' ? Video : item.fileType === 'image' ? Image : FileText;
+  const typeLabel = !withFile ? 'Written steps' : item.fileType === 'video' ? 'Video' : item.fileType === 'image' ? 'Visual guide' : 'Document';
   return <div style={{ minHeight:128, padding:14, borderRadius:14, display:'grid', gridTemplateColumns:'58px minmax(0,1fr) auto', alignItems:'center', gap:13, background:colors.card, border:`1px solid ${colors.border}`, boxShadow:colors.shadow }}>
     <button onClick={()=>onOpen(item)} aria-label={`Open ${item.title}`} style={{ width:58, height:78, padding:0, border:0, borderRadius:11, background:colors.surface, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', position:'relative' }}>
-      {item.fileType==='image' ? <img src={item.dataURL} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <Icon size={24} color={colors.muted}/>} {item.fileType==='video'&&<Play size={18} color={colors.accent} style={{ position:'absolute' }}/>} 
+      <KnowledgeThumb item={item} Icon={Icon} color={colors.muted} accent={colors.accent}/>
     </button>
     <button onClick={()=>onOpen(item)} style={{ minWidth:0, padding:0, border:0, background:'transparent', textAlign:'left', cursor:'pointer' }}>
       <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', marginBottom:6 }}><span style={{ fontSize:9, fontWeight:800, color:colors.accent, textTransform:'uppercase', letterSpacing:'.14em' }}>{item.category}</span>{status&&<KnowledgeStatusBadge status={status} colors={colors}/>}</div>
