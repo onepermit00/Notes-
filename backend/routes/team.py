@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional
 from core import (
     AddConciergeRequest, CreateInvitationRequest, INVITE_TOKEN_DAYS, RESET_TOKEN_MINUTES,
-    _generate_raw_token, _hash_token, db, get_session, hash_pw, send_email,
+    _generate_raw_token, _hash_token, clean_email, db, get_session, hash_pw, send_email,
 )
 
 api = APIRouter(prefix='/api')
@@ -26,13 +26,14 @@ async def add_concierge(data: AddConciergeRequest, request: Request, session_tok
 
     if len(data.password) < 8:
         raise HTTPException(400, 'Password must be at least 8 characters.')
-    if await db.concierges.find_one({'email': data.email.lower()}):
+    email = clean_email(data.email)
+    if await db.concierges.find_one({'email': email}):
         raise HTTPException(400, 'A concierge with this email already exists.')
 
     con_id = f'con_{uuid.uuid4().hex[:12]}'
     await db.concierges.insert_one({
         'concierge_id':  con_id,
-        'email':         data.email.lower(),
+        'email':         email,
         'password_hash': hash_pw(data.password),
         'first_name':    data.first_name,
         'last_name':     data.last_name,
@@ -67,13 +68,13 @@ async def add_concierge(data: AddConciergeRequest, request: Request, session_tok
         <a href="{esc(frontend_url)}/login" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px">Sign In to Noted</a>
       </div>
     </div>"""
-    asyncio.create_task(send_email(data.email, f"You've been added to {property_name} on Noted", html))
+    asyncio.create_task(send_email(email, f"You've been added to {property_name} on Noted", html))
 
     return {
         'concierge_id':  con_id,
         'first_name':    data.first_name,
         'last_name':     data.last_name,
-        'email':         data.email.lower(),
+        'email':         email,
         'title':         data.title,
         'phone':         data.phone,
         'property_name': property_name,
@@ -92,8 +93,19 @@ async def list_concierges(request: Request, session_token: Optional[str] = Cooki
         {'_id': 0, 'password_hash': 0}
     ).to_list(200)
 
+    # Who is at the desk right now, and how many shifts each person has worked.
+    on_shift = {s['concierge_id']: s for s in await db.shifts.find(
+        {'manager_id': session['user_id'], 'status': 'active'}, {'_id': 0, 'concierge_id': 1, 'clock_in': 1}).to_list(200)}
+    counts = {r['_id']: r['count'] for r in await db.shifts.aggregate([
+        {'$match': {'manager_id': session['user_id']}},
+        {'$group': {'_id': '$concierge_id', 'count': {'$sum': 1}}},
+    ]).to_list(500)}
     for d in docs:
-        d['status'] = 'active'
+        active = on_shift.get(d['concierge_id'])
+        d['status'] = 'on_shift' if active else 'active'
+        if active and isinstance(active.get('clock_in'), datetime):
+            d['on_shift_since'] = active['clock_in'].isoformat()
+        d['shift_count'] = counts.get(d['concierge_id'], 0)
         if isinstance(d.get('created_at'), datetime):
             d['created_at'] = d['created_at'].isoformat()
 
@@ -158,8 +170,14 @@ async def resend_credentials(concierge_id: str, request: Request, session_token:
         <p style="color:#aaa;font-size:13px">If you weren't expecting this, you can ignore this email. Your current password still works.</p>
       </div>
     </div>"""
-    asyncio.create_task(send_email(con['email'], 'Set a new Noted password', html))
-    return {'message': 'Password reset link emailed.'}
+    sent, reason = await send_email(con['email'], 'Set a new Noted password', html)
+    # The manager who asked can pass the link on by hand when email is not working.
+    return {
+        'message':     'Password reset link emailed.' if sent else 'The reset email could not be sent.',
+        'email_sent':  sent,
+        'email_error': reason,
+        'reset_link':  reset_link,
+    }
 
 
 @api.delete('/manager/concierge/{concierge_id}')
@@ -213,9 +231,13 @@ async def create_concierge_invitation(data: CreateInvitationRequest, request: Re
     if not manager:
         raise HTTPException(404, 'Manager not found.')
 
-    email = data.email.lower().strip()
+    email = clean_email(data.email)
+    if not data.first_name.strip():
+        raise HTTPException(400, 'Enter the team member\'s name.')
     if await db.concierges.find_one({'email': email}):
         raise HTTPException(409, 'A concierge with this email already exists.')
+    if await db.managers.find_one({'email': email}) and email == manager['email']:
+        raise HTTPException(409, 'That is your own manager email. Use a different address for the concierge.')
 
     now = datetime.now(timezone.utc)
     if await db.invitations.find_one({'email': email, 'status': 'pending', 'expires_at': {'$gt': now}}):
@@ -253,7 +275,7 @@ async def create_concierge_invitation(data: CreateInvitationRequest, request: Re
       <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
         <p style="color:#444;font-size:15px;line-height:1.7">Hi {esc(data.first_name)},</p>
         <p style="color:#444;font-size:15px;line-height:1.7">
-          <strong>{esc(manager_name)}</strong> has invited you to join <strong>{esc(property_name)}</strong> as a <strong>{data.title or 'Concierge'}</strong> on the Noted platform.
+          <strong>{esc(manager_name)}</strong> has invited you to join <strong>{esc(property_name)}</strong> as a <strong>{esc(data.title or 'Concierge')}</strong> on the Noted platform.
         </p>
         <a href="{esc(invite_link)}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Accept invitation</a>
         <p style="color:#aaa;font-size:13px">This link expires in {esc(INVITE_TOKEN_DAYS)} days and lets you set your own password.</p>

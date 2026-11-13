@@ -11,28 +11,74 @@ from core import (
     AcceptInvitationRequest, FORGOT_PW_RATE_LIMIT, FORGOT_PW_RATE_WINDOW,
     ForgotPasswordRequest, ManagerSignupRequest, RESET_TOKEN_MINUTES, ResetPasswordRequest,
     SignInRequest, UpdateProfileRequest, _check_rate_limit, _generate_raw_token,
-    _hash_token, create_session, db, get_session, hash_pw, logger, send_email, set_cookie,
+    _hash_token, clean_email, create_session, db, get_session, hash_pw, logger, send_email, set_cookie,
     validate_password_policy, verify_pw,
 )
 
 api = APIRouter(prefix='/api')
 
+def _profile(user: dict, user_type: str) -> dict:
+    """What the app needs to know about the signed-in person, in one shape for
+    sign-up, sign-in, session restore and profile edits."""
+    base = {
+        'user_type':     user_type,
+        'name':          f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+        'first_name':    user.get('first_name', ''),
+        'last_name':     user.get('last_name', ''),
+        'email':         user['email'],
+        'phone':         user.get('phone', ''),
+        'property_name': user.get('property_name', ''),
+    }
+    if user_type == 'manager':
+        return {**base, 'user_id': user['manager_id'], 'title': user.get('job_title') or 'Property Manager',
+                'property_address': _address(user), 'notification_prefs': _prefs(user)}
+    return {**base, 'user_id': user['concierge_id'], 'title': user.get('title', 'Concierge'),
+            'manager_id': user['manager_id'], 'property_address': user.get('_property_address', '')}
+
+
+def _address(manager: dict) -> str:
+    street = (manager.get('address') or '').strip()
+    city_state = ', '.join(x for x in [(manager.get('city') or '').strip(), (manager.get('state') or '').strip()] if x)
+    return ' · '.join(x for x in [street, city_state] if x)
+
+
+NOTIFICATION_DEFAULTS = {'incident': True, 'package': True}
+
+def _prefs(manager: dict) -> dict:
+    saved = manager.get('notification_prefs') or {}
+    return {key: bool(saved.get(key, default)) for key, default in NOTIFICATION_DEFAULTS.items()}
+
+
+async def _with_property(user: dict, user_type: str) -> dict:
+    """Concierges read the property's address from their manager's record."""
+    if user_type == 'concierge':
+        manager = await db.managers.find_one({'manager_id': user.get('manager_id')}, {'address': 1, 'city': 1, 'state': 1})
+        user = {**user, '_property_address': _address(manager or {})}
+    return user
+
+
 @api.post('/auth/manager/signup')
 async def manager_signup(data: ManagerSignupRequest, response: Response):
     validate_password_policy(data.password)
-    if await db.managers.find_one({'email': data.email.lower()}):
+    email = clean_email(data.email)
+    for field, label in ((data.first_name, 'first name'), (data.last_name, 'last name'), (data.property_name, 'property name')):
+        if not field.strip():
+            raise HTTPException(400, f'Enter your {label}.')
+    if data.units < 1:
+        raise HTTPException(400, 'Enter at least 1 unit.')
+    if await db.managers.find_one({'email': email}):
         raise HTTPException(400, 'An account with this email already exists.')
 
     mgr_id = f'mgr_{uuid.uuid4().hex[:12]}'
     await db.managers.insert_one({
         'manager_id':    mgr_id,
-        'email':         data.email.lower(),
+        'email':         email,
         'password_hash': hash_pw(data.password),
-        'first_name':    data.first_name,
-        'last_name':     data.last_name,
+        'first_name':    data.first_name.strip(),
+        'last_name':     data.last_name.strip(),
         'phone':         data.phone,
         'job_title':     data.job_title,
-        'property_name': data.property_name,
+        'property_name': data.property_name.strip(),
         'address':       data.address,
         'city':          data.city,
         'state':         data.state,
@@ -57,55 +103,39 @@ async def manager_signup(data: ManagerSignupRequest, response: Response):
         <p style="color:#aaa;font-size:13px">You can add your concierge team from the Team section of your dashboard.</p>
       </div>
     </div>"""
-    asyncio.create_task(send_email(data.email, 'Welcome to Noted — your account is ready', html))
+    asyncio.create_task(send_email(email, 'Welcome to Noted — your account is ready', html))
 
-    return {
-        'token':         token,
-        'user_id':       mgr_id,
-        'user_type':     'manager',
-        'name':          f'{data.first_name} {data.last_name}',
-        'email':         data.email.lower(),
-        'property_name': data.property_name,
-    }
+    manager = await db.managers.find_one({'manager_id': mgr_id})
+    return {'token': token, **_profile(manager, 'manager')}
 
 
 @api.post('/auth/signin')
 async def signin(data: SignInRequest, response: Response):
     email = data.email.lower().strip()
+    if data.role not in ('manager', 'concierge'):
+        raise HTTPException(400, 'Role must be "manager" or "concierge".')
 
-    if data.role == 'manager':
-        user = await db.managers.find_one({'email': email})
-        if not user or not verify_pw(data.password, user['password_hash']):
-            raise HTTPException(401, 'Invalid email or password.')
-        token = await create_session(user['manager_id'], 'manager')
-        set_cookie(response, token)
-        return {
-            'token':         token,
-            'user_id':       user['manager_id'],
-            'user_type':     'manager',
-            'name':          f"{user['first_name']} {user['last_name']}",
-            'email':         user['email'],
-            'property_name': user['property_name'],
-        }
+    async def _find(role: str):
+        if role == 'manager':
+            user = await db.managers.find_one({'email': email})
+        else:
+            user = await db.concierges.find_one({'email': email, 'is_active': True})
+        return user if user and verify_pw(data.password, user['password_hash']) else None
 
-    if data.role == 'concierge':
-        user = await db.concierges.find_one({'email': email, 'is_active': True})
-        if not user or not verify_pw(data.password, user['password_hash']):
-            raise HTTPException(401, 'Invalid email or password.')
-        token = await create_session(user['concierge_id'], 'concierge')
-        set_cookie(response, token)
-        return {
-            'token':         token,
-            'user_id':       user['concierge_id'],
-            'user_type':     'concierge',
-            'name':          f"{user['first_name']} {user['last_name']}",
-            'email':         user['email'],
-            'property_name': user.get('property_name', ''),
-            'title':         user.get('title', 'Concierge'),
-            'manager_id':    user['manager_id'],
-        }
+    # Try the role that was picked first. If the email and password are right but
+    # the other role was picked by mistake, sign them in to the account they have
+    # instead of telling them their password is wrong.
+    other = 'concierge' if data.role == 'manager' else 'manager'
+    role, user = data.role, await _find(data.role)
+    if not user:
+        role, user = other, await _find(other)
+    if not user:
+        raise HTTPException(401, 'Invalid email or password.')
 
-    raise HTTPException(400, 'Role must be "manager" or "concierge".')
+    user_id = user['manager_id'] if role == 'manager' else user['concierge_id']
+    token = await create_session(user_id, role)
+    set_cookie(response, token)
+    return {'token': token, **_profile(await _with_property(user, role), role)}
 
 
 @api.get('/auth/me')
@@ -114,30 +144,12 @@ async def me(request: Request, session_token: Optional[str] = Cookie(default=Non
     if not session:
         raise HTTPException(401, 'Not authenticated.')
 
-    if session['user_type'] == 'manager':
-        user = await db.managers.find_one({'manager_id': session['user_id']}, {'_id': 0, 'password_hash': 0})
-        if not user:
-            raise HTTPException(401, 'User not found.')
-        return {
-            'user_id':       user['manager_id'],
-            'user_type':     'manager',
-            'name':          f"{user['first_name']} {user['last_name']}",
-            'email':         user['email'],
-            'property_name': user['property_name'],
-        }
-
-    user = await db.concierges.find_one({'concierge_id': session['user_id']}, {'_id': 0, 'password_hash': 0})
+    collection = db.managers if session['user_type'] == 'manager' else db.concierges
+    id_field   = 'manager_id' if session['user_type'] == 'manager' else 'concierge_id'
+    user = await collection.find_one({id_field: session['user_id']}, {'_id': 0, 'password_hash': 0})
     if not user:
         raise HTTPException(401, 'User not found.')
-    return {
-        'user_id':       user['concierge_id'],
-        'user_type':     'concierge',
-        'name':          f"{user['first_name']} {user['last_name']}",
-        'email':         user['email'],
-        'property_name': user.get('property_name', ''),
-        'title':         user.get('title', 'Concierge'),
-        'manager_id':    user['manager_id'],
-    }
+    return _profile(await _with_property(user, session['user_type']), session['user_type'])
 
 
 @api.post('/auth/signout')
@@ -158,8 +170,7 @@ async def change_password(data: ChangePasswordRequest, request: Request, session
     session = await get_session(request, session_token)
     if not session:
         raise HTTPException(401, 'Not authenticated.')
-    if len(data.new_password) < 6:
-        raise HTTPException(400, 'New password must be at least 6 characters.')
+    validate_password_policy(data.new_password)
     collection = db.managers if session['user_type'] == 'manager' else db.concierges
     id_field   = 'manager_id'  if session['user_type'] == 'manager' else 'concierge_id'
     user = await collection.find_one({id_field: session['user_id']})
@@ -215,7 +226,7 @@ async def forgot_password(data: ForgotPasswordRequest):
             <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Reset your password</h1>
           </div>
           <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
-            <p style="color:#444;font-size:15px;line-height:1.7">Hi {user.get('first_name', '')},</p>
+            <p style="color:#444;font-size:15px;line-height:1.7">Hi {esc(user.get('first_name', ''))},</p>
             <p style="color:#444;font-size:15px;line-height:1.7">We received a request to reset your Noted password. This link expires in {esc(RESET_TOKEN_MINUTES)} minutes.</p>
             <a href="{esc(reset_link)}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Reset password</a>
             <p style="color:#aaa;font-size:13px">If you didn't request this, you can safely ignore this email.</p>
@@ -324,9 +335,14 @@ async def update_profile(data: UpdateProfileRequest, request: Request, session_t
     if not session:
         raise HTTPException(401, 'Not authenticated.')
     patch = {}
-    if data.first_name is not None: patch['first_name'] = data.first_name.strip()
-    if data.last_name  is not None: patch['last_name']  = data.last_name.strip()
-    if data.phone      is not None: patch['phone']      = data.phone.strip()
+    if data.first_name is not None:
+        if not data.first_name.strip():
+            raise HTTPException(400, 'Enter your name.')
+        patch['first_name'] = data.first_name.strip()[:80]
+    if data.last_name  is not None: patch['last_name']  = data.last_name.strip()[:80]
+    if data.phone      is not None: patch['phone']      = data.phone.strip()[:40]
+    if data.notification_prefs is not None and session['user_type'] == 'manager':
+        patch['notification_prefs'] = {key: bool(data.notification_prefs.get(key, default)) for key, default in NOTIFICATION_DEFAULTS.items()}
     if not patch:
         raise HTTPException(400, 'No fields to update.')
     collection = db.managers   if session['user_type'] == 'manager' else db.concierges
@@ -335,20 +351,9 @@ async def update_profile(data: UpdateProfileRequest, request: Request, session_t
     if result.matched_count == 0:
         raise HTTPException(404, 'User not found.')
     user = await collection.find_one({id_field: session['user_id']}, {'_id': 0, 'password_hash': 0})
-    if session['user_type'] == 'manager':
-        return {
-            'user_id':       user['manager_id'],
-            'user_type':     'manager',
-            'name':          f"{user['first_name']} {user['last_name']}",
-            'email':         user['email'],
-            'property_name': user['property_name'],
-        }
-    return {
-        'user_id':       user['concierge_id'],
-        'user_type':     'concierge',
-        'name':          f"{user['first_name']} {user['last_name']}",
-        'email':         user['email'],
-        'property_name': user.get('property_name', ''),
-        'title':         user.get('title', 'Concierge'),
-        'manager_id':    user['manager_id'],
-    }
+    if 'first_name' in patch or 'last_name' in patch:
+        # Keep the name on an open shift in step, so today's report shows the right person.
+        if session['user_type'] == 'concierge':
+            await db.shifts.update_many({'concierge_id': session['user_id'], 'status': 'active'},
+                                        {'$set': {'concierge_name': f"{user['first_name']} {user['last_name']}".strip()}})
+    return _profile(await _with_property(user, session['user_type']), session['user_type'])

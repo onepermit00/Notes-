@@ -39,7 +39,7 @@ async def client():
 async def _clean_collections():
     yield
     for name in ('managers', 'concierges', 'sessions', 'password_resets', 'invitations', 'rate_limit_events',
-                 'residents', 'tasks', 'shifts', 'incidents', 'messages', 'audit_logs', 'scheduled_tasks', 'contacts'):
+                 'residents', 'tasks', 'shifts', 'incidents', 'messages', 'audit_logs', 'scheduled_tasks', 'contacts', 'knowledge', 'desk_state'):
         await server_module.db[name].delete_many({})
 
 

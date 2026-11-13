@@ -20,8 +20,7 @@ async def start_shift(request: Request, session_token: Optional[str] = Cookie(de
     # Return existing active shift if already clocked in
     existing = await db.shifts.find_one({'concierge_id': session['user_id'], 'status': 'active'}, {'_id': 0})
     if existing:
-        if isinstance(existing.get('clock_in'), datetime):
-            existing['clock_in'] = existing['clock_in'].isoformat()
+        _iso(existing, 'clock_in', 'created_at')
         return existing
     shift_id = f'shift_{uuid.uuid4().hex[:12]}'
     now = datetime.now(timezone.utc)
@@ -39,6 +38,7 @@ async def start_shift(request: Request, session_token: Optional[str] = Cookie(de
     await db.shifts.insert_one(doc)
     doc.pop('_id', None)
     doc['clock_in'] = now.isoformat()
+    doc['created_at'] = now.isoformat()
 
     # Materialize all of today's applicable requests, including future times.
     await _materialize_scheduled_tasks(concierge, shift_id)
@@ -63,14 +63,38 @@ async def end_shift(request: Request, session_token: Optional[str] = Cookie(defa
     return {'message': 'Shift ended.', 'clock_out': now.isoformat()}
 
 
+def _iso(doc: dict, *fields):
+    for f in fields:
+        if isinstance(doc.get(f), datetime):
+            doc[f] = doc[f].isoformat()
+
+
 async def _shift_activities(shift_id: str, mgr_id: str):
-    tasks = await db.tasks.find({'shift_id': shift_id, 'manager_id': mgr_id}, {'_id': 0}).sort('created_at', 1).to_list(500)
-    incidents = await db.incidents.find({'shift_id': shift_id, 'manager_id': mgr_id}, {'_id': 0}).sort('created_at', 1).to_list(200)
+    """What was actually done on a shift: everything the concierge logged, plus
+    manager requests and scheduled tasks they completed during it. Requests that
+    are still waiting are not activity yet, so they stay out of the report."""
+    tasks = await db.tasks.find(
+        {'manager_id': mgr_id, '$or': [{'shift_id': shift_id}, {'completed_shift_id': shift_id}]},
+        {'_id': 0},
+    ).sort('created_at', 1).to_list(500)
+    done = []
     for t in tasks:
-        if isinstance(t.get('created_at'), datetime): t['created_at'] = t['created_at'].isoformat()
+        from_manager = t.get('created_by_type') == 'manager'
+        if from_manager and t.get('status') != 'completed':
+            continue
+        if from_manager and t.get('completed_at'):
+            # A request belongs in the report at the time it was finished, not assigned.
+            t['assigned_at'] = t.get('created_at')
+            t['created_at'] = t['completed_at']
+            if t.get('completion_note'):
+                t['notes'] = t['completion_note']
+        _iso(t, 'created_at', 'completed_at', 'assigned_at', 'declined_at')
+        done.append(t)
+    done.sort(key=lambda t: str(t.get('created_at') or ''))
+    incidents = await db.incidents.find({'shift_id': shift_id, 'manager_id': mgr_id}, {'_id': 0}).sort('created_at', 1).to_list(200)
     for i in incidents:
-        if isinstance(i.get('created_at'), datetime): i['created_at'] = i['created_at'].isoformat()
-    return tasks, incidents
+        _iso(i, 'created_at')
+    return done, incidents
 
 
 @api.get('/shifts/active')
@@ -80,15 +104,15 @@ async def get_active_shift(request: Request, session_token: Optional[str] = Cook
         shift = await db.shifts.find_one({'concierge_id': user['concierge_id'], 'status': 'active'}, {'_id': 0})
         if not shift:
             return {'shift': None}
-        if isinstance(shift.get('clock_in'), datetime): shift['clock_in'] = shift['clock_in'].isoformat()
+        _iso(shift, 'clock_in', 'created_at')
         tasks, incidents = await _shift_activities(shift['shift_id'], mgr_id)
         shift['activities'] = tasks
         shift['incidents']  = incidents
         return {'shift': shift}
     else:
-        shifts = await db.shifts.find({'manager_id': mgr_id, 'status': 'active'}, {'_id': 0}).to_list(20)
+        shifts = await db.shifts.find({'manager_id': mgr_id, 'status': 'active'}, {'_id': 0}).sort('clock_in', -1).to_list(20)
         for s in shifts:
-            if isinstance(s.get('clock_in'), datetime): s['clock_in'] = s['clock_in'].isoformat()
+            _iso(s, 'clock_in', 'created_at')
             tasks, incidents = await _shift_activities(s['shift_id'], mgr_id)
             s['activities'] = tasks
             s['incidents']  = incidents
@@ -97,18 +121,17 @@ async def get_active_shift(request: Request, session_token: Optional[str] = Cook
 
 @api.get('/shifts/previous')
 async def get_previous_shift(request: Request, session_token: Optional[str] = Cookie(default=None)):
+    """The most recent finished shift at the property, whoever worked it, so the
+    person coming on reads the handoff the last person actually left."""
     user, user_type, mgr_id = await _resolve_user(request, session_token)
-    if user_type != 'concierge':
-        raise HTTPException(403, 'Concierge access required.')
     shift = await db.shifts.find_one(
-        {'concierge_id': user['concierge_id'], 'status': 'completed'},
+        {'manager_id': mgr_id, 'status': 'completed'},
         {'_id': 0},
         sort=[('clock_out', -1)]
     )
     if not shift:
         return {'shift': None}
-    if isinstance(shift.get('clock_in'),  datetime): shift['clock_in']  = shift['clock_in'].isoformat()
-    if isinstance(shift.get('clock_out'), datetime): shift['clock_out'] = shift['clock_out'].isoformat()
+    _iso(shift, 'clock_in', 'clock_out', 'created_at')
     tasks, incidents = await _shift_activities(shift['shift_id'], mgr_id)
     shift['activities'] = tasks
     shift['incidents']  = incidents
@@ -125,8 +148,7 @@ async def get_shift_history(request: Request, session_token: Optional[str] = Coo
     raw_shifts = await db.shifts.find(query, {'_id': 0}).sort('clock_in', -1).to_list(200)
     enriched = []
     for s in raw_shifts:
-        if isinstance(s.get('clock_in'),  datetime): s['clock_in']  = s['clock_in'].isoformat()
-        if isinstance(s.get('clock_out'), datetime): s['clock_out'] = s['clock_out'].isoformat()
+        _iso(s, 'clock_in', 'clock_out', 'created_at')
         tasks, incidents = await _shift_activities(s['shift_id'], mgr_id)
         enriched.append({**s, 'activities': tasks, 'incidents': incidents})
     return {'shifts': enriched}
