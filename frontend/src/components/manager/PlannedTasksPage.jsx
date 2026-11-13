@@ -66,7 +66,7 @@ function formProblem(f, step) {
     if (f.repeat === 'days' && !f.daysOfWeek.length) return 'Pick the days it repeats.';
     if (f.repeat !== 'once' && !f.noEnd) {
       if (!f.endDate || f.endDate < f.startDate) return 'The end date must be on or after the start date.';
-      if (f.endDate > lastAllowedDay()) return 'A scheduled task can run up to 5 years ahead.';
+      if (f.endDate > lastAllowedDay()) return 'A follow-up can run up to 5 years ahead.';
     }
   }
   return '';
@@ -94,12 +94,12 @@ export function PlannedTasksPage({ team = [], isMobile = false, desk = false, op
   const today = dayKey();
   const firstStep = desk ? 2 : 1;           // the desk does not pick a person
   const stepNames = STEPS.slice(firstStep - 1);
-  const forText = name => name || (desk ? 'whoever is on duty' : 'everyone on the team');
+  const forText = name => name || 'whoever is on duty';
 
   useEffect(() => {
     authApi.getScheduledTasks()
       .then(list => { setPlans(list); setLoading(false); })
-      .catch(() => { setLoadError('Scheduled tasks could not be loaded.'); setLoading(false); });
+      .catch(() => { setLoadError('Follow-ups could not be loaded.'); setLoading(false); });
   }, []);
 
   const say = text => { setNotice(text); window.setTimeout(() => setNotice(''), 5000); };
@@ -121,11 +121,11 @@ export function PlannedTasksPage({ team = [], isMobile = false, desk = false, op
       if (editingId) {
         const saved = await authApi.updateScheduledTask(editingId, { ...body, clear_end_date: body.end_date === null });
         setPlans(p => p.map(x => x.scheduled_task_id === editingId ? saved : x));
-        say('Scheduled task updated.');
+        say('Follow-up updated.');
       } else {
         const saved = await authApi.createPlannedTask(body);
         setPlans(p => [saved, ...p]);
-        say(`Scheduled for ${forText(form.assignedConciergeName)}: ${repeatText(saved)}.`);
+        say(`Follow-up for ${forText(form.assignedConciergeName)}: ${repeatText(saved)}.`);
       }
       close();
       onChanged();
@@ -169,7 +169,7 @@ export function PlannedTasksPage({ team = [], isMobile = false, desk = false, op
         <div style={{ paddingBottom: 14, borderBottom: `1px solid ${BORDER}`, marginBottom: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
             <div>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: TEXT, margin: 0 }}>{editingId ? 'Edit scheduled task' : 'Schedule a task'}</h2>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: TEXT, margin: 0 }}>{editingId ? 'Edit follow-up' : 'Add a follow-up'}</h2>
               <p style={{ fontSize: 13, color: MUTED, margin: '2px 0 0' }}>Step {step - firstStep + 1} of {stepNames.length} · {STEPS[step - 1]}</p>
             </div>
             <button onClick={close} style={{ ...smallBtn(), minHeight: 40, padding: '0 16px', fontSize: 14 }}>Cancel</button>
@@ -179,9 +179,9 @@ export function PlannedTasksPage({ team = [], isMobile = false, desk = false, op
 
         {step === 1 && (
           <div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: TEXT, margin: '0 0 6px' }}>Who is this task for?</h3>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: TEXT, margin: '0 0 6px' }}>Who is this follow-up for?</h3>
             <p style={{ fontSize: 13, color: MUTED, margin: '0 0 18px' }}>It shows on their shift every day it's due, until it's done.</p>
-            {members.length === 0 && <p style={{ padding: 16, background: CARD2, borderRadius: 12, fontSize: 13, color: MUTED }}>No one has joined your team yet. Once a team member accepts their invite, you can schedule tasks for them.</p>}
+            {members.length === 0 && <p style={{ padding: 16, background: CARD2, borderRadius: 12, fontSize: 13, color: MUTED }}>No one has joined your team yet. Once a team member accepts their invite, you can leave follow-ups for them.</p>}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
               {members.map(m => {
                 const sel = form.assignedConciergeId === m.concierge_id;
@@ -198,7 +198,7 @@ export function PlannedTasksPage({ team = [], isMobile = false, desk = false, op
             <button aria-pressed={form.assignedConciergeId === 'everyone'} onClick={() => set({ assignedConciergeId: 'everyone', assignedConciergeName: '' })}
               style={{ marginTop: 10, width: '100%', padding: 14, borderRadius: 16, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', background: form.assignedConciergeId === 'everyone' ? `${BLUE}08` : 'transparent', border: form.assignedConciergeId === 'everyone' ? `2px solid ${BLUE}` : `2px dashed ${BORDER}` }}>
               <span style={{ width: 42, height: 42, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Users size={18} color={MUTED} /></span>
-              <span><span style={{ display: 'block', fontWeight: 700, color: TEXT, fontSize: 14 }}>Everyone on the team</span><span style={{ display: 'block', fontSize: 12, color: MUTED, marginTop: 2 }}>Each team member gets their own copy on their shift</span></span>
+              <span><span style={{ display: 'block', fontWeight: 700, color: TEXT, fontSize: 14 }}>Whoever is on duty</span><span style={{ display: 'block', fontSize: 12, color: MUTED, marginTop: 2 }}>Shows on the shift of whoever is working that day</span></span>
             </button>
           </div>
         )}
@@ -266,7 +266,7 @@ export function PlannedTasksPage({ team = [], isMobile = false, desk = false, op
           <button onClick={() => (step > firstStep ? (setStep(step - 1), setError('')) : close())} style={secondaryBtn}>{step === firstStep ? 'Cancel' : 'Back'}</button>
           {step < 3
             ? <button onClick={() => (problem ? setError(problem) : (setStep(step + 1), setError('')))} aria-disabled={!!problem} style={primaryBtn(!!problem)}>Continue</button>
-            : <button onClick={save} disabled={saving} style={primaryBtn(false)}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Schedule task'}</button>}
+            : <button onClick={save} disabled={saving} style={primaryBtn(false)}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Add follow-up'}</button>}
         </div>
       </div>
     );
@@ -278,7 +278,7 @@ export function PlannedTasksPage({ team = [], isMobile = false, desk = false, op
   const current = plans.filter(p => p.active !== false && !hasEnded(p, today))
     .sort((a, b) => (nextDue(a, today) || '').localeCompare(nextDue(b, today) || '') || (a.scheduled_time || '').localeCompare(b.scheduled_time || ''));
   const groups = [
-    { key: 'current', title: 'On the schedule', Icon: CalendarClock, color: BLUE, list: current },
+    { key: 'current', title: 'Coming up', Icon: CalendarClock, color: BLUE, list: current },
     { key: 'paused', title: 'Paused', Icon: Pause, color: MUTED, list: paused },
     { key: 'ended', title: 'Finished', Icon: CheckCircle, color: GREEN, list: ended },
   ].filter(g => g.list.length);
@@ -305,7 +305,7 @@ export function PlannedTasksPage({ team = [], isMobile = false, desk = false, op
             <p style={{ fontSize: 13, color: TEXT, margin: '5px 0 0' }}>{repeatText(p)}</p>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3,minmax(0,1fr))', gap: '9px 16px', marginTop: 12 }}>
               {[
-                ['For', p.assigned_concierge_name || p.assigned_to || (desk ? 'Whoever is on duty' : 'Everyone on the team')],
+                ['For', p.assigned_concierge_name || p.assigned_to || 'Whoever is on duty'],
                 ['Next', isOff ? 'Paused' : next ? dueText(next, today) : 'Finished'],
                 ['Done', h.done_count ? `${h.done_count === 1 ? 'Once' : `${h.done_count} times`}${h.last_done ? ` · last ${dateText(h.last_done.date, false)}` : ''}` : 'Not yet'],
               ].map(([k, v]) => <div key={k}><span style={{ display: 'block', fontSize: 9, fontWeight: 750, color: MUTED, textTransform: 'uppercase', letterSpacing: '.09em' }}>{k}</span><span style={{ display: 'block', fontSize: 12, color: TEXT, marginTop: 3, lineHeight: 1.35 }}>{v}</span></div>)}
@@ -351,18 +351,18 @@ export function PlannedTasksPage({ team = [], isMobile = false, desk = false, op
       {notice && <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 13px', marginBottom: 16, border: `1px solid ${GREEN}40`, borderRadius: 12, background: `${GREEN}10`, fontSize: 13, color: TEXT }}><CheckCircle size={16} color={GREEN} />{notice}</div>}
       <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', gap: 14, paddingBottom: 20 }}>
         <div>
-          <p style={{ fontSize: 14, color: MUTED, margin: 0, maxWidth: 560, lineHeight: 1.55 }}>{desk ? "Leave a task for whoever is on duty on a later day, like an elevator booking or a dog walker's visit. It shows in their To do on that day and goes into that shift's report, done or not done." : "Schedule a task once, for one team member, every day or on the days you choose, for months ahead. It shows on their shift each day it's due, and goes into the shift report when it's done."}</p>
+          <p style={{ fontSize: 14, color: MUTED, margin: 0, maxWidth: 560, lineHeight: 1.55 }}>{desk ? "Leave a follow-up for whoever is on duty, today or any later day, like an elevator booking or a dog walker's visit. It shows in their To do on that day and goes into that shift's report, done or not done." : "Leave a follow-up for one team member or whoever is on duty, once or repeating, for months ahead. It shows on their shift each day it's due, and goes into the shift report, done or not done."}</p>
         </div>
-        <button onClick={() => start()} style={{ minHeight: 44, padding: '0 16px', background: BLUE, color: 'white', border: 0, borderRadius: 12, fontFamily: INTER, fontSize: 13, fontWeight: 750, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexShrink: 0 }}><Plus size={17} />Schedule a task</button>
+        <button onClick={() => start()} style={{ minHeight: 44, padding: '0 16px', background: BLUE, color: 'white', border: 0, borderRadius: 12, fontFamily: INTER, fontSize: 13, fontWeight: 750, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexShrink: 0 }}><Plus size={17} />Add a follow-up</button>
       </div>
 
-      {loading ? <div aria-label="Loading scheduled tasks" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{[1, 2].map(i => <div key={i} style={{ height: 120, borderRadius: 16, background: CARD2, border: `1px solid ${BORDER}` }} />)}</div>
-        : loadError ? <div role="alert" style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 32, textAlign: 'center' }}><AlertTriangle size={24} color={RED} /><p style={{ fontWeight: 700, color: TEXT, margin: '10px 0 5px' }}>Scheduled tasks couldn't load</p><p style={{ fontSize: 13, color: MUTED, margin: 0 }}>{loadError}</p></div>
+      {loading ? <div aria-label="Loading follow-ups" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{[1, 2].map(i => <div key={i} style={{ height: 120, borderRadius: 16, background: CARD2, border: `1px solid ${BORDER}` }} />)}</div>
+        : loadError ? <div role="alert" style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 32, textAlign: 'center' }}><AlertTriangle size={24} color={RED} /><p style={{ fontWeight: 700, color: TEXT, margin: '10px 0 5px' }}>Follow-ups couldn't load</p><p style={{ fontSize: 13, color: MUTED, margin: 0 }}>{loadError}</p></div>
         : plans.length === 0 ? (
           <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 40, textAlign: 'center' }}>
             <div style={{ width: 72, height: 72, background: CARD2, borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}><CalendarClock size={34} color={MUTED} strokeWidth={1.5} /></div>
-            <p style={{ fontWeight: 700, color: TEXT, fontSize: 17, margin: '0 0 6px' }}>No scheduled tasks yet</p>
-            <p style={{ fontSize: 14, color: MUTED, margin: 0 }}>{desk ? 'Schedule one for the person on duty, like an elevator reservation on the 15th.' : 'Schedule one for a team member, like testing the fire panel every Monday for 6 months.'}</p>
+            <p style={{ fontWeight: 700, color: TEXT, fontSize: 17, margin: '0 0 6px' }}>No follow-ups yet</p>
+            <p style={{ fontSize: 14, color: MUTED, margin: 0 }}>{desk ? 'Add one for the person on duty, like an elevator reservation on the 15th.' : 'Add one for a team member, like testing the fire panel every Monday for 6 months.'}</p>
           </div>
         ) : groups.map(g => (
           <section key={g.key} style={{ marginBottom: 26 }}>

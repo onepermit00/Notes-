@@ -30,25 +30,6 @@ export function usePlannedCalendar(active, monthDate) {
   return [items, refresh];
 }
 
-/* Shifts | Schedule task, at the top of the Shifts page. */
-export function ShiftsViewTabs({ view, onChange, isMobile = false }) {
-  const { colors } = useTheme();
-  const { CARD, CARD2, BORDER, TEXT, MUTED } = colors;
-  return (
-    <div role="tablist" aria-label="Shifts views" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 4, padding: 4, background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 14, maxWidth: 460 }}>
-      {[['calendar', 'Shifts'], ['schedule', 'Schedule task']].map(([id, label]) => {
-        const sel = view === id;
-        return (
-          <button key={id} type="button" role="tab" aria-selected={sel} data-testid={`shifts-view-${id}`} onClick={() => onChange(id)}
-            style={{ minHeight: 44, padding: '0 8px', border: sel ? `1px solid ${BORDER}` : '1px solid transparent', borderRadius: 11, background: sel ? CARD : 'transparent', boxShadow: sel ? '0 2px 8px rgba(0,0,0,.07)' : 'none', color: sel ? TEXT : MUTED, fontFamily: INTER, fontSize: isMobile ? 13 : 14, fontWeight: 750, cursor: 'pointer', transition: 'all 160ms' }}>
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 /* One day's planned items: bookings, visits and tasks left for whoever is on duty. */
 export function PlannedForDay({ day, items = [], isMobile = false, onSchedule, onRemove }) {
   const { colors } = useTheme();
@@ -64,7 +45,7 @@ export function PlannedForDay({ day, items = [], isMobile = false, onSchedule, o
         </div>
         {day >= today && onSchedule && (
           <button type="button" data-testid="planned-schedule" onClick={() => onSchedule(day)} style={{ minHeight: 38, padding: '0 14px', border: 0, borderRadius: 999, background: BLUE, color: 'white', fontFamily: INTER, fontSize: 12, fontWeight: 750, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-            <Plus size={14} />Schedule
+            <Plus size={14} />Add follow-up
           </button>
         )}
       </div>

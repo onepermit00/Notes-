@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { NotedAssistant } from '../assistant/NotedAssistant';
 import { PlannedTasksPage } from './manager/PlannedTasksPage';
-import { PlannedForDay, ShiftsViewTabs, usePlannedCalendar } from './dashboard/PlannedForDay';
+import { PlannedForDay, usePlannedCalendar } from './dashboard/PlannedForDay';
 import { TeamMessagesPage } from './TeamMessagesPage';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
@@ -158,6 +158,7 @@ const TASK_CATS = [
 const NAV = [
   { id:'home',        Icon:Home,          label:'Overview'            },
   { id:'tasks',       Icon:Send,          label:'Tasks'               },
+  { id:'followups',   Icon:Clock,         label:'Follow-ups'          },
   { id:'incidents',   Icon:AlertTriangle, label:'Incidents'           },
   { id:'assistant',   Icon:Sparkles,      label:'Assistant',          action:'assistant' },
   { id:'messages',    Icon:MessageSquare, label:'Messages'            },
@@ -173,7 +174,7 @@ const NAV = [
 ];
 
 const MANAGER_NAV_GROUPS = [
-  { label:'Command center', ids:['home', 'tasks', 'incidents', 'messages'] },
+  { label:'Command center', ids:['home', 'tasks', 'followups', 'incidents', 'messages'] },
   { label:'People & coverage', ids:['shifts', 'team', 'residents'] },
   { label:'Operations setup', ids:['sections'] },
   { label:'Property guide', ids:['more', 'training'] },
@@ -267,8 +268,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [taskFilter,   setTaskFilter]   = useState('open');
   // Tasks is one page with two tabs: work for today and work done. Scheduling ahead lives under Shifts.
   const [taskView,     setTaskView]     = useState('now');
-  // Shifts page: the calendar, or scheduling tasks ahead
-  const [shiftsView,   setShiftsView]   = useState('calendar');
+  // Follow-ups: opened for a given day from the Shifts calendar
   const [schedOpenWith,setSchedOpenWith]= useState(null);
   const [taskAssignee, setTaskAssignee] = useState('all');
   const [incidentsError, setIncidentsError] = useState(false);
@@ -377,7 +377,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       }).map(t => ({
         id:       t.task_id,
         time:     new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-        title:    t.created_by_type === 'manager' ? (t.not_done ? `Not done · ${t.source_section === 'scheduled' ? 'Scheduled task' : 'Assigned task'} · ${t.title}` : `${t.source_section === 'scheduled' ? 'Scheduled task' : 'Assigned task'} done${t.completed_by_name ? ` by ${t.completed_by_name}` : ''} · ${t.title}`) : t.title,
+        title:    t.created_by_type === 'manager' ? (t.not_done ? `Not done · ${t.source_section === 'scheduled' ? 'Follow-up' : 'Assigned task'} · ${t.title}` : `${t.source_section === 'scheduled' ? 'Follow-up' : 'Assigned task'} done${t.completed_by_name ? ` by ${t.completed_by_name}` : ''} · ${t.title}`) : t.title,
         notes:    t.notes || '',
         category: t.category || 'Other',
         sourceSection: t.created_by_type === 'manager' ? 'tasks' : (t.source_section || ''),
@@ -567,10 +567,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const nowStr = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   const closeAdd  = () => { setAddOpen(false);  setAddStep(1);  setAddForm(EMPTY_ADD); setAddError(''); };
-  // Scheduling lives under Shifts now; old links to it land there.
-  useEffect(() => { if (tab === 'scheduled') { setShiftsView('schedule'); setTab('shifts'); } }, [tab]);
-  const [calItems, refreshCalItems] = usePlannedCalendar(tab === 'shifts', calDate);
-  const scheduleForDay = day => { setSchedOpenWith({ date: day }); setShiftsView('schedule'); };
+  // Scheduling lives under Follow-ups now; old links to it land there.
+  useEffect(() => { if (tab === 'scheduled') setTab('followups'); }, [tab]);
+  const [calItems, refreshCalItems] = usePlannedCalendar(tab === 'shifts' || tab === 'followups', calDate);
+  const scheduleForDay = day => { setSchedOpenWith({ date: day }); setTab('followups'); };
   const removeScheduled = async item => { try { await authApi.deleteScheduledTask(item.scheduled_task_id); refreshCalItems(); } catch { /* the row stays; nothing changed */ } };
   const openTask = () => { taskOpenerRef.current = document.activeElement; setTaskSubmitError(''); setTaskOpen(true); };
   const closeTask = () => {
@@ -1782,16 +1782,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   /* ── Shifts Calendar ───────────────────────────────────────────────────────── */
-  // Shifts: the calendar of shift reports and planned days, or scheduling tasks ahead.
-  const renderShiftsPage = () => (
-    <div style={{ display:'flex', flexDirection:'column', gap: isMobile ? 16 : 20 }}>
-      <ShiftsViewTabs view={shiftsView} isMobile={isMobile} onChange={v => { setSchedOpenWith(null); setShiftsView(v); }} />
-      {shiftsView === 'schedule'
-        ? <PlannedTasksPage team={team} isMobile={isMobile} openWith={schedOpenWith} onChanged={refreshCalItems} />
-        : renderShifts()}
-    </div>
-  );
-
   const renderShifts = () => {
     const year   = calDate.getFullYear();
     const month  = calDate.getMonth();
@@ -2087,7 +2077,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <div style={{width:36,height:36,borderRadius:11,background:`${GREEN}12`,display:'grid',placeItems:'center'}}><TIcon size={17} color={GREEN}/></div>
             <div style={{minWidth:0}}>
               <div style={{display:'flex',gap:8,alignItems:'baseline',justifyContent:'space-between'}}><strong style={{fontSize:14,lineHeight:1.4,color:TEXT,minWidth:0,overflowWrap:'anywhere'}}>{t.title}</strong><span style={{fontSize:12,color:MUTED,whiteSpace:'nowrap'}}>{timeOf(t)}</span></div>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',fontSize:12,color:MUTED,marginTop:5}}><span style={{color:TEXT,fontWeight:700}}>Done by {who}</span><span>·</span><span>{scheduled ? 'Scheduled task' : 'Assigned task'}</span></div>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',fontSize:12,color:MUTED,marginTop:5}}><span style={{color:TEXT,fontWeight:700}}>Done by {who}</span><span>·</span><span>{scheduled ? 'Follow-up' : 'Assigned task'}</span></div>
               {t.completionNote && <p style={{fontSize:12,color:TEXT,lineHeight:1.5,margin:'7px 0 0',overflowWrap:'anywhere'}}><b>Desk note:</b> {t.completionNote}</p>}
               {t.evidenceUrls?.length>0 && <div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap'}}>{t.evidenceUrls.map((url,i)=><button key={i} type="button" onClick={()=>setManagerMedia({urls:t.evidenceUrls,index:i,title:t.title})} aria-label={`Open photo ${i+1}`} style={{width:44,height:44,padding:0,border:`1px solid ${BORDER}`,borderRadius:8,overflow:'hidden',cursor:'pointer',background:CARD2}}><img src={url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></button>)}</div>}
             </div>
@@ -2152,7 +2142,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           const done=t.status==='completed'; const declined=t.status==='declined'; const overdue=isOverdue(t); const TIcon=CAT_ICON[t.category]||ClipboardList; const pc=PRIORITY_COLOR[t.priority]||MUTED;
           return <article key={t.id} data-testid="manager-task-row" style={{display:'grid',gridTemplateColumns:isMobile?'36px minmax(0,1fr)':'40px minmax(0,1fr) auto',gap:12,padding:isMobile?'15px 14px':'17px 18px',borderTop:index?`1px solid ${BORDER}`:'none',alignItems:'start'}}><div style={{width:36,height:36,borderRadius:11,background:done?`${GREEN}12`:overdue?`${RED}12`:CARD2,display:'grid',placeItems:'center'}}><TIcon size={17} color={done?GREEN:overdue?RED:MUTED}/></div><div style={{minWidth:0}}><div style={{display:'flex',gap:7,alignItems:'center',flexWrap:'wrap'}}><strong style={{fontSize:14,lineHeight:1.4,color:done?MUTED:TEXT,textDecoration:done?'line-through':'none'}}>{t.title}</strong>{t.priority&&t.priority!=='Standard'&&<DashboardStatusBadge dot={false} color={pc} style={{fontSize:9,padding:'3px 6px'}}>{t.priority}</DashboardStatusBadge>}</div><div style={{display:'flex',gap:6,flexWrap:'wrap',fontSize:12,color:MUTED,marginTop:5}}><span>{t.assignedTo||'Unassigned'}</span><span>·</span><span style={{color:overdue?RED:MUTED}}>Due {t.dueTime||'not set'}</span><span>·</span><span>{t.category||'Other'}</span>{done&&t.completedAt&&<><span>·</span><span>Done {t.completedAt}{t.completedByName?` by ${t.completedByName}`:''}</span></>}{declined&&<><span>·</span><span style={{color:RED}}>Declined{t.declinedByName?` by ${t.declinedByName}`:''}{t.declinedAt?` · ${t.declinedAt}`:''}</span></>}</div>{t.notes&&<p style={{fontSize:12,color:MUTED,lineHeight:1.5,margin:'7px 0 0'}}>{t.notes}</p>}{(done||declined)&&t.completionNote&&<p style={{fontSize:12,color:TEXT,lineHeight:1.5,margin:'7px 0 0',overflowWrap:'anywhere'}}><b>{declined?'Reason:':'Desk note:'}</b> {t.completionNote}</p>}{done&&t.evidenceUrls?.length>0&&<div style={{display:'flex',gap:6,marginTop:8}}>{t.evidenceUrls.map((url,i)=><button key={i} type="button" onClick={()=>setManagerMedia({urls:t.evidenceUrls,index:i,title:t.title})} aria-label={`Open photo ${i+1}`} style={{width:44,height:44,padding:0,border:`1px solid ${BORDER}`,borderRadius:8,overflow:'hidden',cursor:'pointer',background:CARD2}}><img src={url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></button>)}</div>}<div style={{display:'flex',gap:7,marginTop:11}}>{declined&&<button onClick={()=>updateStatus(t,'pending')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,fontWeight:700,cursor:'pointer'}}>Send to the desk again</button>}{!done&&!declined&&<button onClick={()=>updateStatus(t,'completed')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,fontWeight:700,cursor:'pointer',background:TEXT,color:BG,borderColor:TEXT}}>Mark done</button>}</div></div><DashboardStatusBadge color={done?GREEN:(overdue||declined)?RED:t.status==='in_progress'?ORANGE:MUTED} style={{display:isMobile?'none':'inline-flex'}}>{done?'Completed':declined?'Declined':overdue?'Overdue':t.status==='in_progress'?'Active':'Waiting'}</DashboardStatusBadge></article>;
         })}</div></section>})}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:4,borderTop:`1px solid ${BORDER}`,fontSize:12,color:MUTED}}><span>Work for a later day, or that repeats?</span><button onClick={()=>{setSchedOpenWith(null);setShiftsView('schedule');setTab('shifts');}} style={{border:0,background:'transparent',color:TEXT,fontWeight:700,cursor:'pointer',padding:8,fontFamily:INTER}}>Schedule it <ChevronRight size={13} style={{verticalAlign:'middle'}}/></button></div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:4,borderTop:`1px solid ${BORDER}`,fontSize:12,color:MUTED}}><span>Work for a later day, or that repeats?</span><button onClick={()=>{setSchedOpenWith(null);setTab('followups');}} style={{border:0,background:'transparent',color:TEXT,fontWeight:700,cursor:'pointer',padding:8,fontFamily:INTER}}>Add a follow-up <ChevronRight size={13} style={{verticalAlign:'middle'}}/></button></div>
       </>}
     </div>;
   };
@@ -2728,7 +2718,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           if (action === 'task') openTask();
           else if (action === 'emergency') setConOpen(true);
           else if (action === 'assistant') setAssistantOpen(true);
-          else setTab(id);
+          else { setSchedOpenWith(null); setTab(id); }
         }}
         collapsed={sidebarCollapsed}
         onCollapsedChange={setSidebarCollapsed}
@@ -2901,10 +2891,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:12 }}>{propertyName}</div>
                   <h2 style={{ fontFamily:INTER, fontSize: isMobile ? 32 : 42, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-0.045em', lineHeight:0.95 }}>
-                    {{ shifts:'Shift Calendar', tasks:'Tasks', incidents:'Incidents', team:'Team', residents:'Residents Directory', analytics:'Analytics', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings', messages:'Messages' }[tab]}
+                    {{ shifts:'Shift Calendar', tasks:'Tasks', followups:'Follow-ups', incidents:'Incidents', team:'Team', residents:'Residents Directory', analytics:'Analytics', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings', messages:'Messages' }[tab]}
                   </h2>
                   <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>
-                    {{ incidents:'Reports filed by the front desk, for your review', messages:'Team messages for this property', shifts:'Shift reports, what is planned for each day, and scheduled tasks', tasks:'Assign work for today and see who did it', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
+                    {{ incidents:'Reports filed by the front desk, for your review', messages:'Team messages for this property', shifts:'Browse shift history and daily activity reports', followups:'Leave tasks for a team member or whoever is on duty, on any day', tasks:'Assign work for today and see who did it', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
                   </p>
                 </div>
                 <button onClick={() => setTab('home')} aria-label="Close panel" data-testid="panel-close-btn"
@@ -2916,7 +2906,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               {/* Panel content */}
               <div style={{ flex:1, minHeight:0, ...(tab === 'messages' ? { display:'flex', flexDirection:'column', overflow:'hidden', padding:0 } /* same as the desk: messages scroll, the typing bar stays at the bottom */ : { overflowY:'auto', padding: tab === 'settings' ? 0 : (isMobile ? '16px 16px 48px' : '28px 32px 48px') }) }}>
                 {knowledgeError && (tab==='more' || tab==='training') && <div role="alert" style={{ marginBottom:16, padding:'12px 16px', borderRadius:12, border:`1px solid ${RED}40`, background:`${RED}0d`, fontFamily:INTER, fontSize:13, color:TEXT, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}><span>{knowledgeError}</span><button type="button" onClick={clearKnowledgeError} aria-label="Dismiss" style={{ border:0, background:'transparent', cursor:'pointer', display:'inline-flex' }}><X size={16} color={MUTED}/></button></div>}
-                {tab==='shifts'    && renderShiftsPage()}
+                {tab==='shifts'    && renderShifts()}
+                {tab==='followups' && <PlannedTasksPage team={team} isMobile={isMobile} openWith={schedOpenWith} onChanged={refreshCalItems} />}
                 {tab==='tasks'     && renderTasks()}
                 {tab==='incidents' && renderIncidents()}
                 {tab==='team'      && renderTeam()}

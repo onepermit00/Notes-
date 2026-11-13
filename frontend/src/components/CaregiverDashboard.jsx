@@ -39,7 +39,7 @@ import {
   BUILDING_STATUS, BUILDING_SOPS, SHIFT_HISTORY,
 } from '../services/mockData';
 import { clockText } from '../lib/plannedTasks';
-import { PlannedForDay, ShiftsViewTabs, usePlannedCalendar } from './dashboard/PlannedForDay';
+import { PlannedForDay, usePlannedCalendar } from './dashboard/PlannedForDay';
 import { PlannedTasksPage } from './manager/PlannedTasksPage';
 import { authApi, normalizeTask, normalizeIncident } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
@@ -134,7 +134,7 @@ const TASK_CATEGORY_CONFIG = [
 const NT_EMPTY = { title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '', flagFollowUp: false };
 
 const managerDoneTitle = t => {
-  const kind = (t.source_section || t.sourceSection) === 'scheduled' ? 'Scheduled task' : 'Assigned task';
+  const kind = (t.source_section || t.sourceSection) === 'scheduled' ? 'Follow-up' : 'Assigned task';
   // A task still open when the shift ended is listed as not done, whoever added it.
   return t.not_done ? `Not done · ${kind} · ${t.title}` : `${kind} done · ${t.title}`;
 };
@@ -314,8 +314,7 @@ export const CaregiverDashboard = ({
   const [showNewTask,   setShowNewTask]   = useState(false);
   const [ntStep,        setNtStep]        = useState(1);
   const [ntForm,        setNTF]           = useState({ ...NT_EMPTY });
-  // Shifts page: the calendar, or scheduling a task for a later day
-  const [shiftsView,    setShiftsView]    = useState('calendar');
+  // Follow-ups: opened for a given day from the Shifts calendar
   const [schedOpenWith, setSchedOpenWith] = useState(null);
   const [ntTitleInterim, setNtTitleInterim] = useState('');
   const [ntNotesInterim, setNtNotesInterim] = useState('');
@@ -366,6 +365,7 @@ export const CaregiverDashboard = ({
   const handleTabChange = useCallback((id) => {
     // Manager tasks live in the To do card above the report now, not on a Requests page.
     if (id === 'requests') id = 'home';
+    setSchedOpenWith(null);
     if (id !== 'home') {
       setShowHandover(false);
      
@@ -627,7 +627,7 @@ export const CaregiverDashboard = ({
     try { await authApi.deleteScheduledTask(item.scheduled_task_id); refreshCalItems(); }
     catch { setSaveFailure(`"${item.title}" could not be removed. Check your connection and try again.`); }
   };
-  const scheduleForDay = day => { setSchedOpenWith({ date: day }); setShiftsView('schedule'); };
+  const scheduleForDay = day => { handleTabChange('followup'); setSchedOpenWith({ date: day }); };
   const afterScheduleChange = () => { refreshCalItems(); authApi.getTasks().then(setTasks).catch(() => {}); };
   const activeElevMove   = elevatorMoves.find(m => m.elevStatus === 'in_progress');
   const reservedElevMove = elevatorMoves.find(m => m.elevStatus === 'reserved');
@@ -1371,7 +1371,7 @@ export const CaregiverDashboard = ({
                     <div style={{ width:isPhone?36:40, height:isPhone?36:40, borderRadius:11, background:`${BLUE}10`, display:'flex', alignItems:'center', justifyContent:'center' }}>{planned ? <CalendarClock size={18} color={BLUE} /> : <Bell size={18} color={BLUE} />}</div>
                     <div style={{ minWidth:0 }}>
                       <div style={{ fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, lineHeight:1.35 }}>{task.title}</div>
-                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3 }}>{[time, planned ? 'Scheduled task' : 'Assigned task', task.status === 'in_progress' ? 'In progress' : ''].filter(Boolean).join(' · ')}</div>
+                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3 }}>{[time, planned ? 'Follow-up' : 'Assigned task', task.status === 'in_progress' ? 'In progress' : ''].filter(Boolean).join(' · ')}</div>
                       <div data-testid="todo-assigned-by" style={{ fontFamily:INTER, fontSize:12, color:TEXT, fontWeight:650, marginTop:3 }}>Assigned by {task.createdBy || task.created_by_name || 'your manager'}</div>
                       {task.notes && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:5, lineHeight:1.45 }}>{task.notes}</div>}
                     </div>
@@ -2199,7 +2199,7 @@ export const CaregiverDashboard = ({
     vendors: 'Vendors', incident: 'Incident Report', calendar: 'Shifts',
     'shift-history': 'Shift History', messages: 'Messages',
     guests: 'Visitors', settings: 'Settings', profile: 'Profile',
-    sops: 'Property Knowledge', training: 'Training', followup: 'Follow-up Tracker',
+    sops: 'Property Knowledge', training: 'Training', followup: 'Follow-ups',
   };
 
   const PAGE_SUBTITLES = {
@@ -2213,7 +2213,7 @@ export const CaregiverDashboard = ({
     calendar: 'Your shift schedule and history',
     'shift-history': 'Past shifts and daily reports',
     messages: 'Team messages for this property',
-    followup: 'Reminders and loose ends that carry into your handoff',
+    followup: 'Leave tasks for whoever is on duty, today or any later day',
     guests: 'Visitor check-ins and authorizations',
     settings: 'Account, appearance, and preferences',
     profile: 'Your account and certifications',
@@ -2248,23 +2248,6 @@ export const CaregiverDashboard = ({
     .filter(group => group.ids.length > 0);
 
   /* ── Shift Calendar ─────────────────────────────────────────────────────────── */
-  // Shifts: the calendar of shift reports and planned days, or scheduling a task.
-  const renderShiftsPage = () => {
-    const pad = isMobile ? '16px 16px' : '22px 28px';
-    return (
-      <div>
-        <div style={{ maxWidth:1440, margin:'0 auto', padding:`${pad.split(' ')[0]} ${pad.split(' ')[1]} 0`, boxSizing:'border-box' }}>
-          <ShiftsViewTabs view={shiftsView} isMobile={isMobile} onChange={v => { setSchedOpenWith(null); setShiftsView(v); }} />
-        </div>
-        {shiftsView === 'schedule' ? (
-          <div style={{ maxWidth:1040, margin:'0 auto', padding:`${pad.split(' ')[0]} ${pad.split(' ')[1]} 48px`, boxSizing:'border-box' }}>
-            <PlannedTasksPage desk isMobile={isMobile} openWith={schedOpenWith} onChanged={afterScheduleChange} />
-          </div>
-        ) : renderShifts()}
-      </div>
-    );
-  };
-
   const renderShifts = () => {
     // Convert backend shift history to display format, keyed by date
     const shiftDatesMap = {};
@@ -2767,11 +2750,17 @@ export const CaregiverDashboard = ({
                   {activeTab === 'tours'         && <ToursDashboard propertyName={propertyName} isPhone={isPhone} onClose={() => handleTabChange('home')} onWorkflowChange={setSectionWorkflow} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'tours' })} />}
                   {activeTab === 'vendors'       && <VendorsDashboard propertyName={propertyName} isPhone={isPhone} onWorkflowChange={setSectionWorkflow} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'vendors' })} />}
                   {activeTab === 'guests'        && <GuestsDashboard propertyName={propertyName} isPhone={isPhone} onWorkflowChange={setSectionWorkflow} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'guests' })} />}
-                  {activeTab === 'calendar'      && renderShiftsPage()}
+                  {activeTab === 'calendar'      && renderShifts()}
                   {activeTab === 'shift-history' && <HistoryPage />}
                   {activeTab === 'profile'       && renderProfileContent()}
                   {activeTab === 'messages'      && <TeamMessagesPage user={authUser} isPhone={isPhone} />}
-                  {activeTab === 'followup'      && <div style={{ padding: isPhone ? '18px 16px 40px' : '24px 32px 48px' }}><FollowUpTracker colors={colors} INTER={INTER} followUps={followUps} /></div>}
+                  {activeTab === 'followup'      && <div style={{ padding: isPhone ? '18px 16px 40px' : '24px 32px 48px', display:'flex', flexDirection:'column', gap:28 }}>
+                    <PlannedTasksPage desk isMobile={isMobile} openWith={schedOpenWith} onChanged={afterScheduleChange} />
+                    <section aria-label="Your own reminders" style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                      <div><h2 style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT, margin:0 }}>Your own reminders</h2><p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:'4px 0 0' }}>Quick notes for yourself. They stay on this device and don't go to the next shift.</p></div>
+                      <FollowUpTracker colors={colors} INTER={INTER} followUps={followUps} />
+                    </section>
+                  </div>}
                   {activeTab === 'settings'      && renderSettingsContent()}
                   {activeTab === 'sops'          && renderSOPs()}
                   {activeTab === 'training'      && renderTrainingContent()}
