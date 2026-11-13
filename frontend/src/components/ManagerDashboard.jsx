@@ -172,11 +172,10 @@ const NAV = [
 ];
 
 const MANAGER_NAV_GROUPS = [
-  { label:'Command center', ids:['home', 'tasks', 'incidents', 'messages', 'assistant'] },
+  { label:'Command center', ids:['home', 'tasks', 'incidents', 'messages'] },
   { label:'People & coverage', ids:['shifts', 'team', 'residents'] },
   { label:'Operations setup', ids:['sections'] },
   { label:'Property guide', ids:['more', 'training'] },
-  { label:'Insights', ids:['analytics'] },
   { label:'Account & support', ids:['settings', 'emergency'] },
 ].map(group => ({
   ...group,
