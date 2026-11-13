@@ -1364,7 +1364,7 @@ export const CaregiverDashboard = ({
                         authApi.updateTask(taskId, { status: 'in_progress' }).catch(() => {});
                       }
                       handleStartTask({ ...task, status: 'in_progress' });
-                    }} aria-label={`${task.status === 'in_progress' ? 'Finish' : 'Start'} ${task.title}`} style={{ gridColumn:isPhone?'2':'auto', justifySelf:isPhone?'start':'end', minHeight:40, padding:'0 16px', border:0, borderRadius:999, background:task.status === 'in_progress' ? TEXT : BLUE, color:task.status === 'in_progress' ? CARD : 'white', fontFamily:INTER, fontSize:13, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, whiteSpace:'nowrap' }}>{task.status === 'in_progress' ? <><Check size={15} />Finish task</> : <><Play size={14} />Start task</>}</button>
+                    }} aria-label={`${task.status === 'in_progress' ? 'Continue' : 'Start'} ${task.title}`} style={{ gridColumn:isPhone?'2':'auto', justifySelf:isPhone?'start':'end', minHeight:40, padding:'0 16px', border:0, borderRadius:999, background:task.status === 'in_progress' ? TEXT : BLUE, color:task.status === 'in_progress' ? CARD : 'white', fontFamily:INTER, fontSize:13, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, whiteSpace:'nowrap' }}>{task.status === 'in_progress' ? <><Play size={14} />Continue task</> : <><Play size={14} />Start task</>}</button>
                   </div>
                 );
               })}
