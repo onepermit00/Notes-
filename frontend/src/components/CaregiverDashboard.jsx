@@ -39,6 +39,8 @@ import {
   BUILDING_STATUS, BUILDING_SOPS, SHIFT_HISTORY,
 } from '../services/mockData';
 import { clockText } from '../lib/plannedTasks';
+import { PlannedForDay, ShiftsViewTabs, usePlannedCalendar } from './dashboard/PlannedForDay';
+import { PlannedTasksPage } from './manager/PlannedTasksPage';
 import { authApi, normalizeTask, normalizeIncident } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
 import { useSharedData } from '../context/SharedDataContext';
@@ -129,10 +131,7 @@ const TASK_CATEGORY_CONFIG = [
 ];
 
 // The report line for finished manager work: a planned task reads differently from a one-off request.
-// A new entry is logged now, or scheduled for whoever is on duty on a later day.
-const NT_EMPTY = { title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '', flagFollowUp: false, when: 'now', schedDate: '', schedFrom: '', schedTo: '' };
-const localDayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const fmtDayLong = key => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); };
+const NT_EMPTY = { title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '', flagFollowUp: false };
 
 const managerDoneTitle = t => {
   const kind = (t.source_section || t.sourceSection) === 'scheduled' ? 'Scheduled task' : 'Assigned task';
@@ -315,9 +314,9 @@ export const CaregiverDashboard = ({
   const [showNewTask,   setShowNewTask]   = useState(false);
   const [ntStep,        setNtStep]        = useState(1);
   const [ntForm,        setNTF]           = useState({ ...NT_EMPTY });
-  // Planned items for the Shifts calendar, by YYYY-MM-DD
-  const [calItems,      setCalItems]      = useState({});
-  const [calItemsKey,   setCalItemsKey]   = useState(0);
+  // Shifts page: the calendar, or scheduling a task for a later day
+  const [shiftsView,    setShiftsView]    = useState('calendar');
+  const [schedOpenWith, setSchedOpenWith] = useState(null);
   const [ntTitleInterim, setNtTitleInterim] = useState('');
   const [ntNotesInterim, setNtNotesInterim] = useState('');
   const [auditNotesInterim, setAuditNotesInterim] = useState('');
@@ -591,7 +590,6 @@ export const CaregiverDashboard = ({
 
   const submitNewTask = async () => {
     if (!ntForm.title) return;
-    if (ntForm.when === 'later') return submitScheduledTask();
     setNtSaving(true);
     setNtError('');
     try {
@@ -624,49 +622,13 @@ export const CaregiverDashboard = ({
     }
   };
   // Planned items for the month on screen in the Shifts calendar.
-  useEffect(() => {
-    if (activeTab !== 'calendar') return;
-    const y = shCalDate.getFullYear(), m = shCalDate.getMonth();
-    const first = localDayKey(new Date(y, m, 1)), last = localDayKey(new Date(y, m + 1, 0));
-    let live = true;
-    authApi.getScheduleCalendar(first, last).then(days => { if (live) setCalItems(days); }).catch(() => { if (live) setCalItems({}); });
-    return () => { live = false; };
-  }, [activeTab, shCalDate, calItemsKey]);
+  const [calItems, refreshCalItems] = usePlannedCalendar(activeTab === 'calendar', shCalDate);
   const removeScheduled = async (item) => {
-    try { await authApi.deleteScheduledTask(item.scheduled_task_id); setCalItemsKey(k => k + 1); }
+    try { await authApi.deleteScheduledTask(item.scheduled_task_id); refreshCalItems(); }
     catch { setSaveFailure(`"${item.title}" could not be removed. Check your connection and try again.`); }
   };
-
-  // Scheduled for another day: it shows in To do for whoever is on duty then,
-  // and on that day in the Shifts calendar.
-  const submitScheduledTask = async () => {
-    if (!ntForm.schedDate || ntForm.schedDate < localDayKey()) { setNtError('Pick today or a later day.'); return; }
-    if (ntForm.schedTo && ntForm.schedFrom && ntForm.schedTo <= ntForm.schedFrom) { setNtError('The end time must be after the start time.'); return; }
-    setNtSaving(true); setNtError('');
-    try {
-      await authApi.createPlannedTask({
-        title: ntForm.title.trim(),
-        notes: [ntForm.location, ntForm.notes].filter(Boolean).join(' · '),
-        category: ntForm.category || 'Other',
-        priority: ntForm.priority === 'high' ? 'High' : ntForm.priority === 'urgent' ? 'Urgent' : 'Standard',
-        repeat: 'once',
-        start_date: ntForm.schedDate,
-        scheduled_time: ntForm.schedFrom || '09:00',
-        end_time: ntForm.schedTo || '',
-        days_of_week: [0, 1, 2, 3, 4, 5, 6],
-        assigned_concierge_id: '', assigned_concierge_name: '',
-      });
-      const receiptTitle = ntForm.title.trim();
-      const day = ntForm.schedDate;
-      setNTF({ ...NT_EMPTY }); setNtStep(1); setShowNewTask(false);
-      setCalItemsKey(k => k + 1);
-      if (day === localDayKey()) authApi.getTasks().then(setTasks).catch(() => {});
-      setDarReceipt({ title: receiptTitle, detail: `Scheduled for ${fmtDayLong(day)} · whoever is on duty` });
-      setTimeout(() => setDarReceipt(null), 4200);
-    } catch {
-      setNtError('Could not schedule this task. Your information is still here—check the connection and try again.');
-    } finally { setNtSaving(false); }
-  };
+  const scheduleForDay = day => { setSchedOpenWith({ date: day }); setShiftsView('schedule'); };
+  const afterScheduleChange = () => { refreshCalItems(); authApi.getTasks().then(setTasks).catch(() => {}); };
   const activeElevMove   = elevatorMoves.find(m => m.elevStatus === 'in_progress');
   const reservedElevMove = elevatorMoves.find(m => m.elevStatus === 'reserved');
   const elevCardStatus   = activeElevMove ? 'in_progress' : reservedElevMove ? 'reserved' : 'available';
@@ -2286,37 +2248,20 @@ export const CaregiverDashboard = ({
     .filter(group => group.ids.length > 0);
 
   /* ── Shift Calendar ─────────────────────────────────────────────────────────── */
-  // What is planned for one day: bookings, visits and tasks left for whoever is on duty.
-  const renderPlannedForDay = (dayKey, items) => {
-    const t12 = v => v ? clockText(v) : '';
+  // Shifts: the calendar of shift reports and planned days, or scheduling a task.
+  const renderShiftsPage = () => {
+    const pad = isMobile ? '16px 16px' : '22px 28px';
     return (
-      <section aria-label={`Planned for ${fmtDayLong(dayKey)}`} data-testid="planned-for-day" style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, boxShadow:SHADOW, overflow:'hidden' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, padding:isMobile?'14px 16px':'16px 20px', borderBottom:`1px solid ${BORDER}` }}>
-          <div style={{ minWidth:0 }}>
-            <div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:4 }}>Planned</div>
-            <h3 style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-.02em' }}>{fmtDayLong(dayKey)}</h3>
-          </div>
-          {dayKey >= localDayKey() && <button type="button" onClick={() => { setNTF({ ...NT_EMPTY, when:'later', schedDate:dayKey }); setNtStep(1); setShowNewTask(true); }} style={{ minHeight:38, padding:'0 14px', border:0, borderRadius:999, background:BLUE, color:'white', fontFamily:INTER, fontSize:12, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, flexShrink:0 }}><Plus size={14} />Schedule</button>}
+      <div>
+        <div style={{ maxWidth:1440, margin:'0 auto', padding:`${pad.split(' ')[0]} ${pad.split(' ')[1]} 0`, boxSizing:'border-box' }}>
+          <ShiftsViewTabs view={shiftsView} isMobile={isMobile} onChange={v => { setSchedOpenWith(null); setShiftsView(v); }} />
         </div>
-        {items.length === 0 ? (
-          <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0, padding:isMobile?'14px 16px':'16px 20px' }}>Nothing planned for this day.</p>
-        ) : items.map((item, i) => {
-          const done = item.status === 'completed';
-          const notDone = dayKey < localDayKey() && !done;
-          return (
-            <div key={item.scheduled_task_id + i} data-testid="planned-row" style={{ display:'grid', gridTemplateColumns:'64px minmax(0,1fr) auto', gap:12, alignItems:'start', padding:isMobile?'13px 16px':'14px 20px', borderTop:i?`1px solid ${BORDER}`:'none' }}>
-              <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:TEXT, lineHeight:1.35 }}>{t12(item.time)}{item.end_time && <div style={{ fontWeight:500, color:MUTED }}>to {t12(item.end_time)}</div>}</div>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, lineHeight:1.35, overflowWrap:'anywhere' }}>{item.title}</div>
-                {item.notes && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:3, lineHeight:1.45 }}>{item.notes}</div>}
-                <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:4 }}>{[`For ${item.for_name || 'whoever is on duty'}`, item.added_by ? `Added by ${item.added_by}` : '', item.repeat !== 'once' ? 'Repeats' : ''].filter(Boolean).join(' · ')}</div>
-                {item.mine && dayKey >= localDayKey() && !done && <button type="button" onClick={() => removeScheduled(item)} style={{ marginTop:8, minHeight:30, padding:'0 10px', border:`1px solid ${BORDER}`, borderRadius:999, background:CARD, color:MUTED, fontFamily:INTER, fontSize:11, fontWeight:700, cursor:'pointer' }}>Remove</button>}
-              </div>
-              <span style={{ fontFamily:INTER, fontSize:9, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase', borderRadius:999, padding:'4px 8px', color: done ? GREEN : notDone ? RED : MUTED, background: done ? `${GREEN}12` : notDone ? `${RED}10` : CARD2, whiteSpace:'nowrap' }}>{done ? 'Done' : notDone ? 'Not done' : 'Planned'}</span>
-            </div>
-          );
-        })}
-      </section>
+        {shiftsView === 'schedule' ? (
+          <div style={{ maxWidth:1040, margin:'0 auto', padding:`${pad.split(' ')[0]} ${pad.split(' ')[1]} 48px`, boxSizing:'border-box' }}>
+            <PlannedTasksPage desk isMobile={isMobile} openWith={schedOpenWith} onChanged={afterScheduleChange} />
+          </div>
+        ) : renderShifts()}
+      </div>
     );
   };
 
@@ -2388,7 +2333,7 @@ export const CaregiverDashboard = ({
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'minmax(0,1fr) minmax(320px,400px)', gap: isMobile ? 14 : 18, alignItems: isMobile ? 'stretch' : 'start', width:'100%', maxWidth:1440, margin:'0 auto', boxSizing:'border-box', padding: isMobile ? '16px 16px 48px' : '22px 28px 48px' }}>
         {/* DAR — top on mobile, left column on desktop */}
         <div style={{ order: isMobile ? 2 : 0, gridColumn: 1, gridRow: '1 / 3', minWidth:0, display:'flex', flexDirection:'column', gap: isMobile ? 14 : 18 }}>
-        {shiftDay && renderPlannedForDay(shiftDay, calItems[shiftDay] || [])}
+        {shiftDay && <PlannedForDay day={shiftDay} items={calItems[shiftDay] || []} isMobile={isMobile} onSchedule={scheduleForDay} onRemove={removeScheduled} />}
         {(selectedShift || !shiftDay) && <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, overflow:'hidden', boxShadow:SHADOW, minWidth:0 }}>
           {selectedShift ? (
             shiftDARBody(selectedShift, (() => { const dp=shiftDay.split('-'); return `${SH_MONTHS[parseInt(dp[1])-1]} ${parseInt(dp[2])}, ${dp[0]}`; })())
@@ -2822,7 +2767,7 @@ export const CaregiverDashboard = ({
                   {activeTab === 'tours'         && <ToursDashboard propertyName={propertyName} isPhone={isPhone} onClose={() => handleTabChange('home')} onWorkflowChange={setSectionWorkflow} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'tours' })} />}
                   {activeTab === 'vendors'       && <VendorsDashboard propertyName={propertyName} isPhone={isPhone} onWorkflowChange={setSectionWorkflow} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'vendors' })} />}
                   {activeTab === 'guests'        && <GuestsDashboard propertyName={propertyName} isPhone={isPhone} onWorkflowChange={setSectionWorkflow} onActivityLogged={entry => handleSectionActivityLogged({ ...entry, sourceSection: 'guests' })} />}
-                  {activeTab === 'calendar'      && renderShifts()}
+                  {activeTab === 'calendar'      && renderShiftsPage()}
                   {activeTab === 'shift-history' && <HistoryPage />}
                   {activeTab === 'profile'       && renderProfileContent()}
                   {activeTab === 'messages'      && <TeamMessagesPage user={authUser} isPhone={isPhone} />}
@@ -3204,7 +3149,7 @@ export const CaregiverDashboard = ({
                     <div style={{ fontFamily: INTER, fontSize: isMobile ? 28 : 34, fontWeight: 800, color: TEXT, letterSpacing: '-0.045em', lineHeight: 0.98 }}>
                       {ntStep === 1 ? 'Describe the task' : ntStep === 2 ? 'Choose a category' : 'Priority & details'}
                     </div>
-                    <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 9 }}>Step {ntStep} of 3 · {ntForm.when === 'later' ? 'Scheduled task' : 'New DAR entry'}</div>
+                    <div style={{ fontFamily: INTER, fontSize: 12, color: MUTED, marginTop: 9 }}>Step {ntStep} of 3 · New DAR entry</div>
                   </div>
                   <button onClick={() => { setShowNewTask(false); setNtStep(1); setNTF({ ...NT_EMPTY }); }}
                     aria-label="Close"
@@ -3225,26 +3170,6 @@ export const CaregiverDashboard = ({
                 {/* ── Step 1: Describe ── */}
                 {ntStep === 1 && (
                   <>
-                    {/* When: log it now, or leave it for whoever is on duty on another day */}
-                    <div role="tablist" aria-label="When" style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:4, padding:4, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14 }}>
-                      {[['now','Log it now'],['later','Schedule for a later day']].map(([id,label]) => { const sel = ntForm.when === id; return (
-                        <button key={id} type="button" role="tab" aria-selected={sel} data-testid={`nt-when-${id}`} onClick={() => { setNtError(''); setNTF(p => ({ ...p, when:id, schedDate: id === 'later' && !p.schedDate ? localDayKey(new Date(Date.now() + 86400000)) : p.schedDate })); }}
-                          style={{ minHeight:44, padding:'0 8px', border:sel?`1px solid ${BORDER}`:'1px solid transparent', borderRadius:11, background:sel?CARD:'transparent', boxShadow:sel?'0 2px 8px rgba(0,0,0,.07)':'none', color:sel?TEXT:MUTED, fontFamily:INTER, fontSize:13, fontWeight:750, cursor:'pointer', transition:'all 160ms' }}>{label}</button>
-                      ); })}
-                    </div>
-                    {ntForm.when === 'later' ? (
-                    <section data-testid="nt-schedule" style={{ border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:isPhone?'16px':'20px', boxShadow:SHADOW, display:'grid', gap:14 }}>
-                      <div><div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>When</div><p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0, lineHeight:1.5 }}>On that day it shows in To do for whoever is on duty, and on the Shifts calendar. When it is done it goes into that shift's report.</p></div>
-                      <div style={{ display:'grid', gridTemplateColumns:isPhone?'1fr 1fr':'1.3fr 1fr 1fr', gap:10 }}>
-                        <label style={{ display:'grid', gap:6, gridColumn:isPhone?'1 / -1':'auto', fontFamily:INTER, fontSize:12, fontWeight:750, color:TEXT }}>Day
-                          <input type="date" data-testid="nt-sched-date" min={localDayKey()} value={ntForm.schedDate} onChange={e => setNTF(p => ({ ...p, schedDate:e.target.value }))} style={{ minHeight:48, padding:'0 12px', borderRadius:12, border:`1.5px solid ${ntForm.schedDate ? BLUE : BORDER}`, background:CARD2, color:TEXT, fontFamily:INTER, fontSize:16, boxSizing:'border-box', width:'100%' }} /></label>
-                        <label style={{ display:'grid', gap:6, fontFamily:INTER, fontSize:12, fontWeight:750, color:TEXT }}>From
-                          <input type="time" data-testid="nt-sched-from" value={ntForm.schedFrom} onChange={e => setNTF(p => ({ ...p, schedFrom:e.target.value }))} style={{ minHeight:48, padding:'0 12px', borderRadius:12, border:`1.5px solid ${BORDER}`, background:CARD2, color:TEXT, fontFamily:INTER, fontSize:16, boxSizing:'border-box', width:'100%' }} /></label>
-                        <label style={{ display:'grid', gap:6, fontFamily:INTER, fontSize:12, fontWeight:750, color:TEXT }}>To (optional)
-                          <input type="time" data-testid="nt-sched-to" value={ntForm.schedTo} onChange={e => setNTF(p => ({ ...p, schedTo:e.target.value }))} style={{ minHeight:48, padding:'0 12px', borderRadius:12, border:`1.5px solid ${BORDER}`, background:CARD2, color:TEXT, fontFamily:INTER, fontSize:16, boxSizing:'border-box', width:'100%' }} /></label>
-                      </div>
-                    </section>
-                    ) : (
                     <div style={{ display:'grid', gridTemplateColumns:isPhone?'1fr':'1fr 1fr', border:`1px solid ${BORDER}`, borderRadius:14, background:CARD, overflow:'hidden', boxShadow:SHADOW }}>
                       <div style={{ minHeight:64, padding:'11px 14px', display:'flex', alignItems:'center', gap:11, borderRight:isPhone?'none':`1px solid ${BORDER}`, borderBottom:isPhone?`1px solid ${BORDER}`:'none' }}>
                         <div style={{ width:34, height:34, borderRadius:10, background:`${BLUE}12`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE }}>{(authUser?.name||'C').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span></div>
@@ -3255,15 +3180,14 @@ export const CaregiverDashboard = ({
                         <div><p style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:MUTED, textTransform:'uppercase', letterSpacing:'.14em', margin:'0 0 4px' }}>Time</p><span style={{ fontFamily:INTER, fontSize:13, fontWeight:750, color:TEXT }}>{nowStr()}</span></div>
                       </div>
                     </div>
-                    )}
                     <section style={{ border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, padding:isPhone?'16px':'20px', boxShadow:SHADOW }}>
                       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, marginBottom:13 }}>
-                        <div><div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>01 · Required</div><h3 style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:TEXT, letterSpacing:'-.025em', margin:0 }}>{ntForm.when === 'later' ? 'What needs to happen?' : 'What happened?'}</h3></div>
+                        <div><div style={{ fontFamily:INTER, fontSize:9, fontWeight:800, color:BLUE, letterSpacing:'.16em', textTransform:'uppercase', marginBottom:6 }}>01 · Required</div><h3 style={{ fontFamily:INTER, fontSize:18, fontWeight:800, color:TEXT, letterSpacing:'-.025em', margin:0 }}>What happened?</h3></div>
                         <span style={{ fontFamily:INTER, fontSize:10, color:MUTED, textAlign:'right', lineHeight:1.4 }}>Write it as it should<br/>appear in the DAR</span>
                       </div>
                       <div style={{ position: 'relative' }}>
                         <textarea
-                          placeholder={ntForm.when === 'later' ? 'Example: Elevator reserved for unit 804 move-in. Pad the elevator and set it to service mode.' : 'Example: Assisted maintenance with the P2 shut-off valve and documented the completed inspection.'}
+                          placeholder="Example: Assisted maintenance with the P2 shut-off valve and documented the completed inspection."
                           value={ntForm.title + (ntTitleInterim ? (ntForm.title ? ' ' : '') + ntTitleInterim : '')}
                           onChange={e => setNTF(p => ({ ...p, title: e.target.value }))}
                           rows={isPhone ? 5 : 7}
@@ -3379,7 +3303,7 @@ export const CaregiverDashboard = ({
                     </div>
                     </section>
                     {/* Flag for Follow-up */}
-                    {ntForm.when !== 'later' && <button onClick={() => setNTF(p => ({ ...p, flagFollowUp: !p.flagFollowUp }))}
+                    <button onClick={() => setNTF(p => ({ ...p, flagFollowUp: !p.flagFollowUp }))}
                       aria-pressed={ntForm.flagFollowUp}
                       style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '13px 15px', borderRadius: 14, border: `1.5px solid ${ntForm.flagFollowUp ? ORANGE : BORDER}`, background: ntForm.flagFollowUp ? 'rgba(255,149,0,0.055)' : CARD, cursor: 'pointer', textAlign: 'left', width: '100%', boxShadow:SHADOW }}>
                       <div style={{ width: 38, height: 38, borderRadius: 10, background: ntForm.flagFollowUp ? 'rgba(255,149,0,0.14)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -3392,7 +3316,7 @@ export const CaregiverDashboard = ({
                       <div style={{ width: 22, height: 22, borderRadius: 7, background: ntForm.flagFollowUp ? ORANGE : 'transparent', border: ntForm.flagFollowUp ? 'none' : `2px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {ntForm.flagFollowUp && <Check size={13} color="white" strokeWidth={3} />}
                       </div>
-                    </button>}
+                    </button>
                   </>
                 )}
               </div>
@@ -3415,7 +3339,6 @@ export const CaregiverDashboard = ({
                   {ntStep < 3 ? (
                       <button onClick={() => {
                         if (ntStep === 1 && !ntForm.title.trim()) { setNtError('Please describe what you did before continuing.'); return; }
-                        if (ntStep === 1 && ntForm.when === 'later' && (!ntForm.schedDate || ntForm.schedDate < localDayKey())) { setNtError('Pick today or a later day.'); return; }
                         if (ntStep === 2 && !ntForm.category) { setNtError('Choose the DAR category for this entry.'); return; }
                         setNtError(''); setNtStep(p => p + 1);
                       }}
@@ -3425,7 +3348,7 @@ export const CaregiverDashboard = ({
                   ) : (
                     <button onClick={submitNewTask} disabled={ntSaving}
                       style={{ flex: 1, minHeight:48, padding: '0 20px', background: ntSaving ? MUTED : BLUE, border: 'none', borderRadius: 999, fontFamily: INTER, fontSize: 14, fontWeight: 750, color: 'white', cursor: ntSaving ? 'wait' : 'pointer', boxShadow: ntSaving ? 'none' : `0 7px 22px ${BLUE}28`, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-                      <Check size={16} /> {ntSaving ? (ntForm.when === 'later' ? 'Scheduling…' : 'Adding…') : ntForm.when === 'later' ? 'Schedule task' : 'Add to DAR'}
+                      <Check size={16} /> {ntSaving ? 'Adding…' : 'Add to DAR'}
                     </button>
                   )}
                 </div>

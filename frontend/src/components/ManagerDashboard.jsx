@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { NotedAssistant } from '../assistant/NotedAssistant';
 import { PlannedTasksPage } from './manager/PlannedTasksPage';
+import { PlannedForDay, ShiftsViewTabs, usePlannedCalendar } from './dashboard/PlannedForDay';
 import { TeamMessagesPage } from './TeamMessagesPage';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
@@ -264,8 +265,11 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [tasksError,   setTasksError]   = useState(false);
   const [taskSearch,   setTaskSearch]   = useState('');
   const [taskFilter,   setTaskFilter]   = useState('open');
-  // Tasks is one page with three tabs: work for today, work scheduled ahead, and work done.
+  // Tasks is one page with two tabs: work for today and work done. Scheduling ahead lives under Shifts.
   const [taskView,     setTaskView]     = useState('now');
+  // Shifts page: the calendar, or scheduling tasks ahead
+  const [shiftsView,   setShiftsView]   = useState('calendar');
+  const [schedOpenWith,setSchedOpenWith]= useState(null);
   const [taskAssignee, setTaskAssignee] = useState('all');
   const [incidentsError, setIncidentsError] = useState(false);
   const [successIncidentId, setSuccessIncidentId] = useState(null);
@@ -563,7 +567,11 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const nowStr = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   const closeAdd  = () => { setAddOpen(false);  setAddStep(1);  setAddForm(EMPTY_ADD); setAddError(''); };
-  useEffect(() => { if (tab === 'scheduled') { setTaskView('scheduled'); setTab('tasks'); } }, [tab]);
+  // Scheduling lives under Shifts now; old links to it land there.
+  useEffect(() => { if (tab === 'scheduled') { setShiftsView('schedule'); setTab('shifts'); } }, [tab]);
+  const [calItems, refreshCalItems] = usePlannedCalendar(tab === 'shifts', calDate);
+  const scheduleForDay = day => { setSchedOpenWith({ date: day }); setShiftsView('schedule'); };
+  const removeScheduled = async item => { try { await authApi.deleteScheduledTask(item.scheduled_task_id); refreshCalItems(); } catch { /* the row stays; nothing changed */ } };
   const openTask = () => { taskOpenerRef.current = document.activeElement; setTaskSubmitError(''); setTaskOpen(true); };
   const closeTask = () => {
     setTaskOpen(false); setTaskStep(1); setTaskForm(EMPTY_TASK); setTaskSubmitError('');
@@ -1774,6 +1782,16 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   /* ── Shifts Calendar ───────────────────────────────────────────────────────── */
+  // Shifts: the calendar of shift reports and planned days, or scheduling tasks ahead.
+  const renderShiftsPage = () => (
+    <div style={{ display:'flex', flexDirection:'column', gap: isMobile ? 16 : 20 }}>
+      <ShiftsViewTabs view={shiftsView} isMobile={isMobile} onChange={v => { setSchedOpenWith(null); setShiftsView(v); }} />
+      {shiftsView === 'schedule'
+        ? <PlannedTasksPage team={team} isMobile={isMobile} openWith={schedOpenWith} onChanged={refreshCalItems} />
+        : renderShifts()}
+    </div>
+  );
+
   const renderShifts = () => {
     const year   = calDate.getFullYear();
     const month  = calDate.getMonth();
@@ -1839,7 +1857,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'1fr 400px', gap: isMobile ? 16 : 20, alignItems: isMobile ? 'stretch' : 'start' }}>
 
         {/* DAR — middle on mobile, left col spanning both rows on desktop */}
-        <div style={{ background:CARD, border:`1px solid ${selectedShift?BLUE:BORDER}`, borderRadius:20, overflow:'hidden', boxShadow:selectedShift?`0 0 0 3px ${BLUE}10`:'0 2px 8px rgba(0,0,0,0.05)', order: isMobile ? 2 : 0, gridColumn: 1, gridRow: '1 / 3' }}>
+        <div style={{ order: isMobile ? 2 : 0, gridColumn: 1, gridRow: '1 / 3', minWidth:0, display:'flex', flexDirection:'column', gap: isMobile ? 14 : 18 }}>
+        {shiftDay && <PlannedForDay day={shiftDay} items={calItems[shiftDay] || []} isMobile={isMobile} onSchedule={scheduleForDay} onRemove={removeScheduled} />}
+        {(selectedShift || !shiftDay) && <div style={{ background:CARD, border:`1px solid ${selectedShift?BLUE:BORDER}`, borderRadius:20, overflow:'hidden', boxShadow:selectedShift?`0 0 0 3px ${BLUE}10`:'0 2px 8px rgba(0,0,0,0.05)' }}>
           {selectedShift ? (
             <><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'13px 16px',borderBottom:`1px solid ${BORDER}`,background:`${BLUE}08`}}><div style={{minWidth:0}}><DashboardEyebrow>Selected shift</DashboardEyebrow><strong style={{display:'block',fontSize:14,color:TEXT,marginTop:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{dateLabel} · {selectedShift.concierge.name}</strong></div><div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}><DashboardStatusBadge color={shiftStatus(selectedShift).color}>{shiftStatus(selectedShift).label}</DashboardStatusBadge><span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 11px',borderRadius:9,background:BLUE,color:'white',fontSize:11,fontWeight:800}}><ClipboardCheck size={14}/>DAR</span></div></div>{shiftDARBody(selectedShift, dateLabel)}</>
           ) : (
@@ -1848,9 +1868,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <Calendar size={34} color={MUTED} strokeWidth={1.5} />
               </div>
               <p style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:TEXT, margin:'0 0 6px' }}>No shift selected</p>
-              <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0 }}>Pick a highlighted date or shift below to view the daily activity report</p>
+              <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:0 }}>Pick a date to see what is planned for it, or a shift below to view its daily activity report</p>
             </div>
           )}
+        </div>}
         </div>
 
         {/* Calendar card — top on mobile, right col row 1 on desktop */}
@@ -1909,17 +1930,22 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     const isToday  = cell.dateStr === TODAY_STR;
                     const isSel    = cell.dateStr === shiftDay;
                     const cellStatus = hasShift ? shiftStatus(shiftDatesMap[cell.dateStr]) : null;
+                    const planned  = (calItems[cell.dateStr] || []).length;
                     return (
-                      <button key={cell.dateStr}
-                        onClick={() => hasShift && setShiftDay(isSel ? null : cell.dateStr)}
+                      <button key={cell.dateStr} data-testid={`cal-day-${cell.dateStr}`}
+                        aria-label={`${cell.dateStr}${hasShift ? ', shift report' : ''}${planned ? `, ${planned} planned` : ''}`}
+                        onClick={() => setShiftDay(isSel ? null : cell.dateStr)}
                         style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', aspectRatio:'1', borderRadius:10,
                           background: isSel ? BLUE : isToday ? `${BLUE}10` : 'transparent',
                           border: isSel ? 'none' : isToday ? `2px solid ${BLUE}` : '2px solid transparent',
-                          cursor: hasShift ? 'pointer' : 'default' }}>
-                        <span style={{ fontFamily:INTER, fontSize:13, fontWeight:isSel||isToday?800:500, color:isSel?'white':isToday?BLUE:hasShift?TEXT:'#ccc' }}>
+                          cursor: 'pointer' }}>
+                        <span style={{ fontFamily:INTER, fontSize:13, fontWeight:isSel||isToday?800:500, color:isSel?'white':isToday?BLUE:(hasShift||planned)?TEXT:'#ccc' }}>
                           {cell.day}
                         </span>
-                        {hasShift && <div style={{ width:5, height:5, borderRadius:'50%', background:isSel?'rgba(255,255,255,0.8)':cellStatus.color, marginTop:2 }} />}
+                        {(hasShift || planned > 0) && <div style={{ display:'flex', gap:3, marginTop:2 }}>
+                          {hasShift && <div style={{ width:5, height:5, borderRadius:'50%', background:isSel?'rgba(255,255,255,0.8)':cellStatus.color }} />}
+                          {planned > 0 && <div style={{ width:5, height:5, borderRadius:'50%', background:isSel?'white':ORANGE }} />}
+                        </div>}
                       </button>
                     );
                   })}
@@ -2026,14 +2052,13 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   /* ── Tasks list ───────────────────────────────────────────────────────────── */
-  /* Tasks tab bar: Assign now (today's work), Scheduled (planned ahead), Done (who did what). */
+  /* Tasks tab bar: Assign now (today's work), Done (who did what). */
   const renderTaskTabs = (counts) => {
     const views = [
       { id:'now',       label:'Assign now', count:counts.overdue + counts.active + counts.pending + counts.declined },
-      { id:'scheduled', label:'Scheduled',  count:null },
       { id:'done',      label:'Done',       count:counts.completed },
     ];
-    return <div role="tablist" aria-label="Task views" style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:4,padding:4,background:CARD2,border:`1px solid ${BORDER}`,borderRadius:14}}>
+    return <div role="tablist" aria-label="Task views" style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',maxWidth:460,gap:4,padding:4,background:CARD2,border:`1px solid ${BORDER}`,borderRadius:14}}>
       {views.map(({id,label,count})=>{const selected=taskView===id;return <button key={id} type="button" role="tab" aria-selected={selected} data-testid={`task-view-${id}`} onClick={()=>setTaskView(id)} style={{minHeight:44,padding:'0 6px',border:selected?`1px solid ${BORDER}`:'1px solid transparent',borderRadius:11,background:selected?CARD:'transparent',boxShadow:selected?'0 2px 8px rgba(0,0,0,.07)':'none',color:selected?TEXT:MUTED,cursor:'pointer',fontFamily:INTER,fontSize:isMobile?13:14,fontWeight:750,whiteSpace:'nowrap',transition:'all 160ms'}}>{label}{count!==null&&count>0&&<span style={{marginLeft:6,color:selected?BLUE:MUTED,fontSize:11}}>{count}</span>}</button>;})}
     </div>;
   };
@@ -2107,7 +2132,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     return <div style={{fontFamily:INTER,display:'flex',flexDirection:'column',gap:22}}>
       {taskSuccess && <div role="status" style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',border:`1px solid ${GREEN}40`,borderRadius:12,background:`${GREEN}10`,color:TEXT,fontSize:13}}><CheckCircle size={17} color={GREEN}/><span style={{flex:1}}>{taskSuccess}</span><button aria-label="Dismiss" onClick={()=>setTaskSuccess('')} style={{border:0,background:'transparent',color:MUTED,cursor:'pointer'}}><X size={16}/></button></div>}
       {renderTaskTabs(counts)}
-      {taskView==='scheduled' ? <PlannedTasksPage team={team} isMobile={isMobile} /> : taskView==='done' ? renderDoneTasks(managerTasks) : <>
+      {taskView==='done' ? renderDoneTasks(managerTasks) : <>
       <button type="button" onClick={openTask} data-testid="assign-now-card" style={{width:'100%',padding:isMobile?16:20,background:BLUE,borderRadius:20,border:'none',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,cursor:'pointer',textAlign:'left',boxShadow:`0 8px 24px ${BLUE}40`,fontFamily:INTER}}>
         <span style={{display:'flex',alignItems:'center',gap:isMobile?12:16,minWidth:0}}><span style={{width:isMobile?48:56,height:isMobile?48:56,flexShrink:0,background:'rgba(255,255,255,0.2)',borderRadius:14,display:'grid',placeItems:'center'}}><Plus size={isMobile?24:28} color="white"/></span><span style={{minWidth:0}}><span style={{display:'block',fontSize:'1rem',fontWeight:700,color:'white',letterSpacing:'-0.01em'}}>Assign a task now</span><span style={{display:'block',fontSize:13,color:'rgba(255,255,255,0.78)',marginTop:2,lineHeight:1.4}}>For work you need done right away or today</span></span></span>
         <ChevronRight size={24} color="rgba(255,255,255,0.7)" style={{flexShrink:0}}/>
@@ -2127,7 +2152,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           const done=t.status==='completed'; const declined=t.status==='declined'; const overdue=isOverdue(t); const TIcon=CAT_ICON[t.category]||ClipboardList; const pc=PRIORITY_COLOR[t.priority]||MUTED;
           return <article key={t.id} data-testid="manager-task-row" style={{display:'grid',gridTemplateColumns:isMobile?'36px minmax(0,1fr)':'40px minmax(0,1fr) auto',gap:12,padding:isMobile?'15px 14px':'17px 18px',borderTop:index?`1px solid ${BORDER}`:'none',alignItems:'start'}}><div style={{width:36,height:36,borderRadius:11,background:done?`${GREEN}12`:overdue?`${RED}12`:CARD2,display:'grid',placeItems:'center'}}><TIcon size={17} color={done?GREEN:overdue?RED:MUTED}/></div><div style={{minWidth:0}}><div style={{display:'flex',gap:7,alignItems:'center',flexWrap:'wrap'}}><strong style={{fontSize:14,lineHeight:1.4,color:done?MUTED:TEXT,textDecoration:done?'line-through':'none'}}>{t.title}</strong>{t.priority&&t.priority!=='Standard'&&<DashboardStatusBadge dot={false} color={pc} style={{fontSize:9,padding:'3px 6px'}}>{t.priority}</DashboardStatusBadge>}</div><div style={{display:'flex',gap:6,flexWrap:'wrap',fontSize:12,color:MUTED,marginTop:5}}><span>{t.assignedTo||'Unassigned'}</span><span>·</span><span style={{color:overdue?RED:MUTED}}>Due {t.dueTime||'not set'}</span><span>·</span><span>{t.category||'Other'}</span>{done&&t.completedAt&&<><span>·</span><span>Done {t.completedAt}{t.completedByName?` by ${t.completedByName}`:''}</span></>}{declined&&<><span>·</span><span style={{color:RED}}>Declined{t.declinedByName?` by ${t.declinedByName}`:''}{t.declinedAt?` · ${t.declinedAt}`:''}</span></>}</div>{t.notes&&<p style={{fontSize:12,color:MUTED,lineHeight:1.5,margin:'7px 0 0'}}>{t.notes}</p>}{(done||declined)&&t.completionNote&&<p style={{fontSize:12,color:TEXT,lineHeight:1.5,margin:'7px 0 0',overflowWrap:'anywhere'}}><b>{declined?'Reason:':'Desk note:'}</b> {t.completionNote}</p>}{done&&t.evidenceUrls?.length>0&&<div style={{display:'flex',gap:6,marginTop:8}}>{t.evidenceUrls.map((url,i)=><button key={i} type="button" onClick={()=>setManagerMedia({urls:t.evidenceUrls,index:i,title:t.title})} aria-label={`Open photo ${i+1}`} style={{width:44,height:44,padding:0,border:`1px solid ${BORDER}`,borderRadius:8,overflow:'hidden',cursor:'pointer',background:CARD2}}><img src={url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></button>)}</div>}<div style={{display:'flex',gap:7,marginTop:11}}>{declined&&<button onClick={()=>updateStatus(t,'pending')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,fontWeight:700,cursor:'pointer'}}>Send to the desk again</button>}{!done&&!declined&&<button onClick={()=>updateStatus(t,'completed')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,fontWeight:700,cursor:'pointer',background:TEXT,color:BG,borderColor:TEXT}}>Mark done</button>}</div></div><DashboardStatusBadge color={done?GREEN:(overdue||declined)?RED:t.status==='in_progress'?ORANGE:MUTED} style={{display:isMobile?'none':'inline-flex'}}>{done?'Completed':declined?'Declined':overdue?'Overdue':t.status==='in_progress'?'Active':'Waiting'}</DashboardStatusBadge></article>;
         })}</div></section>})}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:4,borderTop:`1px solid ${BORDER}`,fontSize:12,color:MUTED}}><span>Work that repeats, like every Monday for months?</span><button onClick={()=>setTaskView('scheduled')} style={{border:0,background:'transparent',color:TEXT,fontWeight:700,cursor:'pointer',padding:8,fontFamily:INTER}}>Schedule it <ChevronRight size={13} style={{verticalAlign:'middle'}}/></button></div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:4,borderTop:`1px solid ${BORDER}`,fontSize:12,color:MUTED}}><span>Work for a later day, or that repeats?</span><button onClick={()=>{setSchedOpenWith(null);setShiftsView('schedule');setTab('shifts');}} style={{border:0,background:'transparent',color:TEXT,fontWeight:700,cursor:'pointer',padding:8,fontFamily:INTER}}>Schedule it <ChevronRight size={13} style={{verticalAlign:'middle'}}/></button></div>
       </>}
     </div>;
   };
@@ -2879,7 +2904,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     {{ shifts:'Shift Calendar', tasks:'Tasks', incidents:'Incidents', team:'Team', residents:'Residents Directory', analytics:'Analytics', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings', messages:'Messages' }[tab]}
                   </h2>
                   <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>
-                    {{ incidents:'Reports filed by the front desk, for your review', messages:'Team messages for this property', shifts:'Browse shift history and daily activity reports', tasks:'Assign work for today, schedule it ahead, and see who did it', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
+                    {{ incidents:'Reports filed by the front desk, for your review', messages:'Team messages for this property', shifts:'Shift reports, what is planned for each day, and scheduled tasks', tasks:'Assign work for today and see who did it', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
                   </p>
                 </div>
                 <button onClick={() => setTab('home')} aria-label="Close panel" data-testid="panel-close-btn"
@@ -2891,7 +2916,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               {/* Panel content */}
               <div style={{ flex:1, minHeight:0, ...(tab === 'messages' ? { display:'flex', flexDirection:'column', overflow:'hidden', padding:0 } /* same as the desk: messages scroll, the typing bar stays at the bottom */ : { overflowY:'auto', padding: tab === 'settings' ? 0 : (isMobile ? '16px 16px 48px' : '28px 32px 48px') }) }}>
                 {knowledgeError && (tab==='more' || tab==='training') && <div role="alert" style={{ marginBottom:16, padding:'12px 16px', borderRadius:12, border:`1px solid ${RED}40`, background:`${RED}0d`, fontFamily:INTER, fontSize:13, color:TEXT, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}><span>{knowledgeError}</span><button type="button" onClick={clearKnowledgeError} aria-label="Dismiss" style={{ border:0, background:'transparent', cursor:'pointer', display:'inline-flex' }}><X size={16} color={MUTED}/></button></div>}
-                {tab==='shifts'    && renderShifts()}
+                {tab==='shifts'    && renderShiftsPage()}
                 {tab==='tasks'     && renderTasks()}
                 {tab==='incidents' && renderIncidents()}
                 {tab==='team'      && renderTeam()}

@@ -358,9 +358,10 @@ async def _plan_history(mgr_id: str, ids: List[str]) -> dict:
 @api.get('/scheduled-tasks')
 async def list_scheduled_tasks(request: Request, session_token: Optional[str] = Cookie(default=None)):
     user, user_type, mgr_id = await _resolve_user(request, session_token)
+    query = {'manager_id': mgr_id}
     if user_type != 'manager':
-        raise HTTPException(403, 'Manager access required.')
-    docs = await db.scheduled_tasks.find({'manager_id': mgr_id}, {'_id': 0}).sort('created_at', -1).to_list(500)
+        query['created_by'] = user['concierge_id']   # the desk sees what it scheduled
+    docs = await db.scheduled_tasks.find(query, {'_id': 0}).sort('created_at', -1).to_list(500)
     history = await _plan_history(mgr_id, [d['scheduled_task_id'] for d in docs])
     empty = {'done_count': 0, 'last_done': None, 'recent': []}
     for d in docs:
@@ -418,16 +419,19 @@ async def create_scheduled_task(data: ScheduledTaskCreate, request: Request, ses
 @api.put('/scheduled-tasks/{task_id}')
 async def update_scheduled_task(task_id: str, data: ScheduledTaskUpdate, request: Request, session_token: Optional[str] = Cookie(default=None)):
     user, user_type, mgr_id = await _resolve_user(request, session_token)
-    if user_type != 'manager':
-        raise HTTPException(403, 'Manager access required.')
     patch = {k: v for k, v in data.dict().items() if v is not None and k != 'clear_end_date'}
     if data.clear_end_date:
         patch['end_date'] = None
     if not patch:
         raise HTTPException(400, 'Nothing to update.')
-    existing = await db.scheduled_tasks.find_one({'scheduled_task_id': task_id, 'manager_id': mgr_id})
+    owner = {'scheduled_task_id': task_id, 'manager_id': mgr_id}
+    if user_type != 'manager':
+        owner['created_by'] = user['concierge_id']   # the desk can change only what it scheduled
+    existing = await db.scheduled_tasks.find_one(owner)
     if not existing:
         raise HTTPException(404, 'Scheduled request not found.')
+    if 'end_time' in patch:
+        _validate_schedule_fields(None, None, patch['end_time'] or None, None)
     _validate_schedule_fields(
         patch.get('start_date', existing.get('start_date')),
         patch.get('end_date', existing.get('end_date')),
@@ -511,7 +515,7 @@ async def schedule_calendar(start: str, end: str, request: Request, session_toke
                 'for_name': sch.get('assigned_concierge_name') or sch.get('assigned_to') or '',
                 'added_by': sch.get('created_by_name', ''),
                 'added_by_type': sch.get('created_by_type', 'manager'),
-                'mine': user_type == 'concierge' and sch.get('created_by') == user.get('concierge_id'),
+                'mine': user_type == 'manager' or sch.get('created_by') == user.get('concierge_id'),
                 'status': st.get('status') or 'planned',
                 'done_by': st.get('by', ''),
             })
