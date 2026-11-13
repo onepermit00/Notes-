@@ -37,9 +37,11 @@ import {
   BUILDING_PROFILE, BUILDING_CONTACTS,
   BUILDING_STATUS, BUILDING_SOPS, SHIFT_HISTORY,
 } from '../services/mockData';
-import { authApi } from '../services/authApi';
+import { authApi, normalizeTask, normalizeIncident } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
 import { useSharedData } from '../context/SharedDataContext';
+import { useAuthSession } from '../context/AuthSessionContext';
+import { shrinkImages } from '../lib/shrinkImage';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { SignaturePad } from './SignaturePad';
 import { KnowledgeStatusBadge } from './knowledge/KnowledgeUI';
@@ -63,7 +65,7 @@ const ORANGE  = DASHBOARD_WARNING;
 const ROUTE_TO_TAB = {
   today: 'home', handoff: 'home', knowledge: 'sops', tasks: 'requests',
   incidents: 'incident', visitors: 'guests', vendors: 'vendors', packages: 'packages',
-  history: 'shift-history', profile: 'profile', settings: 'settings',
+  history: 'shift-history', profile: 'profile', settings: 'settings', calendar: 'calendar',
 };
 const TAB_TO_ROUTE = {
   home: 'today', sops: 'knowledge', requests: 'tasks',
@@ -174,6 +176,34 @@ const inferDarSource = ({ source_section, sourceSection, title = '', category = 
   return 'new-task';
 };
 
+// Shapes the last completed shift for the handoff view and the Previous shift tab.
+const mapPreviousShift = (s) => {
+  if (!s) return null;
+  const time = iso => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const msElapsed = s.clock_out ? (new Date(s.clock_out) - new Date(s.clock_in)) : 0;
+  const hours = Math.floor(msElapsed / 3600000);
+  const mins  = Math.floor((msElapsed % 3600000) / 60000);
+  return {
+    concierge: { name: s.concierge_name },
+    dateLabel: new Date(s.clock_in).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+    clockIn:   time(s.clock_in),
+    clockOut:  s.clock_out ? time(s.clock_out) : null,
+    duration:  hours > 0 ? `${hours}h ${mins}m` : `${mins}m`,
+    note:      s.handover_notes || '',
+    openItems: s.open_items || [],
+    incidents: (s.incidents || []).map(i => ({ text: `${i.created_at ? `${time(i.created_at).toLowerCase()} — ` : ''}${i.type || 'Incident'}: ${i.description || ''}`, evidenceUrls: Array.isArray(i.evidence_urls) ? i.evidence_urls : [] })),
+    activities: (s.activities || []).map(t => ({
+      id: t.task_id,
+      time: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
+      title: t.created_by_type === 'manager' ? `Request completed · ${t.title}` : t.title,
+      notes: t.notes || '',
+      category: t.category || 'Other',
+      evidenceUrls: Array.isArray(t.evidence_urls) ? t.evidence_urls : [],
+      sourceSection: inferDarSource(t),
+    })),
+  };
+};
+
 const MODEL_UNITS_INIT = [
   { id: 'm1', unit: '101',  type: 'Studio',         sqft: 520,  floor: 1,  open: true,  openedAt: '8:15 AM', openedBy: 'George N.' },
   { id: 'm2', unit: '215',  type: '1 Bed / 1 Bath', sqft: 720,  floor: 2,  open: true,  openedAt: '8:20 AM', openedBy: 'George N.' },
@@ -220,7 +250,12 @@ export const CaregiverDashboard = ({
   const navigate = useNavigate();
   // ── Theme ──────────────────────────────────────────────────────────────────
   const { isDarkMode, toggleTheme, colors } = useTheme();
-  const { uploadedSOPs, trainingItems } = useSharedData();
+  const { uploadedSOPs: allSOPs, trainingItems, setTrainingCompleted, refreshKnowledge } = useSharedData();
+  const uploadedSOPs = useMemo(() => allSOPs.filter(sop => sop.status !== 'review'), [allSOPs]);
+  const { completeAuthentication } = useAuthSession();
+  const [profileStateCG, setProfileStateCG] = useState('');
+  const [saveFailure, setSaveFailure] = useState('');
+  const [restoredRequestIds, setRestoredRequestIds] = useState(() => new Set());
   const BG     = colors.BG;
   const CARD   = colors.CARD;
   const CARD2  = colors.CARD2;
@@ -288,9 +323,7 @@ export const CaregiverDashboard = ({
   const [sopFilter, setSopFilter]                 = useState('All');
   const [trainingSearch, setTrainingSearch]       = useState('');
   const [trainingFilter, setTrainingFilter]       = useState('All');
-  const [completedTraining, setCompletedTraining] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('_notedTrainingComplete') || '[]')); } catch { return new Set(); }
-  });
+  const completedTraining = useMemo(() => new Set(trainingItems.filter(item => item.completed).map(item => item.id)), [trainingItems]);
   const [lastTrainingId, setLastTrainingId]       = useState(() => localStorage.getItem('_notedLastTraining') || '');
   const [showAmenities, setShowAmenities] = useState(false);
   const [amenities,     setAmenities]     = useState(AMENITIES_INIT);
@@ -385,13 +418,14 @@ export const CaregiverDashboard = ({
   useEffect(() => {
     const load = () => authApi.getMySections()
       .then(({ sections, customSections: custom }) => { setSectionAccess(sections); setCustomSections(custom); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => refreshKnowledge());
     load();
     const onVisible = () => { if (document.visibilityState === 'visible') load(); };
     window.addEventListener('focus', load);
     document.addEventListener('visibilitychange', onVisible);
     return () => { window.removeEventListener('focus', load); document.removeEventListener('visibilitychange', onVisible); };
-  }, []);
+  }, [refreshKnowledge]);
 
   // A switched-off section cannot be opened by link, shortcut or old bookmark.
   useEffect(() => {
@@ -422,10 +456,11 @@ export const CaregiverDashboard = ({
           // Restore only today's activities as selfTasks
           const prevActivities = (s.activities || []).filter(t => {
             if (!t.created_at) return false;
-            return new Date(t.created_at).toLocaleDateString() === todayStr;
+            return new Date(t.created_at).getTime() >= new Date(s.clock_in).getTime() - 60000;
           }).map(t => ({
             id: t.task_id,
-            title: t.title,
+            evidenceUrls: Array.isArray(t.evidence_urls) ? t.evidence_urls : [],
+            title: t.created_by_type === 'manager' ? `Request completed · ${t.title}` : t.title,
             category: t.category || 'Other',
             notes: t.notes || '',
             completedAt: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
@@ -434,38 +469,11 @@ export const CaregiverDashboard = ({
             _source: inferDarSource(t),
           }));
           setSelfTasks(prevActivities);
+          setRestoredRequestIds(new Set((s.activities || []).filter(t => t.created_by_type === 'manager').map(t => t.task_id)));
         }
       }
 
-      // Set previous shift for the pre-shift handoff view
-      if (prevRes?.shift) {
-        const s = prevRes.shift;
-        const clockIn  = new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-        const clockOut = s.clock_out ? new Date(s.clock_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null;
-        const msElapsed = s.clock_out ? (new Date(s.clock_out) - new Date(s.clock_in)) : 0;
-        const hours = Math.floor(msElapsed / 3600000);
-        const mins  = Math.floor((msElapsed % 3600000) / 60000);
-        setPreviousShiftData({
-          concierge: { name: s.concierge_name },
-          dateLabel: new Date(s.clock_in).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
-          clockIn,
-          clockOut,
-          duration: hours > 0 ? `${hours}h ${mins}m` : `${mins}m`,
-          note:       s.handover_notes || '',
-          openItems:  s.open_items || [],
-          incidents: (s.incidents || []).map(i => `${i.type || ''}: ${i.description || ''}`),
-          activities: (s.activities || []).map(t => ({
-            id: t.task_id,
-            time: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
-            title: t.title,
-            notes: t.notes || '',
-            category: t.category || 'Other',
-            sourceSection: inferDarSource(t),
-          })),
-        });
-      } else {
-        setPreviousShiftData(null); // No previous shift on record
-      }
+      setPreviousShiftData(mapPreviousShift(prevRes?.shift));
     }).catch(() => setPreviousShiftData(null));
   }, []);
 
@@ -506,14 +514,7 @@ export const CaregiverDashboard = ({
   useEffect(() => {
     const es = authApi.openEventStream(({ tasks: newTasks = [], incidents: newInc = [] }) => {
       if (newTasks.length) {
-        const normalized = newTasks.map(t => ({
-          id: t.task_id, task_id: t.task_id, title: t.title || '', notes: t.notes || '',
-          category: t.category || 'Other', priority: t.priority || 'Standard',
-          assignedTo: t.assigned_to || '', toId: t.assigned_to_id || '',
-          dueTime: t.due_time || 'ASAP', status: t.status || 'pending',
-          createdAt: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
-          createdBy: t.created_by_name || '', createdByType: t.created_by_type || 'concierge',
-        }));
+        const normalized = newTasks.map(normalizeTask);
         setTasks(prev => {
           const ids = new Set(prev.map(x => x.task_id));
           const fresh = normalized.filter(t => !ids.has(t.task_id));
@@ -521,17 +522,7 @@ export const CaregiverDashboard = ({
         });
       }
       if (newInc.length) {
-        const normalized = newInc.map(i => ({
-          id: i.incident_id, incident_id: i.incident_id,
-          title: i.description || i.title || '', type: i.type || '',
-          location: i.location || '', severity: i.severity || 'medium',
-          filedBy: i.created_by || '',
-          filedAt: i.created_at ? new Date(i.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '',
-          note: i.notes || '', status: i.status || 'new',
-          createdAtMs: i.created_at ? new Date(i.created_at).getTime() : Date.now(),
-          unit_number: i.unit_number || '', person_involved: i.person_involved || '',
-          photos: (incidentPhotos.current[i.incident_id] || []).map(url => ({ url })),
-        }));
+        const normalized = newInc.map(i => ({ ...normalizeIncident(i), photos: (incidentPhotos.current[i.incident_id] || []).map(url => ({ url })) }));
         setIncidents(prev => {
           const ids = new Set(prev.map(x => x.incident_id));
           const fresh = normalized.filter(i => !ids.has(i.incident_id));
@@ -571,12 +562,12 @@ export const CaregiverDashboard = ({
     setModelUnits(p => p.map(m => m.id !== id ? m : {
       ...m, open: !m.open,
       openedAt: !m.open ? t : null,
-      openedBy: !m.open ? (authUser?.name || 'Concierge').split(' ')[0] + ' ' + (authUser?.name || 'Concierge').split(' ')[1][0] + '.' : null,
+      openedBy: !m.open ? staffId() : null,
     }));
   };
 
   const nowStr  = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const staffId = () => { const n = (authUser?.name || 'Concierge').split(' '); return `${n[0]} ${n[1][0]}.`; };
+  const staffId = () => { const n = (authUser?.name || 'Concierge').trim().split(/\s+/); return n[1] ? `${n[0]} ${n[1][0]}.` : n[0]; };
 
   const openAmenityCount  = amenities.filter(a => a.open).length;
   const lastAudit         = pkgAudits[0] || null;
@@ -706,9 +697,13 @@ export const CaregiverDashboard = ({
       setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })); setShiftStartMs(new Date(shift.clock_in).getTime() || Date.now());
       setClockOutTime(null);
       setClockAlertTitle('Clocked In');
-      setClockAlertMsg('Shift started. GPS location verified. Read the handoff notes before beginning rounds.');
+      setClockAlertMsg('Your shift has started. Read the handoff notes before beginning rounds.');
       setShowClockAlert(true);
-    } catch { /* silently ignore */ }
+    } catch (error) {
+      setClockAlertTitle('Shift not started');
+      setClockAlertMsg(typeof error?.response?.data?.detail === 'string' ? error.response.data.detail : 'The shift could not be started. Check your connection and try again.');
+      setShowClockAlert(true);
+    }
   };
   const [showChecklist,     setShowChecklist]     = useState(false);
   const [checklistAcks,     setChecklistAcks]     = useState({});  // id → 'done' | 'escalate'
@@ -736,7 +731,15 @@ export const CaregiverDashboard = ({
         ? 'Your shift has been clocked out. All documentation has been saved.'
         : 'Your shift has been clocked out and your handoff briefing was sent to the next shift.');
       setShowClockAlert(true);
-    } catch { /* silently ignore */ }
+      setSelfTasks([]);
+      setShiftStarted(false);
+      authApi.getPreviousShift().then(res => setPreviousShiftData(mapPreviousShift(res?.shift))).catch(() => {});
+      authApi.getShiftHistory().then(data => setShiftHistory(data?.shifts || [])).catch(() => {});
+    } catch (error) {
+      setClockAlertTitle('Shift not ended');
+      setClockAlertMsg(typeof error?.response?.data?.detail === 'string' ? error.response.data.detail : 'The handoff could not be sent, so your shift is still active. Check your connection and try again.');
+      setShowClockAlert(true);
+    }
     finally { setHandoverSaving(false); }
   };
   const openAiSummary = () => {
@@ -754,14 +757,19 @@ export const CaregiverDashboard = ({
     const local = { id: Date.now(), title, category, notes, evidenceUrls, location: '', priority: 'normal', completedAt: t, startedAt: t, status: 'completed', _source: resolvedSource };
     setSelfTasks(p => [...p, local]);
     // Save activity to backend so manager sees it
-    authApi.createTask({
+    shrinkImages(evidenceUrls).then(photos => authApi.createTask({
       title, notes, category: category || 'Other',
       priority: 'Standard',
       assignedTo: authUser?.name || '',
       toId: authUser?.user_id || '',
       dueTime: t,
       sourceSection: resolvedSource,
-    }).then(saved => setTasks(p => [saved, ...p])).catch(() => {});
+      evidenceUrls: photos,
+    })).then(saved => setTasks(p => [saved, ...p])).catch(() => {
+      // Tell the concierge rather than letting the entry quietly go missing for the manager.
+      setSelfTasks(p => p.map(item => item.id === local.id ? { ...item, notes: [item.notes, 'Not saved to the server yet. Check your connection and log it again.'].filter(Boolean).join(' ') } : item));
+      setSaveFailure(`"${title}" could not be saved. Check your connection and log it again.`);
+    });
   }, [authUser]);
 
   // What the assistant is allowed to do. Each one goes through the same path as the form it stands in for.
@@ -801,9 +809,10 @@ export const CaregiverDashboard = ({
       const saved = await authApi.updateTask(taskId, {
         status: updated.status,
         completion_note: updated.completionNote || updated.completion_note || '',
+        evidence_urls: await shrinkImages(updated.evidenceUrls || []),
       });
       setTasks(p => p.map(t => (t.id === saved.id || t.task_id === saved.task_id) ? saved : t));
-    } catch { /* silently fail */ }
+    } catch { setSaveFailure(`"${updated.title || 'The request'}" could not be updated. Check your connection and try again.`); }
   };
 
   const handleAcceptRequest = useCallback(async (task) => {
@@ -815,18 +824,18 @@ export const CaregiverDashboard = ({
       handleTabChange('home');
       setDarReceipt({ title: task.title, detail: 'Request accepted · now in progress' });
       setTimeout(() => setDarReceipt(null), 4200);
-    } catch {}
+    } catch { setSaveFailure('The request could not be accepted. Check your connection and try again.'); }
   }, [handleActivityLogged, handleTabChange]);
 
   const handleDeclineRequest = useCallback(async (taskId, reason = '') => {
     try {
-      await authApi.updateTask(taskId, { status: 'completed' });
-      setTasks(p => p.map(t => t.id === taskId ? { ...t, status: 'completed' } : t));
-      handleActivityLogged({ title: 'Request declined', category: 'Administrative', notes: `Request ${taskId} was reviewed and closed.${reason ? ` Reason: ${reason}.` : ''}`, sourceSection: 'requests' });
+      const saved = await authApi.updateTask(taskId, { status: 'declined', completion_note: reason || '' });
+      setTasks(p => p.map(t => t.id === taskId ? saved : t));
+      handleActivityLogged({ title: `Request declined · ${saved.title}`, category: 'Administrative', notes: reason ? `Reason: ${reason}` : 'Sent back to the manager', sourceSection: 'requests' });
       handleTabChange('home');
-      setDarReceipt({ title: 'Request updated', detail: 'Decision recorded in the operational record' });
+      setDarReceipt({ title: 'Request declined', detail: 'Your manager can see the reason and reassign it' });
       setTimeout(() => setDarReceipt(null), 4200);
-    } catch {}
+    } catch { setSaveFailure('The request could not be declined. Check your connection and try again.'); }
   }, [handleActivityLogged, handleTabChange]);
 
   const displayTasks    = tasks.filter(t => t.status !== TaskStatus.PROPOSED);
@@ -840,8 +849,8 @@ export const CaregiverDashboard = ({
     return match ? Number(match[1]) * 60 + Number(match[2]) : 1439;
   };
   const managerRequests = tasks.filter(t => (t.createdByType || t.created_by_type) === 'manager').sort((a,b) => requestTimeMinutes(a)-requestTimeMinutes(b));
-  const pendingRequests = managerRequests.filter(t => t.status !== 'completed' && t.status !== TaskStatus.COMPLETED);
-  const handledRequests = managerRequests.filter(t => t.status === 'completed' || t.status === TaskStatus.COMPLETED);
+  const pendingRequests = managerRequests.filter(t => t.status !== 'completed' && t.status !== 'declined');
+  const handledRequests = managerRequests.filter(t => t.status === 'completed' || t.status === 'declined');
   const completedCount  = displayTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
   const totalCount      = displayTasks.length;
   const progressPct     = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
@@ -867,6 +876,9 @@ export const CaregiverDashboard = ({
         setShiftStarted(true);
         setSelfTasks([]);
           setShiftStartTime(new Date(shift.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })); setShiftStartMs(new Date(shift.clock_in).getTime() || Date.now());
+        setRestoredRequestIds(new Set());
+      } catch (error) {
+        setSaveFailure(typeof error?.response?.data?.detail === 'string' ? error.response.data.detail : 'The shift could not be started. Check your connection and try again.');
       } finally { setShiftStarting(false); }
     };
 
@@ -972,7 +984,7 @@ export const CaregiverDashboard = ({
       ? arr.map(a => `${a.time || '—'}: ${a.title}${a.notes ? ' · ' + a.notes : ''}`).join('\n')
       : 'N/A';
 
-    const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed');
+    const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed' && t.status !== 'declined');
     const sevColor = (sev) => sev === 'critical' || sev === 'high' ? RED : sev === 'medium' ? ORANGE : BLUE;
 
     return (
@@ -1000,10 +1012,7 @@ export const CaregiverDashboard = ({
             </div>
             {/* Sections — identical layout to Manager DAR */}
             <div style={{ background: CARD }}>
-              <Sect title="Start of Shift Package Audit" />
-              <Field label="Package Audit Completed" value="Yes" />
-              <Field label="Keys Found at Start of Shift" value="Yes" last={!audit} />
-              {audit && <Field label="Package Room Count" value={audit.notes} last />}
+              {audit && <><Sect title="Start of Shift Package Audit" /><Field label="Package Room Count" value={audit.notes} last /></>}
 
               <Sect title="Packages" />
               <Field label="Delivered by Couriers" value={toStr(incoming)} />
@@ -1052,7 +1061,7 @@ export const CaregiverDashboard = ({
                 <>
                   <Sect title="Incidents Filed" accent={RED} />
                   {prevShift.incidents.map((inc, i, arr) => (
-                    <Field key={i} label={`Incident ${i + 1}`} value={inc} last={i === arr.length - 1} />
+                    <Field key={i} label={`Incident ${i + 1}`} value={typeof inc === "string" ? inc : inc.text} last={i === arr.length - 1} />
                   ))}
                 </>
               )}
@@ -1163,7 +1172,7 @@ export const CaregiverDashboard = ({
       clockIn:   shiftStartTime,
       clockOut:  null,
       note:      '',
-      incidents: incidents.filter(i => i.status === 'new').map(i => {
+      incidents: incidents.filter(i => (currentShiftId && i.shiftId ? i.shiftId === currentShiftId : (i.createdAtMs || 0) >= (shiftStartMs || 0) - 60000)).map(i => {
         const tod = i.filedAt ? ((i.filedAt.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i) || [])[0] || '').replace(/\s*(AM|PM)$/i, (_, m) => m.toLowerCase()) : '';
         const pre = tod ? `${tod} — ` : '';
         const urls =
@@ -1182,16 +1191,16 @@ export const CaregiverDashboard = ({
     const activeShift = viewingPreviousDar && previousShiftData
       ? { ...previousShiftData, incidents: previousShiftData.incidents || [], activities: previousShiftData.activities || [] }
       : currentDar;
-    const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed');
+    const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed' && t.status !== 'declined');
     const sevColor    = (sev) => sev === 'critical' || sev === 'high' ? RED : sev === 'medium' ? ORANGE : BLUE;
 
     const taskCatMap = { packages:'Delivery', mail:'Delivery', patrol:'Safety / Security', amenity:'Amenity', opening:'Administrative', coverage:'Administrative', documentation:'Administrative' };
     const todayLabel = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
     const isToday = ts => ts && ts.startsWith(todayLabel + ',');
-    const completedTaskActs = isShiftActive ? displayTasks.filter(t=>t.status===TaskStatus.COMPLETED&&isToday(t.completedAt)).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:t.title, notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] })) : [];
+    const completedTaskActs = isShiftActive ? displayTasks.filter(t=>t.createdByType==='manager'&&t.status===TaskStatus.COMPLETED&&isToday(t.completedAt)&&!restoredRequestIds.has(t.id)).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:`Request completed · ${t.title}`, notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] })) : [];
     const selfTaskActs = viewingPreviousDar
       ? (activeShift?.activities || []).map(t=>({ id:`previous-${t.id}`, time:t.time||t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t.sourceSection || inferDarSource(t) }))
-      : selfTasks.filter(t=>isToday(t.completedAt)).map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t._source || inferDarSource(t) }));
+      : selfTasks.map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t._source || inferDarSource(t) }));
     const rawMediaSources = [
       ...completedTaskActs,
       ...selfTaskActs,
@@ -1409,6 +1418,9 @@ export const CaregiverDashboard = ({
             onPrint={() => window.print()}
             printLabel="Export DAR"
             propertyName={propertyName}
+            propertyAddress={authUser?.property_address || ''}
+            emptyTitle="You are not on shift"
+            emptyHint="Start your shift to begin today's report. Everything you log is added here and shared with your manager live."
             taskEntries={taskEntries}
             incidents={activeShift?.incidents}
             hiddenSections={hiddenDarSections}
@@ -1563,7 +1575,7 @@ export const CaregiverDashboard = ({
 
         {requestQueueTab === 'handled' && (handledRequests.length ? (
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {handledRequests.map(task => <div key={task.id || task.task_id} style={{ padding:'13px 15px',background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,display:'grid',gridTemplateColumns:'40px 1fr auto',alignItems:'center',gap:12,boxShadow:SHADOW }}><div style={{width:40,height:40,borderRadius:11,background:`${GREEN}10`,display:'flex',alignItems:'center',justifyContent:'center'}}><Check size={18} color={GREEN}/></div><div style={{minWidth:0}}><div style={{fontFamily:INTER,fontSize:13,fontWeight:750,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{task.title}</div><div style={{marginTop:4,fontFamily:INTER,fontSize:10,color:MUTED}}>{task.dueTime || 'Scheduled request'} · {task.createdBy || task.created_by || 'Property management'}</div></div><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:GREEN,background:`${GREEN}10`,borderRadius:999,padding:'5px 8px',textTransform:'uppercase',letterSpacing:'.06em'}}>Completed</span></div>)}
+            {handledRequests.map(task => <div key={task.id || task.task_id} style={{ padding:'13px 15px',background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,display:'grid',gridTemplateColumns:'40px 1fr auto',alignItems:'center',gap:12,boxShadow:SHADOW }}><div style={{width:40,height:40,borderRadius:11,background:`${GREEN}10`,display:'flex',alignItems:'center',justifyContent:'center'}}><Check size={18} color={GREEN}/></div><div style={{minWidth:0}}><div style={{fontFamily:INTER,fontSize:13,fontWeight:750,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{task.title}</div><div style={{marginTop:4,fontFamily:INTER,fontSize:10,color:MUTED}}>{task.dueTime || 'Scheduled request'} · {task.createdBy || task.created_by || 'Property management'}</div></div><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:task.status==='declined'?RED:GREEN,background:task.status==='declined'?`${RED}10`:`${GREEN}10`,borderRadius:999,padding:'5px 8px',textTransform:'uppercase',letterSpacing:'.06em'}}>{task.status==='declined'?'Declined':'Completed'}</span></div>)}
           </div>
         ) : <div style={{ minHeight:180, background:CARD, border:`1px solid ${BORDER}`, borderRadius:18, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:24 }}><CheckCircle size={26} color={GREEN} /><div style={{ fontFamily:INTER, fontSize:16, fontWeight:800, color:TEXT, marginTop:12 }}>No handled requests yet</div><div style={{ fontFamily:INTER, fontSize:13, color:MUTED, marginTop:5 }}>Accepted and closed requests will appear here.</div></div>)}
       </div>
@@ -1922,18 +1934,30 @@ export const CaregiverDashboard = ({
         <div>
           {sectionLabel('My Profile')}
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {row('update-info', User, BLUE, 'Update Information', 'Edit your name, email and contact details',
+            {row('update-info', User, BLUE, 'Update Information', 'Edit your name and phone number',
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 <input style={inputStyle} value={editInfoCG.name}  onChange={e => setEditInfoCG(f=>({...f,name:e.target.value}))}  placeholder="Full name" />
-                <input style={inputStyle} value={editInfoCG.email} onChange={e => setEditInfoCG(f=>({...f,email:e.target.value}))} placeholder="Email address" />
+                <input style={{ ...inputStyle, opacity:.7 }} value={editInfoCG.email} readOnly aria-label="Email address (your sign-in, cannot be changed here)" title="Your email is your sign-in and cannot be changed here." />
                 <input style={inputStyle} value={editInfoCG.phone} onChange={e => setEditInfoCG(f=>({...f,phone:e.target.value}))} placeholder="Phone number" />
-                <button onClick={() => setSettingExp(null)} style={{ marginTop:4, padding:'12px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer' }}>Save Changes</button>
+                {profileStateCG === 'error' && <p role="alert" style={{ fontFamily:INTER, fontSize:13, color:RED, margin:0, fontWeight:600 }}>Your details could not be saved. Enter your name and try again.</p>}
+                {profileStateCG === 'saved' && <p role="status" style={{ fontFamily:INTER, fontSize:13, color:GREEN, margin:0, fontWeight:600 }}>Your details were saved.</p>}
+                <button disabled={profileStateCG === 'saving'} onClick={async () => {
+                  const parts = editInfoCG.name.trim().split(/\s+/).filter(Boolean);
+                  if (!parts.length) { setProfileStateCG('error'); return; }
+                  setProfileStateCG('saving');
+                  try {
+                    const updated = await authApi.updateProfile({ first_name: parts[0], last_name: parts.slice(1).join(' '), phone: editInfoCG.phone.trim() });
+                    completeAuthentication(updated);
+                    setProfileStateCG('saved');
+                    setTimeout(() => setProfileStateCG(''), 2500);
+                  } catch { setProfileStateCG('error'); }
+                }} style={{ marginTop:4, padding:'12px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor:'pointer' }}>{profileStateCG === 'saving' ? 'Saving…' : 'Save Changes'}</button>
               </div>
             )}
             {row('change-pw', Lock, RED, 'Change Password', 'Update your account password securely',
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 <input style={inputStyle} type="password" value={pwFormCG.current} onChange={e => { setPwFormCG(f=>({...f,current:e.target.value})); setPwStatusCG(''); }} placeholder="Current password" />
-                <input style={inputStyle} type="password" value={pwFormCG.next}    onChange={e => { setPwFormCG(f=>({...f,next:e.target.value}));    setPwStatusCG(''); }} placeholder="New password (min 6 chars)" />
+                <input style={inputStyle} type="password" value={pwFormCG.next}    onChange={e => { setPwFormCG(f=>({...f,next:e.target.value}));    setPwStatusCG(''); }} placeholder="New password (at least 8 characters)" />
                 <input style={inputStyle} type="password" value={pwFormCG.confirm} onChange={e => { setPwFormCG(f=>({...f,confirm:e.target.value})); setPwStatusCG(''); }} placeholder="Confirm new password" />
                 {pwStatusCG.startsWith('error') && <p style={{ fontFamily:INTER, fontSize:13, color:RED, margin:0, fontWeight:600 }}>{pwStatusCG.replace('error:','')}</p>}
                 {pwStatusCG === 'success' && <p style={{ fontFamily:INTER, fontSize:13, color:GREEN, margin:0, fontWeight:600 }}>Password updated successfully.</p>}
@@ -1942,7 +1966,7 @@ export const CaregiverDashboard = ({
                   onClick={async () => {
                     if (!pwFormCG.current || !pwFormCG.next || !pwFormCG.confirm) { setPwStatusCG('error:Please fill in all fields.'); return; }
                     if (pwFormCG.next !== pwFormCG.confirm) { setPwStatusCG('error:New passwords do not match.'); return; }
-                    if (pwFormCG.next.length < 6) { setPwStatusCG('error:New password must be at least 6 characters.'); return; }
+                    if (pwFormCG.next.length < 8) { setPwStatusCG('error:New password must be at least 8 characters.'); return; }
                     setPwStatusCG('saving');
                     try {
                       await authApi.changePassword(pwFormCG.current, pwFormCG.next);
@@ -1950,7 +1974,7 @@ export const CaregiverDashboard = ({
                       setPwFormCG({ current:'', next:'', confirm:'' });
                       setTimeout(() => { setPwStatusCG(''); setSettingExp(null); }, 2000);
                     } catch (err) {
-                      setPwStatusCG('error:' + (err?.response?.data?.detail || 'Failed to update password.'));
+                      setPwStatusCG('error:' + (typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : 'The password could not be updated.'));
                     }
                   }}
                   style={{ marginTop:4, padding:'12px', background: pwStatusCG==='saving' ? MUTED : RED, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor: pwStatusCG==='saving' ? 'not-allowed' : 'pointer' }}>
@@ -2584,6 +2608,11 @@ export const CaregiverDashboard = ({
       <div role="status" aria-live="polite" aria-atomic="true" style={{ position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>
         {srAnnounce}
       </div>
+      {saveFailure && <div role="alert" data-testid="save-failure" style={{ position:'fixed', left:'50%', transform:'translateX(-50%)', bottom:24, zIndex:2000, width:'min(520px, calc(100vw - 32px))', padding:'14px 16px', borderRadius:14, background:'#1f1f1f', color:'#fff', boxShadow:'0 12px 40px rgba(0,0,0,.3)', display:'flex', alignItems:'center', gap:12, fontFamily:INTER, fontSize:13, lineHeight:1.5 }}>
+        <AlertTriangle size={18} color="#FFB020" style={{ flexShrink:0 }}/>
+        <span style={{ flex:1 }}>{saveFailure}</span>
+        <button type="button" onClick={() => setSaveFailure('')} aria-label="Dismiss" style={{ border:0, background:'transparent', color:'#fff', cursor:'pointer', fontFamily:INTER, fontSize:12, fontWeight:700, padding:6 }}>Dismiss</button>
+      </div>}
       {/* ── Body row: sidebar + content ─────────────────────────────────── */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
 
@@ -4056,12 +4085,7 @@ export const CaregiverDashboard = ({
             <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:280 }}>{fullscreenItem.fileName}</span>
             {fullscreenItem._knowledgeType === 'training' ? (
               <button onClick={() => {
-                setCompletedTraining(prev => {
-                  const next = new Set(prev);
-                  if (next.has(fullscreenItem.id)) next.delete(fullscreenItem.id); else next.add(fullscreenItem.id);
-                  try { localStorage.setItem('_notedTrainingComplete', JSON.stringify([...next])); } catch {}
-                  return next;
-                });
+                setTrainingCompleted(fullscreenItem.id, !completedTraining.has(fullscreenItem.id));
               }} aria-pressed={completedTraining.has(fullscreenItem.id)} style={{ minHeight:42, padding:'0 15px', marginLeft:10, borderRadius:999, border:`1px solid ${completedTraining.has(fullscreenItem.id)?GREEN:'rgba(255,255,255,.22)'}`, background:completedTraining.has(fullscreenItem.id)?GREEN:'rgba(255,255,255,.10)', color:'white', fontFamily:INTER, fontSize:11, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:7 }}><Check size={14}/>{completedTraining.has(fullscreenItem.id)?'Reviewed':'Mark reviewed'}</button>
             ) : <><span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.20)' }}>·</span><span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)' }}>Tap outside to close</span></>}
           </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useDeskState } from '../lib/useDeskState';
 import { UserCheck, MessageCircle, Clock, Check, LogOut, User, UtensilsCrossed, Package, Wrench, Truck, HelpCircle, Camera, Plus, X, Calendar, Bell } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import ResidentSearchInput from './ResidentSearchInput';
@@ -85,7 +86,7 @@ export const GuestsDashboard = ({ onActivityLogged, onWorkflowChange, propertyNa
     notified: { bg: 'rgba(255,56,92,0.10)',   color: BLUE,   label: 'Notified' },
     departed: { bg: 'rgba(113,113,113,0.10)', color: MUTED,  label: 'Departed' },
   };
-  const [guests,   setGuests]   = useState([]);
+  const [guests,   setGuests]   = useDeskState('guests', 'guests', []);
   const [view,     setView]     = useState('list');
   const [guestQueueTab, setGuestQueueTab] = useState('lobby');
   const [gStep,    setGStep]    = useState(1);
@@ -108,7 +109,7 @@ export const GuestsDashboard = ({ onActivityLogged, onWorkflowChange, propertyNa
   }, [view, onWorkflowChange]);
 
   // Pre-registration state
-  const [preRegs,  setPreRegs]  = useState(loadPreRegs);
+  const [preRegs,  setPreRegs]  = useDeskState('guests', 'preRegs', loadPreRegs());
   const [prStep,   setPrStep]   = useState(1);
   const [prForm,   setPrForm]   = useState({ guestName: '', residentName: '', unit: '', purpose: '', notes: '', expectedTime: '' });
 

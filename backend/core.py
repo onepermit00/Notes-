@@ -6,6 +6,7 @@ import json as _json
 import logging
 import html as html_lib
 import os
+import re
 import secrets
 import urllib.error
 import urllib.request
@@ -69,6 +70,8 @@ async def _ensure_indexes():
     await db.invitations.create_index([('manager_id', 1), ('status', 1)], background=True)
     await db.rate_limit_events.create_index('key',                      background=True)
     await db.rate_limit_events.create_index('created_at', expireAfterSeconds=900, background=True)
+    await db.knowledge.create_index([('manager_id', 1), ('kind', 1)],     background=True)
+    await db.desk_state.create_index([('manager_id', 1), ('section', 1)], unique=True, background=True)
     logger.info('MongoDB indexes ensured.')
 
 SESSION_DAYS = 30
@@ -136,11 +139,13 @@ class TaskCreate(BaseModel):
     assigned_to:    Optional[str] = None
     assigned_to_id: Optional[str] = None
     source_section: Optional[str] = None
+    evidence_urls:  Optional[List[str]] = None
 
 class TaskUpdate(BaseModel):
     status:          Optional[str] = None
     completion_note: Optional[str] = None
     evidence_url:    Optional[str] = None
+    evidence_urls:   Optional[List[str]] = None
 
 class MessageCreate(BaseModel):
     content:      str
@@ -170,6 +175,7 @@ class UpdateProfileRequest(BaseModel):
     first_name: Optional[str] = None
     last_name:  Optional[str] = None
     phone:      Optional[str] = None
+    notification_prefs: Optional[Dict[str, bool]] = None
 
 
 async def create_session(user_id: str, user_type: str) -> str:
@@ -185,11 +191,14 @@ async def create_session(user_id: str, user_type: str) -> str:
     return token
 
 async def get_session(request: Request, session_token: Optional[str] = Cookie(default=None)):
-    token = session_token
+    # The token the app sends on purpose wins over a cookie left in the browser,
+    # so signing in as someone else on a shared desk computer cannot mix accounts.
+    token = None
+    auth = request.headers.get('Authorization', '')
+    if auth.startswith('Bearer '):
+        token = auth[7:].strip()
     if not token:
-        auth = request.headers.get('Authorization', '')
-        if auth.startswith('Bearer '):
-            token = auth[7:]
+        token = session_token
     if not token:
         return None
     doc = await db.sessions.find_one({'token': token})
@@ -221,6 +230,16 @@ def _generate_raw_token() -> str:
 
 def _hash_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode()).hexdigest()
+
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+def clean_email(value: str) -> str:
+    """Lower-cased, trimmed email, or a 400 the form can show next to the field."""
+    email = (value or '').strip().lower()
+    if not _EMAIL_RE.match(email) or len(email) > 254:
+        raise HTTPException(400, 'Enter a valid email address.')
+    return email
+
 
 def validate_password_policy(password: str):
     """Same minimum bar enforced at manager signup — kept in one place so every
@@ -324,10 +343,12 @@ async def _resolve_user(request, session_token):
         raise HTTPException(401, 'Not authenticated.')
     if session['user_type'] == 'manager':
         user = await db.managers.find_one({'manager_id': session['user_id']})
-        return user, session['user_type'], user['manager_id']
     else:
         user = await db.concierges.find_one({'concierge_id': session['user_id']})
-        return user, session['user_type'], user['manager_id']
+    if not user:
+        # The account was removed while the session was still open.
+        raise HTTPException(401, 'Not authenticated.')
+    return user, session['user_type'], user['manager_id']
 
 
 async def _audit(manager_id: str, user_id: str, user_type: str, action: str,

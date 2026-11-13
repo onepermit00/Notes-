@@ -344,7 +344,9 @@ class TestNoPasswordsInEmail:
 
     async def test_reset_credentials_sends_link_not_password(self, client, server, monkeypatch):
         sent = []
-        async def fake_send(to, subject, html): sent.append(html)
+        async def fake_send(to, subject, html):
+            sent.append(html)
+            return True, ''
         monkeypatch.setattr(team_routes, 'send_email', fake_send)
         monkeypatch.setattr(team_routes, '_generate_raw_token', lambda: 'mgr-reset-token')
         mgr = await _signup_manager(client, email='reset-owner@example.com')
@@ -356,7 +358,7 @@ class TestNoPasswordsInEmail:
         assert resp.status_code == 200
         assert 'new_password' not in resp.json()
         await asyncio.sleep(0)
-        assert '/reset-password?token=mgr-reset-token' in sent[-1]
+        assert any('/reset-password?token=mgr-reset-token' in h for h in sent)
 
         reset = await client.post('/api/auth/password/reset', json={'token': 'mgr-reset-token', 'password': 'BrandNewPass1'})
         assert reset.status_code == 200

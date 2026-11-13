@@ -41,7 +41,7 @@ async def notify_package(data: PackageNotifyRequest, request: Request, session_t
         await send_email(to_email, f'📦 Package Ready – Unit {data.unit}', html)
     # Also notify manager
     manager = await db.managers.find_one({'manager_id': mgr_id})
-    if manager and manager.get('email'):
+    if manager and manager.get('email') and (manager.get('notification_prefs') or {}).get('package', True) is not False:
         mgr_html = f"""
         <div style="font-family:sans-serif;max-width:480px">
           <h2 style="color:#111">📦 Package Logged</h2>
@@ -50,7 +50,7 @@ async def notify_package(data: PackageNotifyRequest, request: Request, session_t
           {photo_html}
         </div>"""
         await send_email(manager['email'], f'📦 Package Logged – Unit {data.unit}', mgr_html)
-    await _audit(mgr_id, user.get('concierge_id') or user.get('manager_id', ''), user_type,
+    await _audit(mgr_id, user['manager_id'] if user_type == 'manager' else user.get('concierge_id', ''), user_type,
                  'create', 'package', '', {'unit': data.unit, 'carrier': data.carrier})
     return {'sent': bool(to_email), 'resident_email': to_email, 'resident_name': res_name}
 

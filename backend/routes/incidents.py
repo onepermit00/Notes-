@@ -44,7 +44,7 @@ async def create_incident(incident: IncidentCreate, request: Request, session_to
     await db.incidents.insert_one(doc)
     doc.pop('_id', None)
     doc['created_at'] = doc['created_at'].isoformat()
-    await _audit(mgr_id, user.get('manager_id') or user.get('concierge_id', ''), user_type,
+    await _audit(mgr_id, user['manager_id'] if user_type == 'manager' else user.get('concierge_id', ''), user_type,
                  'create', 'incident', doc['incident_id'], {'type': incident.type, 'severity': incident.severity})
     # Notify manager by email when concierge files an incident
     if user_type == 'concierge':

@@ -16,9 +16,10 @@ import { NotedAssistant } from '../assistant/NotedAssistant';
 import { TeamMessagesPage } from './TeamMessagesPage';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
-import { authApi } from '../services/authApi';
+import { authApi, normalizeTask, normalizeIncident } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
-import { useSharedData } from '../context/SharedDataContext';
+import { useAuthSession } from '../context/AuthSessionContext';
+import { useSharedData, MAX_KNOWLEDGE_FILE_BYTES } from '../context/SharedDataContext';
 import MicButton from './MicButton';
 import { KnowledgeCard, KnowledgeEmpty, KnowledgeFilters, KnowledgeProgress, KnowledgeStatusBadge } from './knowledge/KnowledgeUI';
 import { toNarrative } from '../lib/toNarrative';
@@ -41,7 +42,8 @@ const MUTED  = '#717171'; // module-level fallback for static array icon colors
 const MONTHS    = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTH_ABB = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DAY_HDR   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const TODAY_STR = '2026-06-22';
+const _now = new Date();
+const TODAY_STR = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
 
 const toDS = (y, m, d) =>
   `${y}-${String(m + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -150,6 +152,7 @@ const TASK_CATS = [
 const NAV = [
   { id:'home',        Icon:Home,          label:'Overview'            },
   { id:'tasks',       Icon:Send,          label:'Tasks'               },
+  { id:'incidents',   Icon:AlertTriangle, label:'Incidents'           },
   { id:'assign-task', Icon:Plus,          label:'Assign Task',        action:'task'      },
   { id:'assistant',   Icon:Sparkles,      label:'Assistant',          action:'assistant' },
   { id:'messages',    Icon:MessageSquare, label:'Messages'            },
@@ -166,7 +169,7 @@ const NAV = [
 ];
 
 const MANAGER_NAV_GROUPS = [
-  { label:'Command center', ids:['home', 'tasks', 'assign-task', 'messages', 'assistant'] },
+  { label:'Command center', ids:['home', 'tasks', 'assign-task', 'incidents', 'messages', 'assistant'] },
   { label:'People & coverage', ids:['shifts', 'team', 'residents'] },
   { label:'Operations setup', ids:['scheduled', 'sections'] },
   { label:'Property guide', ids:['more', 'training'] },
@@ -281,7 +284,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [leasingForm,     setLeasingForm]     = useState({ teamName:'', contact:'', phone:'', email:'' });
   const [showPw,          setShowPw]          = useState(false);
   const [profileOpen,     setProfileOpen]     = useState(false);
-  const { uploadedSOPs, setUploadedSOPs, trainingItems, setTrainingItems } = useSharedData();
+  const { uploadedSOPs, setUploadedSOPs, trainingItems, setTrainingItems, setKnowledgeItemStatus, refreshKnowledge, knowledgeError, clearKnowledgeError } = useSharedData();
   const [expandedSOPId,    setExpandedSOPId]    = useState(null);
   const [sopUploadOpen,    setSopUploadOpen]    = useState(false);
   const [uploadForm,       setUploadForm]       = useState({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
@@ -298,14 +301,23 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [sopFilter, setSopFilter] = useState('All');
   const [trainingSearch, setTrainingSearch] = useState('');
   const [trainingFilter, setTrainingFilter] = useState('All');
-  const [knowledgeStatus, setKnowledgeStatus] = useState({});
+  const knowledgeStatus = Object.fromEntries(uploadedSOPs.map(item => [item.id, item.status || 'published']));
+  const [fileError, setFileError] = useState('');
+  const [teamNotice, setTeamNotice] = useState(null); // { tone, text, link }
   const [sectionSaved, setSectionSaved] = useState('');
   const [sectionsLoading, setSectionsLoading] = useState(true);
   const [sectionsError, setSectionsError] = useState(false);
   const trainingFileRef = useRef(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
-  const [notifMgr,         setNotifMgr]         = useState({ push:true, email:true, shift:true, incident:true });
+  const { completeAuthentication } = useAuthSession();
+  const [notifMgr,         setNotifMgr]         = useState({ incident:true, package:true });
+  const [notifState,       setNotifState]       = useState('');
+  // Settings inputs keep one identity between renders so typing never loses focus.
+  const fieldImpl  = useRef(() => null);
+  const switchImpl = useRef(() => null);
+  const [Field]     = useState(() => (props) => fieldImpl.current(props));
+  const [SwitchRow] = useState(() => (props) => switchImpl.current(props));
   const [settingExpMgr,    setSettingExpMgr]    = useState(null);
   const [editInfoMgr,      setEditInfoMgr]      = useState({ name:'', email:'', phone:'' });
   const [pwFormMgr,        setPwFormMgr]        = useState({ current:'', next:'', confirm:'' });
@@ -315,7 +327,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [isPhone,          setIsPhone]          = useState(() => window.innerWidth < 768);
   const [searchQuery,      setSearchQuery]      = useState('');
 
-  const [todayShift,  setTodayShift]  = useState(null); // live DAR from active shift
+  const [activeShifts, setActiveShifts] = useState([]);  // every concierge on shift right now
+  const [activeShiftId, setActiveShiftId] = useState('');
+  const todayShift = activeShifts.find(shift => shift.shiftId === activeShiftId) || activeShifts[0] || null; // live DAR
   const [allShifts,   setAllShifts]   = useState([]);   // full shift history for calendar
   const [shiftFilter, setShiftFilter] = useState('all'); // filter by concierge id or 'all'
 
@@ -323,15 +337,22 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   // Only includes activities logged today so overnight shifts don't bleed yesterday's entries.
   const shiftToDAR = (s, onlyToday = true) => {
     if (!s) return null;
-    const todayStr = new Date().toLocaleDateString();
+    // A live shift shows everything since it began, so a night shift keeps its
+    // entries after midnight. Anything older than a day belongs to a shift that
+    // was never closed and is left out.
+    const cutoff = Date.now() - 24 * 3600 * 1000;
+    const recent = iso => !onlyToday || new Date(iso).getTime() >= cutoff;
     return {
       concierge: { name: s.concierge_name },
       clockIn:   s.clock_in ? new Date(s.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
       clockOut:  s.clock_out ? new Date(s.clock_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null,
-      note:      '',
+      shiftId:   s.shift_id,
+      dateLabel: s.clock_in ? new Date(s.clock_in).toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' }) : undefined,
+      note:      s.handover_notes || '',
+      openItems: s.open_items || [],
       incidents: (s.incidents || []).filter(i => {
         if (!i.created_at) return true;
-        return !onlyToday || new Date(i.created_at).toLocaleDateString() === todayStr;
+        return recent(i.created_at);
       }).map(i => {
         const tod = i.created_at
           ? new Date(i.created_at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }).replace(/\s*(AM|PM)$/i, (_, m) => m.toLowerCase())
@@ -347,13 +368,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       }),
       activities: (s.activities || []).filter(t => {
         if (!t.created_at) return !onlyToday;
-        return !onlyToday || new Date(t.created_at).toLocaleDateString() === todayStr;
+        return recent(t.created_at);
       }).map(t => ({
         id:       t.task_id,
         time:     new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-        title:    t.title,
+        title:    t.created_by_type === 'manager' ? `Request completed · ${t.title}` : t.title,
         notes:    t.notes || '',
         category: t.category || 'Other',
+        sourceSection: t.created_by_type === 'manager' ? 'tasks' : (t.source_section || ''),
         evidenceUrls: Array.isArray(t.evidence_urls) ? t.evidence_urls : (t.evidence_url ? [t.evidence_url] : []),
       })),
     };
@@ -386,18 +408,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     const loadShift = async () => {
       const res = await authApi.getActiveShift();
       authApi.getShiftHistory().then(history => setAllShifts(history?.shifts || [])).catch(() => {});
-      if (res?.shifts?.length > 0) {
-        const shift = res.shifts[0];
-        const todayStr = new Date().toLocaleDateString();
-        // Discard shifts that ended before today — backend may return stale "active" shifts
-        if (shift.clock_out && new Date(shift.clock_out).toLocaleDateString() !== todayStr) {
-          setTodayShift(null);
-        } else {
-          setTodayShift(shiftToDAR(shift));
-        }
-      } else {
-        setTodayShift(null);
-      }
+      setActiveShifts((res?.shifts || []).filter(shift => !shift.clock_out).map(shift => shiftToDAR(shift)));
+      authApi.getConcierges().then(setTeam).catch(() => {});
+      authApi.getIncidents().then(list => { setIncidents(list); setIncidentsError(false); }).catch(() => {});
     };
     loadShift();
     const timer = setInterval(loadShift, 30000);
@@ -412,21 +425,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           const ids = new Set(prev.map(x => x.task_id));
           const fresh = newTasks
             .filter(t => !ids.has(t.task_id))
-            .map(t => ({
-              id: t.task_id, task_id: t.task_id, title: t.title || '', notes: t.notes || '',
-              category: t.category || 'Other', priority: t.priority || 'Standard',
-              assignedTo: t.assigned_to || '', toId: t.assigned_to_id || '',
-              dueTime: t.due_time || 'ASAP', status: t.status || 'pending',
-              createdAt: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
-              createdBy: t.created_by_name || '', createdByType: t.created_by_type || 'concierge',
-            }));
+            .map(normalizeTask);
           return fresh.length ? [...fresh, ...prev] : prev;
         });
       }
       if (newInc.length) {
         setIncidents(prev => {
           const ids = new Set(prev.map(x => x.incident_id || x.id));
-          const fresh = newInc.filter(i => !ids.has(i.incident_id));
+          const fresh = newInc.filter(i => !ids.has(i.incident_id)).map(normalizeIncident);
           return fresh.length ? [...fresh, ...prev] : prev;
         });
       }
@@ -438,6 +444,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   useEffect(() => {
     if (authUser) {
       setEditInfoMgr({ name: authUser.name || '', email: authUser.email || '', phone: authUser.phone || '' });
+      setNotifMgr({ incident: authUser.notification_prefs?.incident !== false, package: authUser.notification_prefs?.package !== false });
     }
   }, [authUser]);
 
@@ -1190,6 +1197,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   useEffect(() => { if (tab === 'analytics') loadAnalytics(); }, [tab]); // eslint-disable-line
+  useEffect(() => { if (tab === 'training' || tab === 'more') refreshKnowledge(); if (tab === 'team') authApi.getConcierges().then(setTeam).catch(() => {}); }, [tab]); // eslint-disable-line
 
   const renderAnalytics = () => {
     const glassCard  = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
@@ -1915,8 +1923,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     const toggle = (id) => setSettingExpMgr(e => e === id ? null : id);
     const inputStyle = { fontFamily:INTER, fontSize:14, color:TEXT, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, minHeight:44, padding:'10px 14px', outline:'none', width:'100%', boxSizing:'border-box' };
     const sectionLabel = (txt) => <p style={{ fontFamily:INTER, fontSize:11, fontWeight:800, color:MUTED, letterSpacing:'0.14em', textTransform:'uppercase', margin:'0 0 12px' }}>{txt}</p>;
-    const Field = ({ id, label, help, ...props }) => <div><label htmlFor={id} style={{display:'block',fontFamily:INTER,fontSize:13,fontWeight:700,color:TEXT,marginBottom:7}}>{label}</label><input id={id} style={inputStyle} {...props}/>{help&&<span style={{display:'block',fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.45,marginTop:6}}>{help}</span>}</div>;
-    const SwitchRow = ({ id, label, help, checked, onChange }) => <div style={{display:'flex',alignItems:'center',gap:16,padding:'16px 0',borderBottom:`1px solid ${BORDER}`}}><div style={{flex:1,minWidth:0}}><label htmlFor={id} style={{display:'block',fontFamily:INTER,fontSize:14,fontWeight:700,color:TEXT}}>{label}</label><span style={{display:'block',fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.45,marginTop:3}}>{help}</span></div><button id={id} type="button" role="switch" aria-checked={checked} onClick={()=>onChange(!checked)} style={{position:'relative',width:46,height:28,borderRadius:999,border:`1px solid ${checked?BLUE:BORDER}`,background:checked?BLUE:CARD2,cursor:'pointer',flexShrink:0}}><span aria-hidden="true" style={{position:'absolute',top:3,left:checked?21:3,width:20,height:20,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,.22)',transition:'left 160ms'}}/></button></div>;
+    fieldImpl.current = ({ id, label, help, ...props }) => <div><label htmlFor={id} style={{display:'block',fontFamily:INTER,fontSize:13,fontWeight:700,color:TEXT,marginBottom:7}}>{label}</label><input id={id} style={inputStyle} {...props}/>{help&&<span style={{display:'block',fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.45,marginTop:6}}>{help}</span>}</div>;
+    switchImpl.current = ({ id, label, help, checked, onChange }) => <div style={{display:'flex',alignItems:'center',gap:16,padding:'16px 0',borderBottom:`1px solid ${BORDER}`}}><div style={{flex:1,minWidth:0}}><label htmlFor={id} style={{display:'block',fontFamily:INTER,fontSize:14,fontWeight:700,color:TEXT}}>{label}</label><span style={{display:'block',fontFamily:INTER,fontSize:12,color:MUTED,lineHeight:1.45,marginTop:3}}>{help}</span></div><button id={id} type="button" role="switch" aria-checked={checked} onClick={()=>onChange(!checked)} style={{position:'relative',width:46,height:28,borderRadius:999,border:`1px solid ${checked?BLUE:BORDER}`,background:checked?BLUE:CARD2,cursor:'pointer',flexShrink:0}}><span aria-hidden="true" style={{position:'absolute',top:3,left:checked?21:3,width:20,height:20,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,.22)',transition:'left 160ms'}}/></button></div>;
     const row = (id, Icon, color, title, desc, extra) => (
       <div key={id} style={{ borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.04)' }}>
         <button onClick={() => toggle(id)} style={{ width:'100%', display:'flex', alignItems:'center', gap:16, padding:20, background:CARD, border:`1px solid ${settingExpMgr===id ? `${color}35` : BORDER}`, borderRadius: settingExpMgr===id ? '16px 16px 0 0' : 16, cursor:'pointer', textAlign:'left', transition:'all 150ms' }}>
@@ -1963,7 +1971,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         <section aria-labelledby="property-settings-heading">
           <div id="property-settings-heading">{sectionLabel('Property')}</div>
           <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:20}}>
-            <Field id="settings-property" label="Property name" value={propertyName} readOnly help="Property identity is managed by your organization administrator." />
+            <Field id="settings-property" label="Property name" value={propertyName} readOnly help={authUser?.property_address ? `${authUser.property_address}. Set when the property was registered.` : 'Set when the property was registered.'} />
           </div>
         </section>
 
@@ -1979,12 +1987,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <div id="notification-settings-heading">{sectionLabel('Notifications')}</div>
           <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:'0 20px'}}>
             {[
-              ['push','Push notifications','Urgent activity and assigned work on this device.'],
-              ['email','Email summaries','Operational summaries sent to your account email.'],
-              ['shift','Shift updates','Clock-in, handoff, and shift completion updates.'],
-              ['incident','Incident alerts','New and updated property incident notices.'],
-            ].map(([id,label,help])=><SwitchRow key={id} id={`settings-${id}`} label={label} help={help} checked={notifMgr[id]} onChange={value=>setNotifMgr(current=>({...current,[id]:value}))}/>)}
-            <div style={{padding:'13px 0',fontSize:12,color:MUTED}}>Notification preferences apply immediately.</div>
+              ['incident','Incident emails','Email me as soon as the front desk files an incident report.'],
+              ['package','Package emails','Email me a copy when a package notice is sent to a resident.'],
+            ].map(([id,label,help])=><SwitchRow key={id} id={`settings-${id}`} label={label} help={help} checked={notifMgr[id]} onChange={async value=>{ const next={...notifMgr,[id]:value}; setNotifMgr(next); setNotifState('saving'); try { const updated = await authApi.updateProfile({ notification_prefs: next }); completeAuthentication(updated); setNotifState('saved'); } catch { setNotifMgr(notifMgr); setNotifState('error'); } }}/>)}
+            <div role="status" style={{padding:'13px 0',fontSize:12,color:notifState==='error'?RED:MUTED}}>{notifState==='saving'?'Saving…':notifState==='error'?'That change could not be saved. Try again.':notifState==='saved'?'Saved. Emails go to your account address.':'Emails go to your account address. Changes save automatically.'}</div>
           </div>
         </section>
 
@@ -1992,18 +1998,28 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         <div>
           {sectionLabel('My Profile')}
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {row('update-info', User, BLUE, 'Update Information', 'Edit your name, email and contact details',
+            {row('update-info', User, BLUE, 'Update Information', 'Edit your name and phone number',
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 <Field id="manager-name" label="Full name" value={editInfoMgr.name} onChange={e => {setEditInfoMgr(f=>({...f,name:e.target.value}));setProfileSaveState('unsaved');}} autoComplete="name" />
-                <Field id="manager-email" label="Email address" type="email" value={editInfoMgr.email} onChange={e => {setEditInfoMgr(f=>({...f,email:e.target.value}));setProfileSaveState('unsaved');}} autoComplete="email" />
+                <Field id="manager-email" label="Email address" type="email" value={editInfoMgr.email} readOnly help="Your email is your sign-in and cannot be changed here." />
                 <Field id="manager-phone" label="Phone number" type="tel" value={editInfoMgr.phone} onChange={e => {setEditInfoMgr(f=>({...f,phone:e.target.value}));setProfileSaveState('unsaved');}} autoComplete="tel" />
-                <button disabled={profileSaveState!=='unsaved'} onClick={() => {setProfileSaveState('saving');window.setTimeout(()=>{setProfileSaveState('saved');setSettingExpMgr(null);},350);}} style={{ minHeight:44, marginTop:4, padding:'0 16px', background:profileSaveState==='unsaved'?BLUE:CARD2, border:profileSaveState==='unsaved'?'none':`1px solid ${BORDER}`, borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:profileSaveState==='unsaved'?'white':MUTED, cursor:profileSaveState==='unsaved'?'pointer':'not-allowed' }}>{profileSaveState==='saving'?'Saving…':'Save Changes'}</button>
+                <button disabled={profileSaveState!=='unsaved' && profileSaveState!=='error'} onClick={async () => {
+                  const parts = editInfoMgr.name.trim().split(/\s+/).filter(Boolean);
+                  if (!parts.length) { setProfileSaveState('error'); return; }
+                  setProfileSaveState('saving');
+                  try {
+                    const updated = await authApi.updateProfile({ first_name: parts[0], last_name: parts.slice(1).join(' '), phone: editInfoMgr.phone.trim() });
+                    completeAuthentication(updated);
+                    setProfileSaveState('saved');
+                    setSettingExpMgr(null);
+                  } catch { setProfileSaveState('error'); }
+                }} style={{ minHeight:44, marginTop:4, padding:'0 16px', background:profileSaveState==='unsaved'?BLUE:CARD2, border:profileSaveState==='unsaved'?'none':`1px solid ${BORDER}`, borderRadius:12, fontFamily:INTER, fontSize:14, fontWeight:700, color:profileSaveState==='unsaved'?'white':MUTED, cursor:profileSaveState==='unsaved'?'pointer':'not-allowed' }}>{profileSaveState==='saving'?'Saving…':'Save Changes'}</button>
               </div>
             )}
             {row('change-pw', Lock, RED, 'Change Password', 'Update your account password securely',
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 <Field id="current-password" label="Current password" style={inputStyle} type="password" value={pwFormMgr.current} onChange={e => { setPwFormMgr(f=>({...f,current:e.target.value})); setPwStatusMgr(''); }} autoComplete="current-password" />
-                <Field id="new-password" label="New password" help="Use at least 6 characters." style={inputStyle} type="password" value={pwFormMgr.next} onChange={e => { setPwFormMgr(f=>({...f,next:e.target.value})); setPwStatusMgr(''); }} autoComplete="new-password" />
+                <Field id="new-password" label="New password" help="Use at least 8 characters." style={inputStyle} type="password" value={pwFormMgr.next} onChange={e => { setPwFormMgr(f=>({...f,next:e.target.value})); setPwStatusMgr(''); }} autoComplete="new-password" />
                 <Field id="confirm-password" label="Confirm new password" style={inputStyle} type="password" value={pwFormMgr.confirm} onChange={e => { setPwFormMgr(f=>({...f,confirm:e.target.value})); setPwStatusMgr(''); }} autoComplete="new-password" />
                 {pwStatusMgr.startsWith('error') && <p role="alert" style={{ fontFamily:INTER, fontSize:13, color:RED, margin:0, fontWeight:600 }}>{pwStatusMgr.replace('error:','')}</p>}
                 {pwStatusMgr === 'success' && <p role="status" style={{ fontFamily:INTER, fontSize:13, color:GREEN, margin:0, fontWeight:600 }}>Password updated successfully.</p>}
@@ -2012,7 +2028,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   onClick={async () => {
                     if (!pwFormMgr.current || !pwFormMgr.next || !pwFormMgr.confirm) { setPwStatusMgr('error:Please fill in all fields.'); return; }
                     if (pwFormMgr.next !== pwFormMgr.confirm) { setPwStatusMgr('error:New passwords do not match.'); return; }
-                    if (pwFormMgr.next.length < 6) { setPwStatusMgr('error:New password must be at least 6 characters.'); return; }
+                    if (pwFormMgr.next.length < 8) { setPwStatusMgr('error:New password must be at least 8 characters.'); return; }
                     setPwStatusMgr('saving');
                     try {
                       await authApi.changePassword(pwFormMgr.current, pwFormMgr.next);
@@ -2020,7 +2036,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       setPwFormMgr({ current:'', next:'', confirm:'' });
                       setTimeout(() => { setPwStatusMgr(''); setSettingExpMgr(null); }, 2000);
                     } catch (err) {
-                      setPwStatusMgr('error:' + (err?.response?.data?.detail || 'Failed to update password.'));
+                      setPwStatusMgr('error:' + (typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : 'The password could not be updated.'));
                     }
                   }}
                   style={{ marginTop:4, padding:'12px', background: pwStatusMgr==='saving' ? MUTED : RED, border:'none', borderRadius:10, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white', cursor: pwStatusMgr==='saving' ? 'not-allowed' : 'pointer' }}>
@@ -2071,21 +2087,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
   /* ── Overview ──────────────────────────────────────────────────────────────── */
   const renderManagerOverview = () => {
-    const rosterOnDuty = team.filter(m => m.status === 'on_shift');
-    const activeConcierge = todayShift?.concierge?.name
-      ? team.find(m => m.name === todayShift.concierge.name) || { id:'active-shift', name:todayShift.concierge.name, init:todayShift.concierge.name.split(/\s+/).map(part=>part[0]).join('').slice(0,2), clockIn:todayShift.clockIn }
-      : null;
-    const onDuty = activeConcierge && !rosterOnDuty.some(m => m.id === activeConcierge.id) ? [activeConcierge, ...rosterOnDuty] : rosterOnDuty;
-    const emptyDARConcierge = rosterOnDuty[0]?.name || team[0]?.name || '';
-    const displayedDAR = todayShift || {
-      concierge: { name:emptyDARConcierge },
-      clockIn:'',
-      clockOut:null,
-      note:'',
-      activities:[],
-      incidents:[],
-      status:'not-started',
-    };
+    const displayedDAR = todayShift;
+    const hasDesk = team.some(m => m.concierge_id);
+    const hasInvite = team.some(m => !m.concierge_id);
     const previousRawShift = allShifts.find(shift => shift.status === 'completed' || !!shift.clock_out);
     const previousDAR = previousRawShift ? shiftToDAR(previousRawShift, false) : null;
     const mediaItems = Array.from(allShifts.reduce((items, shift) => {
@@ -2113,6 +2117,16 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         views={shiftViews}
       />
 
+      {openIncidents.length > 0 && <button type="button" onClick={() => setTab('incidents')} data-testid="open-incidents-banner" style={{display:'flex',alignItems:'center',gap:12,width:'100%',padding:'13px 16px',border:`1px solid ${RED}40`,borderRadius:14,background:`${RED}0d`,cursor:'pointer',textAlign:'left',fontFamily:INTER}}>
+        <AlertTriangle size={18} color={RED} style={{flexShrink:0}}/>
+        <span style={{flex:1,minWidth:0,fontSize:14,fontWeight:700,color:TEXT}}>{openIncidents.length} open incident{openIncidents.length===1?'':'s'} need{openIncidents.length===1?'s':''} your review</span>
+        <span style={{fontSize:13,fontWeight:700,color:RED,flexShrink:0}}>Review</span>
+      </button>}
+
+      {managerSummaryView === 'dar' && activeShifts.length > 1 && <div role="tablist" aria-label="Concierges on shift" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        {activeShifts.map(shift => { const current = shift.shiftId === todayShift?.shiftId; return <button key={shift.shiftId} type="button" role="tab" aria-selected={current} onClick={() => setActiveShiftId(shift.shiftId)} style={{padding:'8px 14px',borderRadius:999,border:`1px solid ${current?TEXT:BORDER}`,background:current?TEXT:CARD,color:current?BG:TEXT,fontFamily:INTER,fontSize:13,fontWeight:700,cursor:'pointer'}}>{shift.concierge?.name || 'Concierge'} · since {shift.clockIn}</button>; })}
+      </div>}
+
       <div id="manager-live-dar-section" style={{scrollMarginTop:20}}>
         {managerSummaryView === 'media' ? (
           mediaItems.length ? <section aria-label="Shift photos" style={{display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:18}}>{mediaItems.map(item=><article key={item.key} style={{border:`1px solid ${BORDER}`,borderRadius:20,overflow:'hidden',background:CARD,boxShadow:SHADOW}}><button type="button" onClick={()=>setManagerMedia({urls:item.urls,index:0,title:item.title})} style={{display:'block',width:'100%',padding:0,border:0,background:CARD2,cursor:'pointer'}}><img src={item.urls[0]} alt={item.title} style={{display:'block',width:'100%',aspectRatio:'16 / 9',objectFit:'cover'}}/></button><div style={{padding:'14px 16px'}}><div style={{fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.12em',textTransform:'uppercase'}}>{item.category}{item.urls.length>1?` · ${item.urls.length} photos`:''}</div><h3 style={{fontSize:14,fontWeight:800,color:TEXT,margin:'5px 0 3px'}}>{item.title}</h3><p style={{fontSize:11,color:MUTED,margin:0}}>{item.shiftLabel}</p></div></article>)}</section> : <div style={{minHeight:220,background:CARD,border:`1px solid ${BORDER}`,borderRadius:20,boxShadow:SHADOW,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24}}><Image size={28} color={MUTED}/><h3 style={{fontSize:17,fontWeight:800,color:TEXT,margin:'12px 0 6px'}}>No photos yet</h3><p style={{fontSize:13,color:MUTED,margin:0}}>Photos uploaded from concierge activities will appear here.</p></div>
@@ -2125,8 +2139,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           onPrint={() => window.print()}
           printLabel="Export DAR as PDF"
           propertyName={propertyName}
+          propertyAddress={authUser?.property_address || ''}
           incidents={(managerSummaryView === 'previous' ? previousDAR : displayedDAR)?.incidents}
           customSections={customSections}
+          onOpenEvidence={(urls) => setManagerMedia({ urls, index:0, title:'Shift photo' })}
+          emptyTitle={hasDesk ? 'No one is on shift right now' : hasInvite ? 'Your invite is waiting to be accepted' : 'Invite your first concierge'}
+          emptyHint={hasDesk ? 'This report fills in live as soon as a concierge starts a shift. You can assign a request now and it will be waiting for them.' : hasInvite ? 'Once your concierge sets a password and starts a shift, their report appears here live.' : 'Add the people who work your front desk. Their shift report appears here as they log packages, guests and requests.'}
+          emptyAction={hasDesk ? openTask : () => { setTab('team'); if (!hasInvite) setLeasingOpen(true); }}
+          emptyActionLabel={hasDesk ? 'Assign a request' : hasInvite ? 'View team' : 'Invite a concierge'}
           colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER, shadow:SHADOW }}
         />}
       </div>
@@ -2134,149 +2154,70 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     </main>;
   };
 
-  const renderHome = () => (
-    <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
-
-      {/* Editorial workspace heading */}
-      <div style={{ borderBottom:`1px solid ${BORDER}`, paddingBottom:20 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <span style={{ width:32, height:2, background:BLUE, display:'inline-block' }} />
-          <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:BLUE, letterSpacing:'0.24em', textTransform:'uppercase' }}>Manager workspace</span>
-        </div>
-        <h1 style={{ fontFamily:INTER, fontSize: isMobile ? 34 : 46, fontWeight:800, color:TEXT, letterSpacing:'-0.04em', lineHeight:0.97, margin:'14px 0 0' }}>Overview</h1>
-        <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, margin:'10px 0 0', maxWidth:560, lineHeight:1.6 }}>
-          See what needs attention across {propertyName} today.
-        </p>
-      </div>
-
-{/* Two-column: activity + right panel */}
-      <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns:'1fr 460px', gap:24 }}>
-
-        {/* Daily Activity Report */}
-        <DailyActivityReport
-          mode="manager"
-          shift={todayShift}
-          editable={false}
-          showConciergeIdentity
-          propertyName={propertyName}
-          incidents={(() => {
-            const todayLabel = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
-            const live = incidents.filter(i => i.status !== 'resolved' && i.filedAt?.startsWith(todayLabel)).map(i => {
-              const tod = (i.filedAt.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i) || [])[0]?.replace(/\s*(AM|PM)$/i, (_, m) => m.toLowerCase()) || '';
-              return `${tod ? tod + ' — ' : ''}${i.type || ''}: ${i.title || ''}`;
-            });
-            return live.length ? live : todayShift?.incidents;
-          })()}
-          customSections={customSections}
-          colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}
-        />
-
-        {/* Right column */}
-        <div style={{ display:'flex', flexDirection:'column', gap:20, order: isMobile ? 2 : 0 }}>
-
-          {/* Open Incidents */}
-          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:20, boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <AlertTriangle size={20} color={RED} />
-                <h3 style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:TEXT, margin:0 }}>Open Incidents</h3>
-              </div>
-              <span aria-live="polite" aria-label={`${incidents.length} open incidents`} style={{ width:32, height:32, borderRadius:'50%', background: incidents.length>0?`${RED}14`:CARD2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:incidents.length>0?RED:MUTED, flexShrink:0 }}>{incidents.length}</span>
-            </div>
-            {incidentsError ? (
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'20px 0', textAlign:'center' }}>
-                <div style={{ width:48, height:48, borderRadius:14, background:'rgba(255,59,48,0.08)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
-                  <AlertTriangle size={22} color={RED} />
-                </div>
-                <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>Couldn't load incidents</p>
-                <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'0 0 14px' }}>Check your connection and try again</p>
-                <button onClick={() => { setIncidentsError(false); authApi.getIncidents().then(list => { setIncidents(list); setIncidentsError(false); }).catch(() => setIncidentsError(true)); }}
-                  style={{ padding:'8px 18px', background:BLUE, border:'none', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', cursor:'pointer' }}>
-                  Retry
-                </button>
-              </div>
-            ) : incidents.length === 0 ? (
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'20px 0', textAlign:'center' }}>
-                <div style={{ width:48, height:48, borderRadius:14, background:CARD2, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
-                  <CheckCircle size={22} color={GREEN} />
-                </div>
-                <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, margin:'0 0 4px' }}>All clear</p>
-                <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>No open incidents right now</p>
-              </div>
-            ) : (
-              <div data-card-list role="list" style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {incidents.map(inc => (
-                  <div key={inc.id} className="stagger-item" role="listitem"
-                    data-card-focusable tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        const list = e.currentTarget.closest('[data-card-list]');
-                        if (!list) return;
-                        const cards = Array.from(list.querySelectorAll('[data-card-focusable]'));
-                        const idx = cards.indexOf(e.currentTarget);
-                        const target = e.key === 'ArrowDown' ? cards[idx + 1] : cards[idx - 1];
-                        if (target) target.focus();
-                      }
-                    }}
-                    style={{ background: successIncidentId === inc.id ? `rgba(52,199,89,0.08)` : CARD2, border:`1px solid ${successIncidentId === inc.id ? 'rgba(52,199,89,0.35)' : sev(inc.severity)+'30'}`, borderRadius:14, padding:16, display:'flex', alignItems:'center', gap:14, outline:'none', transition:'background 300ms, border-color 300ms' }}>
-                    <div style={{ width:48, height:48, borderRadius:14, background:`${sev(inc.severity)}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      <AlertTriangle size={22} color={sev(inc.severity)} />
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <p style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, margin:'0 0 3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{inc.title}</p>
-                      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                        {inc.unit_number && <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>Unit {inc.unit_number}</span>}
-                        {inc.person_involved && <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{inc.unit_number ? '·' : ''} {inc.person_involved}</span>}
-                        {inc.filedBy && <span style={{ fontFamily:INTER, fontSize:12, color:MUTED }}>{(inc.unit_number || inc.person_involved) ? '·' : ''} Filed by {inc.filedBy}</span>}
-                      </div>
-                    </div>
-                    <button onClick={() => {
-                      setSuccessIncidentId(inc.id);
-                      setSrAnnounce('Incident resolved.');
-                      setTimeout(() => { setIncidents(p=>p.filter(i=>i.id!==inc.id)); setSuccessIncidentId(null); setSrAnnounce(''); }, 600);
-                    }}
-                      style={{ flexShrink:0, padding:'8px 14px', background:'rgba(52,199,89,0.10)', border:'1px solid rgba(52,199,89,0.25)', borderRadius:10, fontFamily:INTER, fontSize:12, fontWeight:700, color:GREEN, cursor:'pointer' }}>
-                      Resolve
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+  /* ── Incidents ─────────────────────────────────────────────────────────────── */
+  const openIncidents = incidents.filter(i => i.status !== 'resolved');
+  const resolveIncident = async (inc) => {
+    setSuccessIncidentId(inc.id);
+    try {
+      const saved = await authApi.resolveIncident(inc.incident_id || inc.id);
+      setIncidents(list => list.map(item => item.id === inc.id ? saved : item));
+      setSrAnnounce('Incident resolved.');
+    } catch {
+      setSrAnnounce('The incident could not be resolved. Try again.');
+      setIncidentsError(true);
+    } finally {
+      setSuccessIncidentId(null);
+      setTimeout(() => setSrAnnounce(''), 1500);
+    }
+  };
+  const renderIncidents = () => {
+    const resolved = incidents.filter(i => i.status === 'resolved');
+    const card = (inc, done) => (
+      <article key={inc.id} role="listitem" data-testid="incident-card" style={{ background:CARD, border:`1px solid ${done ? BORDER : sev(inc.severity)+'45'}`, borderRadius:16, padding:18, opacity:done?.78:1 }}>
+        <div style={{ display:'flex', alignItems:'flex-start', gap:14 }}>
+          <div style={{ width:44, height:44, borderRadius:12, background:`${done?MUTED:sev(inc.severity)}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            {done ? <CheckCircle size={20} color={GREEN}/> : <AlertTriangle size={20} color={sev(inc.severity)}/>}
           </div>
-
-          {/* Quick Actions */}
-          <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:20, boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
-              <Send size={20} color={BLUE} />
-              <h3 style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:TEXT, margin:0 }}>Quick Actions</h3>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:4 }}>
+              <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:done?MUTED:sev(inc.severity) }}>{inc.type || 'Incident'}</span>
+              <span style={{ fontFamily:INTER, fontSize:10, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'.08em' }}>{inc.severity}</span>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {[
-                { label:'Assign Task to Concierge', desc:'Dispatch a new task',       Icon:Send,      onClick:openTask,                 color:BLUE  },
-                { label:'View Shift Calendar',       desc:'Browse shift history',      Icon:Calendar,  onClick:()=>setTab('shifts'),    color:BLUE  },
-                { label:'Add Team Members',          desc:'Invite a new team member',  Icon:UserPlus,  onClick:()=>setLeasingOpen(true), color:GREEN },
-                { label:'Emergency Contacts',        desc:'Call building contacts',    Icon:Phone,     onClick:()=>setConOpen(true),    color:RED   },
-              ].map(({ label, desc, Icon:QI, onClick, color }) => (
-                <button key={label} onClick={onClick}
-                  style={{ display:'flex', alignItems:'center', gap:14, padding:16, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, cursor:'pointer', textAlign:'left', transition:'border-color 150ms' }}>
-                  <div style={{ width:44, height:44, borderRadius:12, background:`${color}14`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <QI size={20} color={color} />
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <p style={{ fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT, margin:'0 0 2px' }}>{label}</p>
-                    <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0 }}>{desc}</p>
-                  </div>
-                  <ChevronRight size={18} color={MUTED} />
-                </button>
-              ))}
-            </div>
+            <p style={{ fontFamily:INTER, fontSize:15, fontWeight:700, color:TEXT, margin:'0 0 6px', lineHeight:1.4, overflowWrap:'anywhere' }}>{inc.title || 'No description given'}</p>
+            <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:0, lineHeight:1.6 }}>
+              {[inc.location, inc.unit_number && !String(inc.location).includes(inc.unit_number) ? `Unit ${inc.unit_number}` : '', inc.person_involved, inc.filedBy ? `Filed by ${inc.filedBy}` : '', inc.filedAt].filter(Boolean).join(' · ')}
+            </p>
+            {inc.note && <p style={{ fontFamily:INTER, fontSize:13, color:TEXT, margin:'10px 0 0', lineHeight:1.55, overflowWrap:'anywhere' }}><b>Actions taken:</b> {inc.note}</p>}
+            {inc.evidenceUrls?.length > 0 && <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:12 }}>{inc.evidenceUrls.map((url, index) => <button key={index} type="button" onClick={() => setManagerMedia({ urls:inc.evidenceUrls, index, title:inc.title || 'Incident photo' })} aria-label={`Open photo ${index + 1}`} style={{ width:64, height:64, padding:0, borderRadius:10, overflow:'hidden', border:`1px solid ${BORDER}`, cursor:'pointer', background:CARD2 }}><img src={url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}/></button>)}</div>}
+            {done && inc.resolvedAt && <p style={{ fontFamily:INTER, fontSize:12, color:GREEN, fontWeight:700, margin:'10px 0 0' }}>Resolved {inc.resolvedAt}</p>}
           </div>
-
         </div>
+        {!done && <div style={{ display:'flex', justifyContent:'flex-end', marginTop:14 }}>
+          <button type="button" onClick={() => resolveIncident(inc)} disabled={successIncidentId === inc.id} data-testid="resolve-incident-btn" className="touch-target" style={{ minHeight:44, padding:'0 20px', background:GREEN, border:0, borderRadius:999, fontFamily:INTER, fontSize:13, fontWeight:750, color:'#fff', cursor:successIncidentId === inc.id ? 'wait' : 'pointer', display:'inline-flex', alignItems:'center', gap:8 }}><Check size={15}/>{successIncidentId === inc.id ? 'Saving…' : 'Mark resolved'}</button>
+        </div>}
+      </article>
+    );
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:22 }}>
+        {incidentsError && <div role="alert" style={{ padding:'12px 16px', borderRadius:12, border:`1px solid ${RED}40`, background:`${RED}0d`, fontFamily:INTER, fontSize:13, color:TEXT, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+          <span>Incidents could not be loaded or saved. Check your connection.</span>
+          <button type="button" onClick={() => authApi.getIncidents().then(list => { setIncidents(list); setIncidentsError(false); }).catch(() => setIncidentsError(true))} style={{ padding:'8px 16px', border:0, borderRadius:999, background:TEXT, color:BG, fontFamily:INTER, fontSize:12, fontWeight:700, cursor:'pointer' }}>Retry</button>
+        </div>}
+        <section aria-label="Open incidents">
+          <h3 style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:MUTED, letterSpacing:'.14em', textTransform:'uppercase', margin:'0 0 12px' }}>Open · {openIncidents.length}</h3>
+          {openIncidents.length === 0 ? <div style={{ padding:'36px 20px', border:`1px solid ${BORDER}`, borderRadius:16, background:CARD, textAlign:'center' }}>
+            <CheckCircle size={26} color={GREEN}/>
+            <p style={{ fontFamily:INTER, fontSize:16, fontWeight:750, color:TEXT, margin:'10px 0 4px' }}>All clear</p>
+            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0, lineHeight:1.55 }}>When the front desk files an incident report it appears here for your review, and you get an email.</p>
+          </div> : <div role="list" style={{ display:'flex', flexDirection:'column', gap:12 }}>{openIncidents.map(inc => card(inc, false))}</div>}
+        </section>
+        {resolved.length > 0 && <section aria-label="Resolved incidents">
+          <h3 style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:MUTED, letterSpacing:'.14em', textTransform:'uppercase', margin:'0 0 12px' }}>Resolved · {resolved.length}</h3>
+          <div role="list" style={{ display:'flex', flexDirection:'column', gap:12 }}>{resolved.slice(0, 30).map(inc => card(inc, true))}</div>
+        </section>}
       </div>
-    </div>
-  );
+    );
+  };
 
   /* ── Shifts Calendar ───────────────────────────────────────────────────────── */
   const renderShifts = () => {
@@ -2533,25 +2474,27 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   /* ── Tasks list ───────────────────────────────────────────────────────────── */
   const renderTasks = () => {
     const managerTasks = tasks.filter(t => !t.createdByType || t.createdByType === 'manager');
-    const isOverdue = t => t.status === 'overdue' || t.isOverdue || (t.dueAt && new Date(t.dueAt) < new Date() && t.status !== 'completed');
+    const isOverdue = t => t.status !== 'declined' && (t.status === 'overdue' || t.isOverdue || (t.dueAt && new Date(t.dueAt) < new Date() && t.status !== 'completed'));
     const counts = {
       overdue: managerTasks.filter(isOverdue).length,
       active: managerTasks.filter(t => t.status === 'in_progress' && !isOverdue(t)).length,
       pending: managerTasks.filter(t => t.status === 'pending' && !isOverdue(t)).length,
       completed: managerTasks.filter(t => t.status === 'completed').length,
+      declined: managerTasks.filter(t => t.status === 'declined').length,
     };
     const q = taskSearch.trim().toLowerCase();
     const filtered = managerTasks.filter(t => {
       const bucket = isOverdue(t) ? 'overdue' : t.status === 'in_progress' ? 'active' : t.status;
-      const statusMatch = taskFilter === 'all' || (taskFilter === 'open' ? bucket !== 'completed' : bucket === taskFilter);
+      const statusMatch = taskFilter === 'all' || (taskFilter === 'open' ? bucket !== 'completed' : bucket === taskFilter) /* declined stays in open work: the manager has to act on it */;
       const assigneeMatch = taskAssignee === 'all' || t.toId === taskAssignee;
       const textMatch = !q || [t.title,t.notes,t.category,t.assignedTo,t.priority].some(v => String(v || '').toLowerCase().includes(q));
       return statusMatch && assigneeMatch && textMatch;
     });
     const groupDefs = [
+      { key:'declined', label:'Declined by the desk', color:RED, Icon:AlertTriangle, test:t => t.status === 'declined' },
       { key:'overdue', label:'Overdue', color:RED, Icon:AlertTriangle, test:t => isOverdue(t) },
       { key:'active', label:'In progress', color:ORANGE, Icon:RefreshCw, test:t => t.status === 'in_progress' && !isOverdue(t) },
-      { key:'pending', label:'Ready to start', color:TEXT, Icon:ClipboardList, test:t => t.status === 'pending' && !isOverdue(t) },
+      { key:'pending', label:'Waiting for the desk', color:TEXT, Icon:ClipboardList, test:t => t.status === 'pending' && !isOverdue(t) },
       { key:'completed', label:'Completed', color:GREEN, Icon:CheckCircle, test:t => t.status === 'completed' },
     ];
     const updateStatus = async (task, status) => {
@@ -2569,18 +2512,18 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         <button onClick={openTask} style={{...control,minHeight:44,padding:'0 16px',border:0,background:BLUE,color:'white',fontWeight:750,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8}}><Plus size={17}/>Assign task</button>
       </div>
       <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',gap:10}}>
-        {[['Overdue',counts.overdue,RED],['In progress',counts.active,ORANGE],['Ready',counts.pending,TEXT],['Completed',counts.completed,GREEN]].map(([label,value,color])=><div key={label} style={{padding:'14px 15px',border:`1px solid ${BORDER}`,borderRadius:14,background:CARD}}><strong style={{fontSize:22,color,lineHeight:1}}>{value}</strong><span style={{display:'block',fontSize:11,fontWeight:700,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginTop:6}}>{label}</span></div>)}
+        {[[counts.declined?'Declined':'Overdue',counts.declined||counts.overdue,RED],['In progress',counts.active,ORANGE],['Waiting',counts.pending,TEXT],['Completed',counts.completed,GREEN]].map(([label,value,color])=><div key={label} style={{padding:'14px 15px',border:`1px solid ${BORDER}`,borderRadius:14,background:CARD}}><strong style={{fontSize:22,color,lineHeight:1}}>{value}</strong><span style={{display:'block',fontSize:11,fontWeight:700,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginTop:6}}>{label}</span></div>)}
       </div>
       <div aria-label="Task filters" style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'minmax(220px,1fr) auto auto',gap:10}}>
         <label style={{position:'relative'}}><span className="sr-only">Search tasks</span><Search size={16} color={MUTED} style={{position:'absolute',left:14,top:13}}/><input value={taskSearch} onChange={e=>setTaskSearch(e.target.value)} placeholder="Search title, assignee, or category" style={{...control,width:'100%',padding:'0 14px 0 40px',boxSizing:'border-box'}}/></label>
-        <select aria-label="Filter task status" value={taskFilter} onChange={e=>setTaskFilter(e.target.value)} style={{...control,padding:'0 34px 0 12px'}}><option value="open">Open work</option><option value="all">All statuses</option><option value="overdue">Overdue</option><option value="active">In progress</option><option value="pending">Ready to start</option><option value="completed">Completed</option></select>
+        <select aria-label="Filter task status" value={taskFilter} onChange={e=>setTaskFilter(e.target.value)} style={{...control,padding:'0 34px 0 12px'}}><option value="open">Open work</option><option value="all">All statuses</option><option value="overdue">Overdue</option><option value="active">In progress</option><option value="pending">Waiting for the desk</option><option value="declined">Declined</option><option value="completed">Completed</option></select>
         <select aria-label="Filter task assignee" value={taskAssignee} onChange={e=>setTaskAssignee(e.target.value)} style={{...control,padding:'0 34px 0 12px'}}><option value="all">All assignees</option>{team.filter(c=>c.status!=='invited').map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
       </div>
       {tasksLoading ? <div aria-label="Loading tasks" style={{display:'flex',flexDirection:'column',gap:10}}>{[1,2,3].map(i=><div key={i} style={{height:96,borderRadius:16,background:CARD2,border:`1px solid ${BORDER}`,opacity:1-i*.15}}/>)}</div> : tasksError ? <EmptyState error/> : filtered.length===0 ? <EmptyState/> : groupDefs.map(group=>{
         const items=filtered.filter(group.test); if(!items.length)return null;
         return <section key={group.key} aria-labelledby={`task-group-${group.key}`}><div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}><group.Icon size={17} color={group.color}/><h4 id={`task-group-${group.key}`} style={{fontSize:14,color:TEXT,margin:0}}>{group.label}</h4><span style={{fontSize:12,color:MUTED}}>({items.length})</span></div><div style={{border:`1px solid ${BORDER}`,borderRadius:16,overflow:'hidden',background:CARD}}>{items.map((t,index)=>{
-          const done=t.status==='completed'; const overdue=isOverdue(t); const TIcon=CAT_ICON[t.category]||ClipboardList; const pc=PRIORITY_COLOR[t.priority]||MUTED;
-          return <article key={t.id} data-testid="manager-task-row" style={{display:'grid',gridTemplateColumns:isMobile?'36px minmax(0,1fr)':'40px minmax(0,1fr) auto',gap:12,padding:isMobile?'15px 14px':'17px 18px',borderTop:index?`1px solid ${BORDER}`:'none',alignItems:'start'}}><div style={{width:36,height:36,borderRadius:11,background:done?`${GREEN}12`:overdue?`${RED}12`:CARD2,display:'grid',placeItems:'center'}}><TIcon size={17} color={done?GREEN:overdue?RED:MUTED}/></div><div style={{minWidth:0}}><div style={{display:'flex',gap:7,alignItems:'center',flexWrap:'wrap'}}><strong style={{fontSize:14,lineHeight:1.4,color:done?MUTED:TEXT,textDecoration:done?'line-through':'none'}}>{t.title}</strong>{t.priority&&t.priority!=='Standard'&&<DashboardStatusBadge dot={false} color={pc} style={{fontSize:9,padding:'3px 6px'}}>{t.priority}</DashboardStatusBadge>}</div><div style={{display:'flex',gap:6,flexWrap:'wrap',fontSize:12,color:MUTED,marginTop:5}}><span>{t.assignedTo||'Unassigned'}</span><span>·</span><span style={{color:overdue?RED:MUTED}}>Due {t.dueTime||'not set'}</span><span>·</span><span>{t.category||'Other'}</span>{done&&t.completedAt&&<><span>·</span><span>Done {t.completedAt}</span></>}</div>{t.notes&&<p style={{fontSize:12,color:MUTED,lineHeight:1.5,margin:'7px 0 0'}}>{t.notes}</p>}<div style={{display:'flex',gap:7,marginTop:11}}>{!done&&t.status!=='in_progress'&&<button onClick={()=>updateStatus(t,'in_progress')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,cursor:'pointer'}}>Start</button>}{!done&&<button onClick={()=>updateStatus(t,'completed')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,fontWeight:700,cursor:'pointer',background:TEXT,color:BG,borderColor:TEXT}}>Complete</button>}</div></div><DashboardStatusBadge color={done?GREEN:overdue?RED:t.status==='in_progress'?ORANGE:MUTED} style={{display:isMobile?'none':'inline-flex'}}>{done?'Completed':overdue?'Overdue':t.status==='in_progress'?'Active':'Ready'}</DashboardStatusBadge></article>;
+          const done=t.status==='completed'; const declined=t.status==='declined'; const overdue=isOverdue(t); const TIcon=CAT_ICON[t.category]||ClipboardList; const pc=PRIORITY_COLOR[t.priority]||MUTED;
+          return <article key={t.id} data-testid="manager-task-row" style={{display:'grid',gridTemplateColumns:isMobile?'36px minmax(0,1fr)':'40px minmax(0,1fr) auto',gap:12,padding:isMobile?'15px 14px':'17px 18px',borderTop:index?`1px solid ${BORDER}`:'none',alignItems:'start'}}><div style={{width:36,height:36,borderRadius:11,background:done?`${GREEN}12`:overdue?`${RED}12`:CARD2,display:'grid',placeItems:'center'}}><TIcon size={17} color={done?GREEN:overdue?RED:MUTED}/></div><div style={{minWidth:0}}><div style={{display:'flex',gap:7,alignItems:'center',flexWrap:'wrap'}}><strong style={{fontSize:14,lineHeight:1.4,color:done?MUTED:TEXT,textDecoration:done?'line-through':'none'}}>{t.title}</strong>{t.priority&&t.priority!=='Standard'&&<DashboardStatusBadge dot={false} color={pc} style={{fontSize:9,padding:'3px 6px'}}>{t.priority}</DashboardStatusBadge>}</div><div style={{display:'flex',gap:6,flexWrap:'wrap',fontSize:12,color:MUTED,marginTop:5}}><span>{t.assignedTo||'Unassigned'}</span><span>·</span><span style={{color:overdue?RED:MUTED}}>Due {t.dueTime||'not set'}</span><span>·</span><span>{t.category||'Other'}</span>{done&&t.completedAt&&<><span>·</span><span>Done {t.completedAt}{t.completedByName?` by ${t.completedByName}`:''}</span></>}{declined&&<><span>·</span><span style={{color:RED}}>Declined{t.declinedByName?` by ${t.declinedByName}`:''}{t.declinedAt?` · ${t.declinedAt}`:''}</span></>}</div>{t.notes&&<p style={{fontSize:12,color:MUTED,lineHeight:1.5,margin:'7px 0 0'}}>{t.notes}</p>}{(done||declined)&&t.completionNote&&<p style={{fontSize:12,color:TEXT,lineHeight:1.5,margin:'7px 0 0',overflowWrap:'anywhere'}}><b>{declined?'Reason:':'Desk note:'}</b> {t.completionNote}</p>}{done&&t.evidenceUrls?.length>0&&<div style={{display:'flex',gap:6,marginTop:8}}>{t.evidenceUrls.map((url,i)=><button key={i} type="button" onClick={()=>setManagerMedia({urls:t.evidenceUrls,index:i,title:t.title})} aria-label={`Open photo ${i+1}`} style={{width:44,height:44,padding:0,border:`1px solid ${BORDER}`,borderRadius:8,overflow:'hidden',cursor:'pointer',background:CARD2}}><img src={url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></button>)}</div>}<div style={{display:'flex',gap:7,marginTop:11}}>{declined&&<button onClick={()=>updateStatus(t,'pending')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,fontWeight:700,cursor:'pointer'}}>Send to the desk again</button>}{!done&&!declined&&<button onClick={()=>updateStatus(t,'completed')} style={{...control,minHeight:34,padding:'0 12px',fontSize:12,fontWeight:700,cursor:'pointer',background:TEXT,color:BG,borderColor:TEXT}}>Mark done</button>}</div></div><DashboardStatusBadge color={done?GREEN:(overdue||declined)?RED:t.status==='in_progress'?ORANGE:MUTED} style={{display:isMobile?'none':'inline-flex'}}>{done?'Completed':declined?'Declined':overdue?'Overdue':t.status==='in_progress'?'Active':'Waiting'}</DashboardStatusBadge></article>;
         })}</div></section>})}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:4,borderTop:`1px solid ${BORDER}`,fontSize:12,color:MUTED}}><span>Recurring work is managed separately.</span><button onClick={()=>setTab('scheduled')} style={{border:0,background:'transparent',color:TEXT,fontWeight:700,cursor:'pointer',padding:8}}>Scheduled tasks <ChevronRight size={13} style={{verticalAlign:'middle'}}/></button></div>
     </div>;
@@ -2614,6 +2557,17 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           </button>
         </div>
 
+        {teamNotice && <div role="status" data-testid="team-notice" style={{ marginBottom:16, padding:'12px 14px', borderRadius:12, border:`1px solid ${(teamNotice.tone==='ok'?GREEN:teamNotice.tone==='warn'?ORANGE:BORDER)}55`, background:teamNotice.tone==='ok'?`${GREEN}10`:teamNotice.tone==='warn'?`${ORANGE}10`:CARD2, display:'flex', alignItems:'flex-start', gap:10, fontSize:13, color:TEXT, lineHeight:1.5 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div>{teamNotice.text}</div>
+            {teamNotice.link && <div style={{ display:'flex', gap:8, marginTop:8, alignItems:'center' }}>
+              <input readOnly value={teamNotice.link} aria-label="Password reset link" onFocus={e => e.target.select()} style={{ flex:1, minWidth:0, minHeight:38, padding:'0 10px', border:`1px solid ${BORDER}`, borderRadius:8, background:CARD, color:TEXT, fontFamily:INTER, fontSize:12 }} />
+              <button type="button" onClick={() => { try { navigator.clipboard?.writeText(teamNotice.link); setTeamNotice(n => n && ({ ...n, copied:true })); } catch {} }} style={{ minHeight:38, padding:'0 14px', border:0, borderRadius:8, background:TEXT, color:BG, fontFamily:INTER, fontSize:12, fontWeight:700, cursor:'pointer' }}>{teamNotice.copied ? 'Copied' : 'Copy link'}</button>
+            </div>}
+          </div>
+          <button type="button" aria-label="Dismiss" onClick={() => setTeamNotice(null)} style={{ border:0, background:'transparent', cursor:'pointer', display:'inline-flex', padding:2 }}><X size={16} color={MUTED}/></button>
+        </div>}
+
         <label style={{ position:'relative', display:'block', marginBottom:18 }}>
           <span className="sr-only">Search team</span>
           <Search size={17} color={MUTED} style={{ position:'absolute', left:14, top:13 }} />
@@ -2639,7 +2593,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               {active.map(c => {
                 const onShift = c.status === 'on_shift';
                 const stBg    = onShift ? GREEN : '#717171';
-                const stLabel = onShift ? 'ON SHIFT' : 'OFF DUTY';
+                const stLabel = onShift ? (c.onShiftSince ? `ON SHIFT · SINCE ${c.onShiftSince}` : 'ON SHIFT') : 'OFF DUTY';
                 const stColor = onShift ? GREEN : MUTED;
                 return (
                   <div key={c.id} style={{ ...glassCard, padding:isMobile?15:20, display:'grid', gridTemplateColumns:isMobile?'48px minmax(0,1fr)':'48px minmax(0,1fr) auto', alignItems:'center', gap:16 }}>
@@ -2658,7 +2612,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                       <div style={{ display:'flex', gap:7, flexWrap:'wrap', marginTop:3 }}>
                         <span style={{ fontSize:12, color:TEXT, fontWeight:650 }}>{c.title || c.role || 'Concierge'}</span>
                         {(c.co || c.company) && <span style={{ fontSize:12, color:MUTED }}>· {c.co || c.company}</span>}
-                        <span style={{ fontSize:12, color:MUTED }}>· {c.shifts ?? c.shift_count ?? 0} shifts</span>
+                        <span style={{ fontSize:12, color:MUTED }}>· {c.shifts ?? c.shift_count ?? 0} {(c.shifts ?? c.shift_count ?? 0) === 1 ? 'shift' : 'shifts'}</span>
                         {c.since && <span style={{ fontSize:12, color:MUTED }}>· Since {c.since}</span>}
                       </div>
                       <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:6,fontSize:11,color:MUTED}}>
@@ -2681,7 +2635,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                           <Mail size={12} color={MUTED} />
                           <span style={{ fontFamily:INTER, fontSize:12, fontWeight:600, color:TEXT }}>Email</span>
                         </a>
-                        <button onClick={async () => { try { await authApi.resendCredentials(c.concierge_id); alert(`Password reset link emailed to ${c.email}`); } catch { alert('Could not send the reset link.'); } }}
+                        <button onClick={async () => { setTeamNotice({ tone:'info', text:`Sending a reset link to ${c.email}…` }); try { const res = await authApi.resendCredentials(c.concierge_id); setTeamNotice(res.email_sent === false ? { tone:'warn', text:`The reset email to ${c.email} could not be sent${res.email_error ? ` (${res.email_error})` : ''}. Copy this link and send it to ${c.name} yourself. It works once and expires in 1 hour.`, link:res.reset_link || '' } : { tone:'ok', text:`A password reset link was emailed to ${c.email}.` }); } catch { setTeamNotice({ tone:'warn', text:'The reset link could not be created. Check your connection and try again.' }); } }}
                           style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, cursor:'pointer', fontFamily:INTER }}>
                           <KeyRound size={12} color={BLUE} />
                           <span style={{ fontSize:12, fontWeight:600, color:BLUE }}>Reset PW</span>
@@ -2773,6 +2727,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (file.size > MAX_KNOWLEDGE_FILE_BYTES) { setFileError('That file is too large to share with the desk. Please choose a file under 6 MB.'); e.target.value = ''; return; }
+    setFileError('');
     const fileType = file.type.startsWith('image/') ? 'image' : 'pdf';
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -2798,7 +2754,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       _uploaded: true,
     }]);
     }
-    setKnowledgeStatus(s=>({...s,[newSopId]:'review'}));
     setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
     setSopUploadOpen(false);
     setSopStep(1);
@@ -2814,6 +2769,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     let fileType = 'pdf';
     if (file.type.startsWith('image/')) fileType = 'image';
     else if (file.type.startsWith('video/')) fileType = 'video';
+    if (file.size > MAX_KNOWLEDGE_FILE_BYTES) { setFileError('That file is too large to share with the desk. Please choose a file under 6 MB.'); e.target.value = ''; return; }
+    setFileError('');
     const reader = new FileReader();
     reader.onload = (ev) => {
       setTrainingForm(p => ({ ...p, fileName: file.name, fileType, dataURL: ev.target.result }));
@@ -2833,7 +2790,6 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       fileType: trainingForm.fileType,
       dataURL: trainingForm.dataURL,
     }]);
-    setKnowledgeStatus(s=>({...s,[newTrainingId]:'assigned'}));
     setTrainingForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
     setTrainingUploadOpen(false);
     setTrainingStep(1);
@@ -2943,6 +2899,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, marginBottom:16 }}>Attach a PDF document, photo, or video clip.</p>
                     <input ref={trainingFileRef} type="file" accept="image/*,video/*,.pdf,application/pdf"
                       onChange={handleTrainingFileSelect} style={{ display:'none' }} id="training-file-input" />
+                    {fileError && <p role="alert" style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:RED, margin:'0 0 10px' }}>{fileError}</p>}
                     <label htmlFor="training-file-input" style={{ cursor:'pointer' }}>
                       <div style={{ width:'100%', padding: trainingForm.dataURL ? '24px 0' : '48px 0', border:`2px dashed ${trainingForm.dataURL ? RED : BORDER}`, borderRadius:16, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, background: trainingForm.dataURL ? 'rgba(239,68,68,0.04)' : CARD }}>
                         {trainingForm.dataURL ? (
@@ -3031,12 +2988,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     const knowledgeColors = { accent:BLUE, success:GREEN, warning:ORANGE, danger:RED, card:CARD, surface:CARD2, border:BORDER, text:TEXT, muted:MUTED, shadow:SHADOW };
     const trainingCategories = ['All', ...Array.from(new Set(trainingItems.map(item=>item.category).filter(Boolean)))];
     const visibleTraining = trainingItems.filter(item => (trainingFilter==='All'||item.category===trainingFilter) && (!trainingSearch.trim() || `${item.title} ${item.category} ${item.fileName||''}`.toLowerCase().includes(trainingSearch.trim().toLowerCase())));
-    const reviewedCount = trainingItems.filter(item=>knowledgeStatus[item.id]==='reviewed').length;
+    const deskCount = team.filter(m => m.concierge_id).length;
+    const completions = trainingItems.reduce((sum, item) => sum + Math.min((item.completedBy || []).length, deskCount || Infinity), 0);
+    const completionTotal = trainingItems.length * deskCount;
     return (
       <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', gap:16 }}>
         <KnowledgeFilters search={trainingSearch} onSearch={setTrainingSearch} placeholder="Search training by topic or building system…" categories={trainingCategories} selected={trainingFilter} onSelect={setTrainingFilter} colors={knowledgeColors}/>
-        <KnowledgeProgress value={trainingItems.length?Math.round(reviewedCount/trainingItems.length*100):0} detail={`${reviewedCount} reviewed · ${trainingItems.length} assigned materials`} colors={knowledgeColors}/>
-        {trainingItems.length===0 ? <KnowledgeEmpty icon={GraduationCap} title="No training materials yet" description="Upload documents, visual guides, or videos and assign them to the concierge team." colors={knowledgeColors}/> : visibleTraining.length===0 ? <KnowledgeEmpty icon={Search} title="No training matches this view" description="Try a broader search or choose another category." colors={knowledgeColors}/> : <div style={{ flex:1, overflowY:'auto', display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,minmax(0,1fr))', gap:10 }}>{visibleTraining.map(item=>{ const def=CATEGORY_DEFS.find(d=>d.id===item.category); return <KnowledgeCard key={item.id} item={{...item,assignmentCount:team.length}} kind="training" icon={def?.Icon||HelpCircle} onOpen={setFullscreenTraining} status={knowledgeStatus[item.id]||'assigned'} colors={knowledgeColors} actions={<button onClick={()=>setKnowledgeStatus(s=>({...s,[item.id]:s[item.id]==='reviewed'?'assigned':'reviewed'}))} aria-label="Toggle review status" style={{ width:34,height:34,borderRadius:9,border:`1px solid ${BORDER}`,background:CARD2,cursor:'pointer' }}><Check size={14} color={knowledgeStatus[item.id]==='reviewed'?GREEN:MUTED}/></button>}/>})}</div>}
+        <KnowledgeProgress value={completionTotal?Math.round(completions/completionTotal*100):0} detail={`${completions} of ${completionTotal} reviews completed by the desk · ${trainingItems.length} material${trainingItems.length===1?'':'s'}`} colors={knowledgeColors}/>
+        {trainingItems.length===0 ? <KnowledgeEmpty icon={GraduationCap} title="No training materials yet" description="Upload documents, visual guides, or videos and assign them to the concierge team." colors={knowledgeColors}/> : visibleTraining.length===0 ? <KnowledgeEmpty icon={Search} title="No training matches this view" description="Try a broader search or choose another category." colors={knowledgeColors}/> : <div style={{ flex:1, overflowY:'auto', display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,minmax(0,1fr))', gap:10 }}>{visibleTraining.map(item=>{ const def=CATEGORY_DEFS.find(d=>d.id===item.category); return <KnowledgeCard key={item.id} item={{...item,assignmentCount:deskCount}} kind="training" icon={def?.Icon||HelpCircle} onOpen={setFullscreenTraining} status={deskCount>0 && (item.completedBy||[]).length>=deskCount ? 'reviewed' : 'assigned'} colors={knowledgeColors} actions={<button onClick={()=>setTrainingItems(list=>list.filter(entry=>entry.id!==item.id))} aria-label={`Remove ${item.title}`} title={(item.completedBy||[]).length ? `Reviewed by ${(item.completedBy||[]).join(', ')}` : 'Remove this material'} style={{ width:34,height:34,borderRadius:9,border:`1px solid ${BORDER}`,background:CARD2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center' }}><Trash2 size={14} color={MUTED}/></button>}/>})}</div>}
 
         <div style={{ flexShrink:0, paddingTop:16 }}>
           <button onClick={() => setTrainingUploadOpen(true)}
@@ -3168,6 +3127,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, marginBottom:16 }}>Scan pages, take a photo, or upload a PDF from your binder.</p>
                     <input ref={uploadFileRef} type="file" accept="image/*,.pdf,application/pdf"
                       onChange={handleFileSelect} style={{ display:'none' }} id="sop-file-input" />
+                    {fileError && <p role="alert" style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:RED, margin:'0 0 10px' }}>{fileError}</p>}
                     <label htmlFor="sop-file-input" style={{ cursor:'pointer' }}>
                       <div style={{ width:'100%', padding: uploadForm.dataURL ? '24px 0' : '48px 0', border:`2px dashed ${uploadForm.dataURL ? RED : BORDER}`, borderRadius:16, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, background: uploadForm.dataURL ? 'rgba(239,68,68,0.04)' : CARD }}>
                         {uploadForm.dataURL ? (
@@ -3316,7 +3276,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
                       {isUploaded&&<button onClick={e=>{e.stopPropagation();setEditingSopId(sop.id);setUploadForm({category:SOP_CATEGORIES.includes(sop.category)?sop.category:'Other',customCategory:SOP_CATEGORIES.includes(sop.category)?'':sop.category,title:sop.title,fileName:sop.fileName,fileType:sop.fileType,dataURL:sop.dataURL});setSopStep(2);setSopUploadOpen(true);}} aria-label={`Edit ${sop.title}`} style={{ width:30,height:30,borderRadius:8,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}><Pencil size={14} color={MUTED}/></button>}
-                      <button onClick={e => { e.stopPropagation(); setKnowledgeStatus(s=>({...s,[sop.id]:(s[sop.id]||'published')==='published'?'review':'published'})); }} aria-label={(knowledgeStatus[sop.id]||'published')==='published'?'Send for review':'Publish procedure'} style={{ width:30,height:30,borderRadius:8,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}><CheckCircle size={14} color={(knowledgeStatus[sop.id]||'published')==='published'?GREEN:ORANGE}/></button>
+                      <button onClick={e => { e.stopPropagation(); setKnowledgeItemStatus(sop.id, (knowledgeStatus[sop.id]||'published')==='published'?'review':'published'); }} aria-label={(knowledgeStatus[sop.id]||'published')==='published'?'Hide from the desk (mark as in review)':'Publish to the desk'} title={(knowledgeStatus[sop.id]||'published')==='published'?'Published to the desk. Click to hide while you review it.':'Hidden from the desk. Click to publish.'} style={{ width:30,height:30,borderRadius:8,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}><CheckCircle size={14} color={(knowledgeStatus[sop.id]||'published')==='published'?GREEN:ORANGE}/></button>
                       {isUploaded && (
                         <button onClick={e => {
                           e.stopPropagation();
@@ -3423,7 +3383,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               <span style={{ width:7, height:7, borderRadius:'50%', background:GREEN, boxShadow:'0 0 0 3px rgba(52,199,89,.12)' }} />
               <span style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:TEXT }}>Operations live</span>
             </div>
-            <button aria-label="View notifications" title="Notifications" style={{ position:'relative', width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><Bell size={17} color={TEXT} />{incidents.length > 0 && <span aria-label={`${incidents.length} open incidents`} style={{ position:'absolute', top:7, right:7, width:7, height:7, borderRadius:'50%', background:RED }} />}</button>
+            <button aria-label={`View incidents, ${openIncidents.length} open`} title="Incidents" onClick={() => setTab('incidents')} style={{ position:'relative', width:40, height:40, borderRadius:12, border:`1px solid ${BORDER}`, background:CARD, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}><Bell size={17} color={TEXT} />{openIncidents.length > 0 && <span aria-label={`${openIncidents.length} open incidents`} style={{ position:'absolute', top:7, right:7, width:7, height:7, borderRadius:'50%', background:RED }} />}</button>
           <button
             onClick={toggleTheme}
             title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
@@ -3580,7 +3540,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         profileStatus="Property manager"
         onProfile={() => setProfileOpen(true)}
         colors={{ CARD, BORDER, TEXT, MUTED, NAV_SURFACE:CARD, isDarkMode }}
-        badges={{ home:incidents.length }}
+        badges={{ incidents:openIncidents.length }}
       />
 
       {/* ── DESKTOP SIDEBAR — persistent, always visible ≥768px ──────────────── */}
@@ -3742,10 +3702,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:12 }}>{propertyName}</div>
                   <h2 style={{ fontFamily:INTER, fontSize: isMobile ? 32 : 42, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-0.045em', lineHeight:0.95 }}>
-                    {{ shifts:'Shift Calendar', tasks:'Tasks', team:'Team', residents:'Residents Directory', analytics:'Analytics', scheduled:'Preset Requests', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings', messages:'Messages' }[tab]}
+                    {{ shifts:'Shift Calendar', tasks:'Tasks', incidents:'Incidents', team:'Team', residents:'Residents Directory', analytics:'Analytics', scheduled:'Preset Requests', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings', messages:'Messages' }[tab]}
                   </h2>
                   <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>
-                    {{ messages:'One thread for the manager and the front desk', shifts:'Browse shift history and daily activity reports', tasks:'Assign, track, and verify shift tasks', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', scheduled:'Recurring requests that appear automatically on scheduled days', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
+                    {{ incidents:'Reports filed by the front desk, for your review', messages:'One thread for the manager and the front desk', shifts:'Browse shift history and daily activity reports', tasks:'Assign, track, and verify shift tasks', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', scheduled:'Recurring requests that appear automatically on scheduled days', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
                   </p>
                 </div>
                 <button onClick={() => setTab('home')} aria-label="Close panel" data-testid="panel-close-btn"
@@ -3756,8 +3716,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
               {/* Panel content */}
               <div style={{ flex:1, overflowY:'auto', padding: tab === 'settings' ? 0 : (isMobile ? '16px 16px 48px' : '28px 32px 48px') }}>
+                {knowledgeError && (tab==='more' || tab==='training') && <div role="alert" style={{ marginBottom:16, padding:'12px 16px', borderRadius:12, border:`1px solid ${RED}40`, background:`${RED}0d`, fontFamily:INTER, fontSize:13, color:TEXT, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}><span>{knowledgeError}</span><button type="button" onClick={clearKnowledgeError} aria-label="Dismiss" style={{ border:0, background:'transparent', cursor:'pointer', display:'inline-flex' }}><X size={16} color={MUTED}/></button></div>}
                 {tab==='shifts'    && renderShifts()}
                 {tab==='tasks'     && renderTasks()}
+                {tab==='incidents' && renderIncidents()}
                 {tab==='team'      && renderTeam()}
                 {tab==='residents' && renderResidents()}
                 {tab==='analytics' && renderAnalytics()}
@@ -4305,6 +4267,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
               const lValid = (leasingForm.teamName || '').trim() && (leasingForm.email || '').trim();
               const handleAddMember = async () => {
                 if (!lValid || addLoading) return;
+                if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(leasingForm.email.trim())) { setAddError('Enter a valid email address, like name@example.com.'); return; }
                 setAddLoading(true); setAddError('');
                 try {
                   const fullName = (leasingForm.teamName || leasingForm.contact || '').trim();
@@ -4323,12 +4286,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   setAddError('');
                   if (newC.emailSent) {
                     setLeasingOpen(false);
+                    setTab('team');
+                    setTeamNotice({ tone:'ok', text:`An invitation was emailed to ${newC.email}. They appear under Team Members as soon as they set a password.` });
                   } else {
                     // Keep the panel open so the manager can share the link by hand.
                     setInviteNotice({ email: newC.email, link: newC.inviteLink, reason: newC.emailError });
                   }
                 } catch (err) {
-                  setAddError(err?.response?.data?.detail || 'Failed to add member. Check the email is not already in use.');
+                  setAddError(typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : 'This person could not be added. Check the email address and try again.');
                 } finally { setAddLoading(false); }
               };
               return (

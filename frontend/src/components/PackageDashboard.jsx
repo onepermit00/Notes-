@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useDeskState } from '../lib/useDeskState';
 import { Package, Plus, Minus, Check, Truck, RotateCcw, ChevronRight, FileText, ArrowLeft, Camera, MessageCircle, X, Mail, ShoppingBag, Globe, UtensilsCrossed, Box, User, Users, Bell, BellOff } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import MicButton from './MicButton';
@@ -170,10 +171,10 @@ export const PackageDashboard = ({ onActivityLogged, onWorkflowChange, propertyN
   const PackageFooter = props => <WizardFooter compact={isPhone} {...props} />;
   const [subTab,      setSubTab]      = useState('deliveries');
   const [view,        setView]        = useState('main');
-  const [deliveries,  setDeliveries]  = useState([]);
-  const [pickups,     setPickups]     = useState([]);
-  const [rtsDropoffs, setRtsDropoffs] = useState([]);
-  const [rtsPickups,  setRtsPickups]  = useState([]);
+  const [deliveries,  setDeliveries]  = useDeskState('packages', 'deliveries', []);
+  const [pickups,     setPickups]     = useDeskState('packages', 'pickups', []);
+  const [rtsDropoffs, setRtsDropoffs] = useDeskState('packages', 'rtsDropoffs', []);
+  const [rtsPickups,  setRtsPickups]  = useDeskState('packages', 'rtsPickups', []);
 
   const changeView = (nextView) => {
     onWorkflowChange?.(nextView !== 'main');

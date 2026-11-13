@@ -8,7 +8,6 @@ import { SignUp } from './components/SignUp';
 import { AuthSupportPage } from './components/AuthSupportPage';
 import { ManagerDashboard } from './components/ManagerDashboard';
 import { CaregiverDashboard } from './components/CaregiverDashboard';
-import { ShiftCalendarPage } from './components/ShiftCalendarPage';
 import { PublicLayout } from './components/layouts/PublicLayout';
 import { AppLayout } from './components/layouts/AppLayout';
 import { Metadata } from './components/pages/PublicPlaceholderPage';
@@ -63,11 +62,6 @@ function DashboardRoute() {
   return <><Metadata title="Property workspace" description="Your property’s tasks, procedures, activity, and operational history." /><SharedDataProvider>{currentRole === UserRole.MANAGER ? <ManagerDashboard onRoleSwitch={setCurrentRole} onSignOut={handleSignOut} authUser={user} /> : <CaregiverDashboard onSignOut={handleSignOut} onViewCalendar={() => navigate('/app/calendar')} authUser={user} />}</SharedDataProvider></>;
 }
 
-function CalendarRoute() {
-  const navigate = useNavigate();
-  return <ShiftCalendarPage onBeginShift={() => navigate('/app')} onBack={() => navigate('/app')} />;
-}
-
 export default function App() {
   return <Routes>
     <Route path="/" element={<HomeRoute />} />
@@ -84,7 +78,7 @@ export default function App() {
     <Route path="/forgot-password" element={<AuthSupportPage mode="forgot" />} />
     <Route path="/reset-password" element={<AuthSupportPage mode="reset" />} />
     <Route path="/invite/:token" element={<AuthSupportPage mode="invite" />} />
-    <Route element={<ProtectedRoute />}><Route path="/app" element={<ThemeProvider><AppLayout /></ThemeProvider>}><Route index element={<Navigate to="today" replace />} /><Route path="calendar" element={<CalendarRoute />} /><Route path="*" element={<DashboardRoute />} /></Route></Route>
+    <Route element={<ProtectedRoute />}><Route path="/app" element={<ThemeProvider><AppLayout /></ThemeProvider>}><Route index element={<Navigate to="today" replace />} /><Route path="*" element={<DashboardRoute />} /></Route></Route>
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
 }

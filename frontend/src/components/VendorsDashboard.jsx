@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useDeskState } from '../lib/useDeskState';
 import { Wrench, CheckCircle, Clock, Plus, Check, LogOut, ChevronRight, FileText, Thermometer, Droplets, Zap, Wifi, Shield, Truck, Hammer, Sparkles, HelpCircle, Building2, Camera } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import MicButton from './MicButton';
@@ -82,7 +83,7 @@ export const VendorsDashboard = ({ onActivityLogged, onWorkflowChange, propertyN
   const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
   const VendorHeader = props => <WizardHeader propertyName={propertyName} compact={isPhone} {...props}/>;
   const VendorFooter = props => <WizardFooter compact={isPhone} {...props}/>;
-  const [vendors,       setVendors]       = useState([]);
+  const [vendors,       setVendors]       = useDeskState('vendors', 'vendors', []);
   const [view,          setView]          = useState('list');
   const [vendorTab,     setVendorTab]     = useState('active');
   const [vStep,         setVStep]         = useState(1);

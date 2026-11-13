@@ -143,6 +143,7 @@ async def create_task(task: TaskCreate, request: Request, session_token: Optiona
         'due_time':        task.due_time or task.scheduled_time or 'ASAP',
         'completion_note': None,
         'evidence_url':    None,
+        'evidence_urls':   (task.evidence_urls or [])[:12],
         'created_by':      user['manager_id'] if user_type == 'manager' else user['concierge_id'],
         'created_by_name': f"{user['first_name']} {user['last_name']}",
         'created_by_type': user_type,
@@ -151,7 +152,7 @@ async def create_task(task: TaskCreate, request: Request, session_token: Optiona
     await db.tasks.insert_one(doc)
     doc.pop('_id', None)
     doc['created_at'] = doc['created_at'].isoformat()
-    await _audit(mgr_id, user.get('manager_id') or user.get('concierge_id', ''), user_type,
+    await _audit(mgr_id, user['manager_id'] if user_type == 'manager' else user.get('concierge_id', ''), user_type,
                  'create', 'task', doc['task_id'], {'title': task.title, 'assigned_to': task.assigned_to})
     # Notify assigned concierge by email when manager creates a task
     if user_type == 'manager' and task.assigned_to_id:
@@ -161,23 +162,50 @@ async def create_task(task: TaskCreate, request: Request, session_token: Optiona
     return doc
 
 
+TASK_STATUSES = ('pending', 'in_progress', 'completed', 'declined')
+
+
 @api.put('/tasks/{task_id}')
 async def update_task(task_id: str, update: TaskUpdate, request: Request, session_token: Optional[str] = Cookie(default=None)):
     user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if update.status and update.status not in TASK_STATUSES:
+        raise HTTPException(422, 'Status must be pending, in_progress, completed or declined.')
+    existing = await db.tasks.find_one({'task_id': task_id, 'manager_id': mgr_id})
+    if not existing:
+        raise HTTPException(404, 'Task not found.')
+    now = datetime.now(timezone.utc)
+    who = f"{user['first_name']} {user['last_name']}".strip()
     patch = {}
     if update.status:          patch['status']          = update.status
     if update.completion_note: patch['completion_note'] = update.completion_note
     if update.evidence_url:    patch['evidence_url']    = update.evidence_url
+    if update.evidence_urls:   patch['evidence_urls']   = update.evidence_urls[:12]
     if update.status == 'completed':
-        patch['completed_at']        = datetime.now(timezone.utc)
-        patch['completed_by_name']   = f"{user['first_name']} {user['last_name']}"
-    result = await db.tasks.update_one({'task_id': task_id, 'manager_id': mgr_id}, {'$set': patch})
-    if result.matched_count == 0:
-        raise HTTPException(404, 'Task not found.')
+        patch['completed_at']      = now
+        patch['completed_by_name'] = who
+    if update.status == 'declined':
+        patch['declined_at']      = now
+        patch['declined_by_name'] = who
+    if update.status in ('in_progress', 'completed', 'declined') and user_type == 'concierge':
+        # Whoever at the desk picks a request up owns it from then on, and the
+        # finished work lands in the report of the shift it was done on.
+        if not existing.get('assigned_to_id'):
+            patch['assigned_to_id'] = user['concierge_id']
+            patch['assigned_to']    = who
+        if update.status == 'completed':
+            active = await db.shifts.find_one({'concierge_id': user['concierge_id'], 'status': 'active'}, {'shift_id': 1})
+            if active:
+                patch['completed_shift_id'] = active['shift_id']
+    if not patch:
+        raise HTTPException(400, 'Nothing to update.')
+    await db.tasks.update_one({'task_id': task_id, 'manager_id': mgr_id}, {'$set': patch})
     updated = await db.tasks.find_one({'task_id': task_id}, {'_id': 0})
-    for f in ('created_at', 'completed_at'):
+    for f in ('created_at', 'completed_at', 'declined_at'):
         if isinstance(updated.get(f), datetime):
             updated[f] = updated[f].isoformat()
+    if update.status and update.status != existing.get('status'):
+        await _audit(mgr_id, user.get('manager_id') if user_type == 'manager' else user.get('concierge_id', ''), user_type,
+                     'update', 'task', task_id, {'title': existing.get('title', ''), 'status': update.status})
     return updated
 
 

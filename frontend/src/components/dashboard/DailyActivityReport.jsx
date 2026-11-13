@@ -9,9 +9,21 @@ const DEFAULT_SECTIONS = [
   ['tours', 'Tours'], ['security', 'Security & Rounds'], ['incidents', 'Incidents Filed'],
 ];
 
-const sourceOf = (entry = {}) => {
+// Older entries and a few screens label their section differently. Map every
+// label onto a section of the report so nothing recorded goes missing.
+const SECTION_ALIASES = {
+  lockout:'lockouts', package:'packages', guest:'guests', vendor:'vendors', loaner:'loaners', tour:'tours',
+  rounds:'security', incident:'incidents',
+  'new-task':'tasks', requests:'tasks', dashboard:'tasks', scheduled:'tasks', task:'tasks',
+};
+
+const sourceOf = (entry = {}, knownIds = null) => {
   const persisted = entry._source || entry.source_section || entry.sourceSection;
-  if (persisted) return persisted;
+  if (persisted) {
+    const id = SECTION_ALIASES[persisted] || persisted;
+    if (!knownIds || knownIds.has(id)) return id === 'incidents' ? 'tasks' : id;
+    return 'tasks';
+  }
   const title = (entry.title || '').toLowerCase();
   if (/package|delivery|rts|carrier pickup/.test(title) || entry.category === 'Delivery') return 'packages';
   if (/guest|visitor|resident notified|arrival/.test(title)) return 'guests';
@@ -23,21 +35,32 @@ const sourceOf = (entry = {}) => {
   return 'tasks';
 };
 
+const entryKey = entry => String(entry?.id ?? '').replace(/^(self|task|previous)-/, '');
+
 // hiddenSections: ids a manager switched off for this concierge. A hidden
 // section still shows if it already has entries, so nothing recorded is lost.
 export const buildDailyActivitySections = (shift, { taskEntries, incidents, customSections = [], hiddenSections = [] } = {}) => {
   const activities = shift?.activities || [];
   const buckets = Object.fromEntries(DEFAULT_SECTIONS.map(([id]) => [id, []]));
-  activities.forEach(entry => (buckets[sourceOf(entry)] ||= []).push(entry));
-  if (taskEntries) buckets.tasks = taskEntries;
-  if (shift?.note) buckets.tasks = [{ id:'shift-note', text:shift.note }, ...buckets.tasks];
+  const knownIds = new Set([...DEFAULT_SECTIONS.map(([id]) => id), ...customSections.map(section => section.id)]);
+  activities.forEach(entry => (buckets[sourceOf(entry, knownIds)] ||= []).push(entry));
+  if (taskEntries) {
+    // The caller's list wins, and anything else filed under tasks is kept too.
+    const seen = new Set(taskEntries.map(entryKey));
+    buckets.tasks = [...taskEntries, ...buckets.tasks.filter(entry => !seen.has(entryKey(entry)))];
+  }
+  const handoff = [
+    ...(shift?.note ? [{ id:'shift-note', plain:true, text:`Handoff note: ${shift.note}` }] : []),
+    ...(shift?.openItems || []).filter(Boolean).map((item, i) => ({ id:`open-item-${i}`, plain:true, text:`Open item: ${item}` })),
+  ];
+  if (handoff.length) buckets.tasks = [...handoff, ...buckets.tasks];
   buckets.incidents = incidents ?? shift?.incidents ?? [];
   const all = [
     ...DEFAULT_SECTIONS.map(([id, title]) => ({ id, title, entries: buckets[id], critical: id === 'incidents', wide: ['tasks', 'security', 'incidents'].includes(id) })),
     ...customSections.map(section => ({
       id: section.id,
       title: section.label || section.title,
-      entries: activities.filter(entry => sourceOf(entry) === section.id),
+      entries: buckets[section.id] || [],
       wide: !!section.wide,
     })),
   ];
@@ -52,28 +75,32 @@ export const buildDailyActivitySections = (shift, { taskEntries, incidents, cust
   });
 };
 
-const ReportEntry = ({ entry }) => {
+const ReportEntry = ({ entry, onOpenEvidence }) => {
   const isObject = entry && typeof entry === 'object';
-  const raw = isObject ? (entry.text || toNarrative(entry)) : String(entry || '');
-  const divider = raw.indexOf(' — ');
+  const raw = isObject ? (entry.text || toNarrative({ ...entry, time: entry.time || entry.completedAt || '' })) : String(entry || '');
+  const divider = isObject && entry.plain ? -1 : raw.indexOf(' — ');
   const time = divider > -1 ? raw.slice(0, divider) : '';
   let text = divider > -1 ? raw.slice(divider + 3) : raw;
-  if (!isObject || entry.text) {
+  if (isObject && entry.plain) {
+    text = /[.!?]$/.test(text) ? text : `${text}.`;
+  } else if (!isObject || entry.text) {
     const incident = text.replace(/\s+/g, ' ').trim().match(/^([^:]{2,40}):\s*(.+)$/);
     text = incident ? `${incident[1]} incident reported. ${incident[2]}` : text;
     if (text) text = `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`;
   }
-  return <div className="dar-entry">
+  const urls = isObject ? (Array.isArray(entry.evidenceUrls) ? entry.evidenceUrls : entry.evidenceUrl ? [entry.evidenceUrl] : []).filter(Boolean) : [];
+  return <div className={`dar-entry ${urls.length && onOpenEvidence ? 'has-evidence' : ''}`}>
     {time && <time>{time}</time>}
     <span className="dar-print-entry">{text}</span>
+    {urls.length > 0 && onOpenEvidence && <button type="button" className="dar-evidence" onClick={() => onOpenEvidence(urls)} aria-label={`View ${urls.length} photo${urls.length === 1 ? '' : 's'}`} title="View photos"><img src={urls[0]} alt=""/></button>}
   </div>;
 };
 
 export function DailyActivityReport({
   mode = 'concierge', shift, sections, customSections, hiddenSections, taskEntries, incidents,
-  editable = false, showConciergeIdentity = true, propertyName = 'The Hannah',
-  propertyAddress = '1306 Callowhill Street · Philadelphia PA 19123', dateLabel,
-  loading = false, emptyAction, emptyActionLabel = 'Start Shift',
+  editable = false, showConciergeIdentity = true, propertyName = '',
+  propertyAddress = '', dateLabel, onOpenEvidence,
+  loading = false, emptyAction, emptyActionLabel = 'Start Shift', emptyTitle = 'No active shift today', emptyHint = '',
   colors = {}, className = '', style, testId, onPrint, printLabel = 'Print report',
 }) {
   const palette = { card:'#fff', card2:'#f7f7f7', text:'#222', muted:'#717171', border:'#e5e5e5', shadow:'0 2px 12px rgba(0,0,0,.06)', ...colors };
@@ -84,16 +111,16 @@ export function DailyActivityReport({
     <style>{`
       .daily-activity-report{position:relative;background:var(--dar-card);border:1px solid var(--dar-border);border-radius:20px;overflow:hidden;margin-bottom:22px;box-shadow:0 9px 0 -4px var(--dar-card),0 9px 0 -3px var(--dar-border),0 18px 0 -9px var(--dar-card),0 18px 0 -8px var(--dar-border),0 28px 28px -16px rgba(0,0,0,.16),var(--dar-shadow);font-family:${DASHBOARD_FONT}}
       .dar-report-header{background:#0b0b0b;color:#fff;padding:24px 28px 20px}.dar-header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}.dar-kicker{display:flex;align-items:center;gap:10px;margin-bottom:8px;color:rgba(255,255,255,.55);font-size:10px;font-weight:800;letter-spacing:.24em;text-transform:uppercase}.dar-kicker:before{content:"";width:28px;height:2px;background:${DASHBOARD_ACCENT}}.dar-name{font-size:24px;font-weight:800;letter-spacing:-.035em;margin-bottom:6px}.dar-subtitle{font-size:13px;color:rgba(255,255,255,.55)}.dar-print-button{flex-shrink:0;width:44px;height:44px;margin:-10px -10px 0 0;padding:0;border:0;background:transparent;color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;opacity:.85;transition:opacity 150ms}.dar-print-button:hover,.dar-print-button:focus-visible{opacity:1}
-      .dar-screen-grid{margin:16px;border:1px solid color-mix(in srgb, ${DASHBOARD_ACCENT} 28%, var(--dar-border));border-radius:16px;overflow:hidden;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.dar-category-block{background:var(--dar-card);min-width:0;padding:18px 20px;border-top:1px solid var(--dar-border)}.dar-category-block.right{border-left:1px solid var(--dar-border)}.dar-category-block.wide{grid-column:1/-1}.dar-section-head{min-height:28px;display:flex;align-items:center;gap:10px}.dar-index{width:26px;height:26px;border-radius:8px;background:var(--dar-card-2);display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:var(--dar-muted);letter-spacing:.08em;flex-shrink:0}.dar-category-block.populated .dar-index{background:color-mix(in srgb, ${DASHBOARD_ACCENT} 9%, transparent);color:${DASHBOARD_ACCENT}}.dar-category-block.critical.populated .dar-index{color:${DASHBOARD_DANGER}}.dar-section-title{flex:1;font-size:13px;font-weight:750;color:var(--dar-text);margin:0}.dar-section-body{padding:8px 0 0 38px;min-height:30px}.dar-empty{font-size:12px;color:var(--dar-muted)}.dar-entry{display:grid;grid-template-columns:68px minmax(0,1fr);align-items:start;gap:10px;padding:7px 0}.dar-entry:not(:first-child){border-top:1px solid color-mix(in srgb, ${DASHBOARD_ACCENT} 22%, transparent)}.dar-entry:not(:has(time)){grid-template-columns:minmax(0,1fr)}.dar-entry time{padding-top:2px;font-size:10px;font-weight:750;color:var(--dar-muted);letter-spacing:.02em;white-space:nowrap;text-transform:uppercase}.dar-print-entry{font-size:14px;color:var(--dar-text);line-height:1.65}.dar-state{padding:52px 24px;text-align:center;color:var(--dar-muted);font-size:14px}.dar-state button{margin-top:16px;padding:11px 24px;border:0;border-radius:999px;background:${DASHBOARD_SUCCESS};color:#fff;font-weight:700;cursor:pointer}.dar-print-only{display:none}
-      @media(max-width:760px){.dar-report-header{padding:18px 20px}.dar-kicker:before{width:22px}.dar-name{font-size:17px}.dar-screen-grid{grid-template-columns:1fr;margin:12px}.dar-category-block,.dar-category-block.right{padding:16px 14px;border-left:0}.dar-category-block.wide{grid-column:auto}.dar-entry{grid-template-columns:58px minmax(0,1fr) auto}.dar-print-entry{font-size:13px}}
+      .dar-screen-grid{margin:16px;border:1px solid color-mix(in srgb, ${DASHBOARD_ACCENT} 28%, var(--dar-border));border-radius:16px;overflow:hidden;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.dar-category-block{background:var(--dar-card);min-width:0;padding:18px 20px;border-top:1px solid var(--dar-border)}.dar-category-block.right{border-left:1px solid var(--dar-border)}.dar-category-block.wide{grid-column:1/-1}.dar-section-head{min-height:28px;display:flex;align-items:center;gap:10px}.dar-index{width:26px;height:26px;border-radius:8px;background:var(--dar-card-2);display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:var(--dar-muted);letter-spacing:.08em;flex-shrink:0}.dar-category-block.populated .dar-index{background:color-mix(in srgb, ${DASHBOARD_ACCENT} 9%, transparent);color:${DASHBOARD_ACCENT}}.dar-category-block.critical.populated .dar-index{color:${DASHBOARD_DANGER}}.dar-section-title{flex:1;font-size:13px;font-weight:750;color:var(--dar-text);margin:0}.dar-section-body{padding:8px 0 0 38px;min-height:30px}.dar-empty{font-size:12px;color:var(--dar-muted)}.dar-entry{display:grid;grid-template-columns:68px minmax(0,1fr);align-items:start;gap:10px;padding:7px 0}.dar-entry:not(:first-child){border-top:1px solid color-mix(in srgb, ${DASHBOARD_ACCENT} 22%, transparent)}.dar-entry:not(:has(time)){grid-template-columns:minmax(0,1fr)}.dar-entry.has-evidence{grid-template-columns:68px minmax(0,1fr) auto}.dar-entry.has-evidence:not(:has(time)){grid-template-columns:minmax(0,1fr) auto}.dar-evidence{width:28px;height:28px;padding:0;border:1px solid var(--dar-border);border-radius:6px;overflow:hidden;background:var(--dar-card-2);cursor:pointer}.dar-evidence img{width:100%;height:100%;object-fit:cover;display:block}.dar-entry time{padding-top:2px;font-size:10px;font-weight:750;color:var(--dar-muted);letter-spacing:.02em;white-space:nowrap;text-transform:uppercase}.dar-print-entry{font-size:14px;color:var(--dar-text);line-height:1.65}.dar-state{padding:52px 24px;text-align:center;color:var(--dar-muted);font-size:14px}.dar-state button{margin-top:16px;padding:11px 24px;border:0;border-radius:999px;background:${DASHBOARD_SUCCESS};color:#fff;font-weight:700;cursor:pointer}.dar-state-title{font-size:16px;font-weight:750;color:var(--dar-text)}.dar-state-hint{margin:8px auto 0;max-width:420px;line-height:1.55;font-size:13px}.dar-print-only{display:none}
+      @media(max-width:760px){.dar-report-header{padding:18px 20px}.dar-kicker:before{width:22px}.dar-name{font-size:17px}.dar-screen-grid{grid-template-columns:1fr;margin:12px}.dar-category-block,.dar-category-block.right{padding:16px 14px;border-left:0}.dar-category-block.wide{grid-column:auto}.dar-entry{grid-template-columns:58px minmax(0,1fr)}.dar-entry.has-evidence{grid-template-columns:58px minmax(0,1fr) auto}.dar-print-entry{font-size:13px}}
       @media print{body *{visibility:hidden!important}.dar-print-target,.dar-print-target *{visibility:visible!important}.dar-print-target{position:absolute!important;inset:0 auto auto 0!important;width:100%!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important;overflow:visible!important}.dar-screen-only{display:none!important}.dar-print-only{display:block!important}.dar-report-header{display:none!important}.dar-print-masthead{padding:0 0 14pt;border-bottom:1.5pt solid #0d1117;margin-bottom:12pt}.dar-print-title{font:700 25pt Georgia,serif;letter-spacing:.04em;text-transform:uppercase}.dar-print-meta{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16pt;padding:10pt 0;border-bottom:.75pt solid #ccc}.dar-screen-grid{display:block!important;margin:0!important;border:0!important;border-radius:0!important}.dar-category-block{border:0!important;border-top:1.5pt solid #0d1117!important;padding:4pt 0 5pt!important;break-inside:avoid}.dar-category-block.right{border-left:0!important}.dar-index,.dar-count{display:none!important}.dar-section-head{min-height:0!important}.dar-section-title{font-size:9pt!important;letter-spacing:.12em;text-transform:uppercase}.dar-section-body{padding:2pt 0!important;min-height:0!important}.dar-print-entry{font:400 10.5pt/1.6 Inter,sans-serif!important;color:#1a1a1a!important}.dar-entry{padding:2pt 0!important}.dar-evidence{display:none!important}@page{margin:.7in}}
     `}</style>
-    {loading ? <div className="dar-state" role="status">Loading Daily Activity Report…</div> : !shift ? <div className="dar-state"><div>No active shift today</div>{emptyAction && <button type="button" onClick={emptyAction}>{emptyActionLabel}</button>}</div> : <>
+    {loading ? <div className="dar-state" role="status">Loading Daily Activity Report…</div> : !shift ? <div className="dar-state"><div className="dar-state-title">{emptyTitle}</div>{emptyHint && <p className="dar-state-hint">{emptyHint}</p>}{emptyAction && <button type="button" onClick={emptyAction}>{emptyActionLabel}</button>}</div> : <>
       <header className="dar-report-header dar-screen-only">
         <div className="dar-header-row"><div><div className="dar-kicker">Daily Activity Report</div>{showConciergeIdentity && <div className="dar-name">{shift.concierge?.name || shift.conciergeName || 'Concierge'}</div>}<div className="dar-subtitle">{reportDate}</div></div>{onPrint && <button type="button" className="dar-print-button touch-target" onClick={onPrint} aria-label={printLabel} title={printLabel}><Printer size={20}/></button>}</div>
       </header>
-      <div className="dar-print-only dar-print-masthead"><div className="dar-print-title">Daily Shift Notes</div><div>{propertyName} · {propertyAddress}</div><div className="dar-print-meta"><div><b>Date</b><br/>{reportDate}</div><div><b>Shift</b><br/>{shift.clockIn || '—'} – {shift.clockOut || 'Present'}</div><div><b>Concierge</b><br/>{shift.concierge?.name || shift.conciergeName || 'Concierge'}</div></div></div>
-      <div className="dar-screen-grid">{reportSections.map((section, index) => { const entries = section.entries || []; const populated = section.populated ?? entries.length > 0; const narrowIndex = reportSections.slice(0, index).filter(item => !item.wide).length; return <section key={section.id || section.title} className={`dar-category-block ${section.wide ? 'wide' : ''} ${!section.wide && narrowIndex % 2 ? 'right' : ''} ${section.critical ? 'critical' : ''} ${populated ? 'populated' : ''}`}><div className="dar-section-head"><span className="dar-index">{String(index + 1).padStart(2,'0')}</span><h3 className="dar-section-title">{section.title}</h3></div><div className="dar-section-body">{section.content || (entries.length ? entries.map((entry, i) => <ReportEntry key={entry?.id || i} entry={entry}/>) : <span className="dar-empty">{section.emptyLabel || (section.critical ? 'No incidents this shift.' : 'No activity recorded')}</span>)}</div></section>; })}</div>
+      <div className="dar-print-only dar-print-masthead"><div className="dar-print-title">Daily Shift Notes</div><div>{[propertyName, propertyAddress].filter(Boolean).join(' · ')}</div><div className="dar-print-meta"><div><b>Date</b><br/>{reportDate}</div><div><b>Shift</b><br/>{shift.clockIn || '—'} – {shift.clockOut || 'Present'}</div><div><b>Concierge</b><br/>{shift.concierge?.name || shift.conciergeName || 'Concierge'}</div></div></div>
+      <div className="dar-screen-grid">{reportSections.map((section, index) => { const entries = section.entries || []; const populated = section.populated ?? entries.length > 0; const narrowIndex = reportSections.slice(0, index).filter(item => !item.wide).length; return <section key={section.id || section.title} className={`dar-category-block ${section.wide ? 'wide' : ''} ${!section.wide && narrowIndex % 2 ? 'right' : ''} ${section.critical ? 'critical' : ''} ${populated ? 'populated' : ''}`}><div className="dar-section-head"><span className="dar-index">{String(index + 1).padStart(2,'0')}</span><h3 className="dar-section-title">{section.title}</h3></div><div className="dar-section-body">{section.content || (entries.length ? entries.map((entry, i) => <ReportEntry key={entry?.id || i} entry={entry} onOpenEvidence={onOpenEvidence}/>) : <span className="dar-empty">{section.emptyLabel || (section.critical ? 'No incidents this shift.' : 'No activity recorded')}</span>)}</div></section>; })}</div>
     </>}
   </article>;
 }
