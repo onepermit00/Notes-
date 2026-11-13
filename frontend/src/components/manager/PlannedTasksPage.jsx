@@ -60,7 +60,7 @@ function formProblem(f, step) {
     if (f.repeat === 'days' && !f.daysOfWeek.length) return 'Pick the days it repeats.';
     if (f.repeat !== 'once' && !f.noEnd) {
       if (!f.endDate || f.endDate < f.startDate) return 'The end date must be on or after the start date.';
-      if (f.endDate > lastAllowedDay()) return 'A planned task can run up to 5 years ahead.';
+      if (f.endDate > lastAllowedDay()) return 'A scheduled task can run up to 5 years ahead.';
     }
   }
   return '';
@@ -87,7 +87,7 @@ export function PlannedTasksPage({ team = [], isMobile = false }) {
   useEffect(() => {
     authApi.getScheduledTasks()
       .then(list => { setPlans(list); setLoading(false); })
-      .catch(() => { setLoadError('Planned tasks could not be loaded.'); setLoading(false); });
+      .catch(() => { setLoadError('Scheduled tasks could not be loaded.'); setLoading(false); });
   }, []);
 
   const say = text => { setNotice(text); window.setTimeout(() => setNotice(''), 5000); };
@@ -104,11 +104,11 @@ export function PlannedTasksPage({ team = [], isMobile = false }) {
       if (editingId) {
         const saved = await authApi.updateScheduledTask(editingId, { ...body, clear_end_date: body.end_date === null });
         setPlans(p => p.map(x => x.scheduled_task_id === editingId ? saved : x));
-        say('Planned task updated.');
+        say('Scheduled task updated.');
       } else {
         const saved = await authApi.createPlannedTask(body);
         setPlans(p => [saved, ...p]);
-        say(`Planned for ${form.assignedConciergeName || 'everyone on the team'}: ${repeatText(saved)}.`);
+        say(`Scheduled for ${form.assignedConciergeName || 'everyone on the team'}: ${repeatText(saved)}.`);
       }
       close();
     } catch (e) {
@@ -149,7 +149,7 @@ export function PlannedTasksPage({ team = [], isMobile = false }) {
         <div style={{ paddingBottom: 14, borderBottom: `1px solid ${BORDER}`, marginBottom: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
             <div>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: TEXT, margin: 0 }}>{editingId ? 'Edit planned task' : 'Plan a task'}</h2>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: TEXT, margin: 0 }}>{editingId ? 'Edit scheduled task' : 'Schedule a task'}</h2>
               <p style={{ fontSize: 13, color: MUTED, margin: '2px 0 0' }}>Step {step} of 3 · {STEPS[step - 1]}</p>
             </div>
             <button onClick={close} style={{ ...smallBtn(), minHeight: 40, padding: '0 16px', fontSize: 14 }}>Cancel</button>
@@ -161,7 +161,7 @@ export function PlannedTasksPage({ team = [], isMobile = false }) {
           <div>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: TEXT, margin: '0 0 6px' }}>Who is this task for?</h3>
             <p style={{ fontSize: 13, color: MUTED, margin: '0 0 18px' }}>It shows on their shift every day it's due, until it's done.</p>
-            {members.length === 0 && <p style={{ padding: 16, background: CARD2, borderRadius: 12, fontSize: 13, color: MUTED }}>No one has joined your team yet. Once a team member accepts their invite, you can plan tasks for them.</p>}
+            {members.length === 0 && <p style={{ padding: 16, background: CARD2, borderRadius: 12, fontSize: 13, color: MUTED }}>No one has joined your team yet. Once a team member accepts their invite, you can schedule tasks for them.</p>}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
               {members.map(m => {
                 const sel = form.assignedConciergeId === m.concierge_id;
@@ -244,7 +244,7 @@ export function PlannedTasksPage({ team = [], isMobile = false }) {
           <button onClick={() => (step > 1 ? (setStep(step - 1), setError('')) : close())} style={secondaryBtn}>{step === 1 ? 'Cancel' : 'Back'}</button>
           {step < 3
             ? <button onClick={() => (problem ? setError(problem) : (setStep(step + 1), setError('')))} aria-disabled={!!problem} style={primaryBtn(!!problem)}>Continue</button>
-            : <button onClick={save} disabled={saving} style={primaryBtn(false)}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Plan task'}</button>}
+            : <button onClick={save} disabled={saving} style={primaryBtn(false)}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Schedule task'}</button>}
         </div>
       </div>
     );
@@ -329,18 +329,18 @@ export function PlannedTasksPage({ team = [], isMobile = false }) {
       {notice && <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 13px', marginBottom: 16, border: `1px solid ${GREEN}40`, borderRadius: 12, background: `${GREEN}10`, fontSize: 13, color: TEXT }}><CheckCircle size={16} color={GREEN} />{notice}</div>}
       <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', gap: 14, paddingBottom: 20 }}>
         <div>
-          <p style={{ fontSize: 14, color: MUTED, margin: 0, maxWidth: 560, lineHeight: 1.55 }}>Plan a task once, for one team member, every day or on the days you choose, for months ahead. It shows on their shift each day it's due, and goes into the shift report when it's done.</p>
+          <p style={{ fontSize: 14, color: MUTED, margin: 0, maxWidth: 560, lineHeight: 1.55 }}>Schedule a task once, for one team member, every day or on the days you choose, for months ahead. It shows on their shift each day it's due, and goes into the shift report when it's done.</p>
         </div>
-        <button onClick={() => start()} style={{ minHeight: 44, padding: '0 16px', background: BLUE, color: 'white', border: 0, borderRadius: 12, fontFamily: INTER, fontSize: 13, fontWeight: 750, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexShrink: 0 }}><Plus size={17} />Plan a task</button>
+        <button onClick={() => start()} style={{ minHeight: 44, padding: '0 16px', background: BLUE, color: 'white', border: 0, borderRadius: 12, fontFamily: INTER, fontSize: 13, fontWeight: 750, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexShrink: 0 }}><Plus size={17} />Schedule a task</button>
       </div>
 
-      {loading ? <div aria-label="Loading planned tasks" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{[1, 2].map(i => <div key={i} style={{ height: 120, borderRadius: 16, background: CARD2, border: `1px solid ${BORDER}` }} />)}</div>
-        : loadError ? <div role="alert" style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 32, textAlign: 'center' }}><AlertTriangle size={24} color={RED} /><p style={{ fontWeight: 700, color: TEXT, margin: '10px 0 5px' }}>Planned tasks couldn't load</p><p style={{ fontSize: 13, color: MUTED, margin: 0 }}>{loadError}</p></div>
+      {loading ? <div aria-label="Loading scheduled tasks" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{[1, 2].map(i => <div key={i} style={{ height: 120, borderRadius: 16, background: CARD2, border: `1px solid ${BORDER}` }} />)}</div>
+        : loadError ? <div role="alert" style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 32, textAlign: 'center' }}><AlertTriangle size={24} color={RED} /><p style={{ fontWeight: 700, color: TEXT, margin: '10px 0 5px' }}>Scheduled tasks couldn't load</p><p style={{ fontSize: 13, color: MUTED, margin: 0 }}>{loadError}</p></div>
         : plans.length === 0 ? (
           <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 40, textAlign: 'center' }}>
             <div style={{ width: 72, height: 72, background: CARD2, borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}><CalendarClock size={34} color={MUTED} strokeWidth={1.5} /></div>
-            <p style={{ fontWeight: 700, color: TEXT, fontSize: 17, margin: '0 0 6px' }}>No planned tasks yet</p>
-            <p style={{ fontSize: 14, color: MUTED, margin: 0 }}>Plan one for a team member, like testing the fire panel every Monday for 6 months.</p>
+            <p style={{ fontWeight: 700, color: TEXT, fontSize: 17, margin: '0 0 6px' }}>No scheduled tasks yet</p>
+            <p style={{ fontSize: 14, color: MUTED, margin: 0 }}>Schedule one for a team member, like testing the fire panel every Monday for 6 months.</p>
           </div>
         ) : groups.map(g => (
           <section key={g.key} style={{ marginBottom: 26 }}>

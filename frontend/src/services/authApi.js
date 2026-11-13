@@ -54,6 +54,7 @@ export function normalizeTask(t) {
     createdAt:       fmtTs(t.created_at),
     completedAt:     fmtTs(t.completed_at),
     completedByName: t.completed_by_name || '',
+    completedAtRaw:  t.completed_at || '',
     declinedAt:      fmtTs(t.declined_at),
     declinedByName:  t.declined_by_name || '',
     createdBy:       t.created_by_name || '',
