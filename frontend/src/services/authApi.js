@@ -33,6 +33,10 @@ function saveToken(data) {
 
 // ── Field normalizers ─────────────────────────────────────────────────────────
 
+export const CONTACT_GROUPS = ['Emergency services', 'Staff', 'Building & vendors'];
+const normalizeContact = c => ({ id: c.contact_id, label: c.label, number: c.number, category: c.category || 'Building & vendors', role: c.role || '' });
+const contactBody = c => ({ label: c.label, number: c.number, category: c.category || 'Building & vendors', role: c.role || '' });
+
 const fmtTs = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
 export function normalizeTask(t) {
@@ -305,11 +309,15 @@ export const authApi = {
   // The property's own contact directory, plus the manager so the desk always has a real person to call.
   async getContacts() {
     const { data } = await api.get('/contacts');
-    return { contacts: (data.contacts || []).map(c => ({ id: c.contact_id, label: c.label, number: c.number })), manager: data.manager || null };
+    return { contacts: (data.contacts || []).map(normalizeContact), manager: data.manager || null };
   },
-  async addContact(label, number) {
-    const { data } = await api.post('/contacts', { label, number });
-    return { id: data.contact_id, label: data.label, number: data.number };
+  async addContact(contact) {
+    const { data } = await api.post('/contacts', contactBody(contact));
+    return normalizeContact(data);
+  },
+  async updateContact(id, contact) {
+    const { data } = await api.put(`/contacts/${encodeURIComponent(id)}`, contactBody(contact));
+    return normalizeContact(data);
   },
   async deleteContact(id) { await api.delete(`/contacts/${id}`); },
 
@@ -434,11 +442,27 @@ export const authApi = {
     const { data } = await api.get('/knowledge');
     return data.items || [];
   },
-  async saveKnowledge(kind, item) {
+  async saveKnowledge(kind, item, { fileToFollow = false, removeFile = false } = {}) {
     const { data } = await api.put(`/knowledge/${encodeURIComponent(item.id)}`, {
       kind, title: item.title || item.fileName || 'Untitled', category: item.category || '',
+      body: item.body || '', status: item.status || undefined,
       file_name: item.fileName || '', file_type: item.fileType || '', data_url: item.dataURL || '',
+      file_to_follow: fileToFollow, remove_file: removeFile,
     });
+    return data;
+  },
+  // A document, photo or video for an SOP or training item, sent as a file rather than inline.
+  async uploadKnowledgeFile(id, file, fileName, onProgress) {
+    const form = new FormData();
+    form.append('file', file, fileName || file.name || 'file');
+    const { data } = await api.post(`/knowledge/${encodeURIComponent(id)}/file`, form, {
+      timeout: 0,
+      onUploadProgress: e => { if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100)); },
+    });
+    return data;
+  },
+  async getKnowledgeFile(id) {
+    const { data } = await api.get(`/knowledge/${encodeURIComponent(id)}/file`, { responseType: 'blob', timeout: 0 });
     return data;
   },
   async setKnowledgeStatus(id, status) { await api.put(`/knowledge/${encodeURIComponent(id)}/status`, { status }); },

@@ -20,9 +20,13 @@ import { UserRole } from '../types';
 import { authApi, normalizeTask, normalizeIncident } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
 import { useAuthSession } from '../context/AuthSessionContext';
-import { useSharedData, MAX_KNOWLEDGE_FILE_BYTES } from '../context/SharedDataContext';
+import { useSharedData } from '../context/SharedDataContext';
 import MicButton from './MicButton';
 import { KnowledgeCard, KnowledgeEmpty, KnowledgeFilters, KnowledgeProgress, KnowledgeStatusBadge } from './knowledge/KnowledgeUI';
+import { KnowledgeEditor } from './knowledge/KnowledgeEditor';
+import { KnowledgeThumb, KnowledgeViewer } from './knowledge/KnowledgeMedia';
+import { hasKnowledgeFile, knowledgeTypeLabel } from '../lib/knowledgeFile';
+import { ContactForm, ContactGroups } from './contacts/ContactDirectory';
 import { toNarrative } from '../lib/toNarrative';
 import {
   DASHBOARD_ACCENT, DASHBOARD_ACTIVE_NAV, DASHBOARD_DANGER, DASHBOARD_FONT,
@@ -278,37 +282,34 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const propertyContacts = customContacts;
   const propertyTeam = team.filter(c => c.phone || c.email).map(c => ({ id: c.concierge_id || c.id, name: c.name, title: c.title || 'Concierge', phone: c.phone || '', email: c.email || '', available: c.status === 'on_shift' ? 'On shift now' : '' }));
   useEffect(() => { authApi.getContacts().then(r => setCustomContacts(r.contacts)).catch(() => {}); }, []);
-  const [showAddContact,  setShowAddContact]  = useState(false);
-  const [newContactDraft, setNewContactDraft] = useState({ label:'', number:'' });
+  const [editingContact,  setEditingContact]  = useState(null);   // null, {} for a new one, or the contact being edited
+  const contactColors = { accent:BLUE, danger:RED, warning:ORANGE, card:CARD, surface:CARD2, border:BORDER, text:TEXT, muted:MUTED, shadow:SHADOW };
+  const knowledgeEditorColors = { ...contactColors, success:GREEN };
   const [leasingOpen,     setLeasingOpen]     = useState(false);
   useEffect(() => { if (!leasingOpen) setInviteNotice(null); }, [leasingOpen]);
   const [leasingForm,     setLeasingForm]     = useState({ teamName:'', contact:'', phone:'', email:'' });
   const [showPw,          setShowPw]          = useState(false);
   const [profileOpen,     setProfileOpen]     = useState(false);
-  const { uploadedSOPs, setUploadedSOPs, trainingItems, setTrainingItems, setKnowledgeItemStatus, refreshKnowledge, knowledgeError, clearKnowledgeError } = useSharedData();
+  const { uploadedSOPs, trainingItems, saveKnowledgeItem, deleteKnowledgeItem, setKnowledgeItemStatus, refreshKnowledge, knowledgeError, clearKnowledgeError } = useSharedData();
   const [expandedSOPId,    setExpandedSOPId]    = useState(null);
   const [sopUploadOpen,    setSopUploadOpen]    = useState(false);
-  const [uploadForm,       setUploadForm]       = useState({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
   const [fullscreenDoc,    setFullscreenDoc]    = useState(null);
-  const [sopStep,          setSopStep]          = useState(1);
-  const [editingSopId,     setEditingSopId]     = useState(null);
-  const uploadFileRef = useRef(null);
+  const [editingSop,       setEditingSop]       = useState(null);   // the SOP being edited; null while adding a new one
   const [expandedTrainingId,  setExpandedTrainingId]  = useState(null);
   const [trainingUploadOpen,  setTrainingUploadOpen]  = useState(false);
-  const [trainingForm,        setTrainingForm]        = useState({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
+  const [editingTraining,     setEditingTraining]     = useState(null);
   const [fullscreenTraining,  setFullscreenTraining]  = useState(null);
-  const [trainingStep,        setTrainingStep]        = useState(1);
   const [sopSearch, setSopSearch] = useState('');
   const [sopFilter, setSopFilter] = useState('All');
   const [trainingSearch, setTrainingSearch] = useState('');
   const [trainingFilter, setTrainingFilter] = useState('All');
   const knowledgeStatus = Object.fromEntries(uploadedSOPs.map(item => [item.id, item.status || 'published']));
-  const [fileError, setFileError] = useState('');
+  const [knowledgeDeleteTarget, setKnowledgeDeleteTarget] = useState(null);   // { kind, item } awaiting confirmation
+  const [knowledgeDeleteBusy, setKnowledgeDeleteBusy] = useState(false);
   const [teamNotice, setTeamNotice] = useState(null); // { tone, text, link }
   const [sectionSaved, setSectionSaved] = useState('');
   const [sectionsLoading, setSectionsLoading] = useState(true);
   const [sectionsError, setSectionsError] = useState(false);
-  const trainingFileRef = useRef(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
   const { completeAuthentication } = useAuthSession();
@@ -2277,77 +2278,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const ALL_SOPS = [...uploadedSOPs];
   const SOP_CATEGORIES = ['Amenity Hours','Guest Policy','Noise & Quiet Hours','Security','Move-In / Move-Out','Emergency','Package Management','Other'];
 
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > MAX_KNOWLEDGE_FILE_BYTES) { setFileError('That file is too large to share with the desk. Please choose a file under 6 MB.'); e.target.value = ''; return; }
-    setFileError('');
-    const fileType = file.type.startsWith('image/') ? 'image' : 'pdf';
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setUploadForm(p => ({ ...p, fileName: file.name, fileType, dataURL: ev.target.result }));
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const saveUploadedSOP = () => {
-    const cat = uploadForm.category === 'Other' ? (uploadForm.customCategory.trim() || 'Other') : uploadForm.category;
-    if (!cat || !uploadForm.title.trim() || !uploadForm.dataURL) return;
-    const newSopId = editingSopId || `upload-${Date.now()}`;
-    if (editingSopId) {
-      setUploadedSOPs(items=>items.map(item=>item.id===editingSopId?{...item,category:cat,title:uploadForm.title.trim(),fileName:uploadForm.fileName,fileType:uploadForm.fileType,dataURL:uploadForm.dataURL}:item));
-    } else {
-    setUploadedSOPs(p => [...p, {
-      id: newSopId,
-      category: cat,
-      title: uploadForm.title.trim(),
-      fileName: uploadForm.fileName,
-      fileType: uploadForm.fileType,
-      dataURL: uploadForm.dataURL,
-      _uploaded: true,
-    }]);
-    }
-    setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
-    setSopUploadOpen(false);
-    setSopStep(1);
-    setEditingSopId(null);
-    if (uploadFileRef.current) uploadFileRef.current.value = '';
-  };
-
   const TRAINING_CATEGORIES = ['Onboarding','Safety & Emergency','Guest Experience','Building Systems','Amenity Operations','Software & Tools','Other'];
-
-  const handleTrainingFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    let fileType = 'pdf';
-    if (file.type.startsWith('image/')) fileType = 'image';
-    else if (file.type.startsWith('video/')) fileType = 'video';
-    if (file.size > MAX_KNOWLEDGE_FILE_BYTES) { setFileError('That file is too large to share with the desk. Please choose a file under 6 MB.'); e.target.value = ''; return; }
-    setFileError('');
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setTrainingForm(p => ({ ...p, fileName: file.name, fileType, dataURL: ev.target.result }));
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const saveTrainingItem = () => {
-    const cat = trainingForm.category === 'Other' ? (trainingForm.customCategory.trim() || 'Other') : trainingForm.category;
-    if (!cat || !trainingForm.title.trim() || !trainingForm.dataURL) return;
-    const newTrainingId = `training-${Date.now()}`;
-    setTrainingItems(p => [...p, {
-      id: newTrainingId,
-      category: cat,
-      title: trainingForm.title.trim(),
-      fileName: trainingForm.fileName,
-      fileType: trainingForm.fileType,
-      dataURL: trainingForm.dataURL,
-    }]);
-    setTrainingForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
-    setTrainingUploadOpen(false);
-    setTrainingStep(1);
-    if (trainingFileRef.current) trainingFileRef.current.value = '';
-  };
 
   const renderTraining = () => {
     const CATEGORY_DEFS = [
@@ -2360,187 +2291,20 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       { id:'Other',              Icon:HelpCircle, desc:'Any other training material not covered above' },
     ];
 
-    const tInput = {
-      width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12,
-      color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box',
-    };
-
-    const cancelUpload = () => {
-      setTrainingUploadOpen(false);
-      setTrainingStep(1);
-      setTrainingForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
-      if (trainingFileRef.current) trainingFileRef.current.value = '';
-    };
-
     if (trainingUploadOpen) {
-      const step2Valid = trainingForm.title.trim() && trainingForm.dataURL;
+      const close = () => { setTrainingUploadOpen(false); setEditingTraining(null); };
       return (
-        <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-
-          {/* ── Wizard header ── */}
-          <div style={{ flexShrink:0, padding:'16px 0 14px', borderBottom:`1px solid ${BORDER}`, background:CARD, marginBottom:0 }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-              <div>
-                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>Add Training Material</h2>
-                <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:'2px 0 0' }}>Step {trainingStep} of 2</p>
-              </div>
-              <button onClick={cancelUpload}
-                style={{ padding:'10px 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontSize:14, fontWeight:600, color:TEXT, cursor:'pointer', fontFamily:INTER }}>
-                Cancel
-              </button>
-            </div>
-            <div style={{ display:'flex', gap:6 }}>
-              {[1,2].map(s => (
-                <div key={s} style={{ height:4, flex:1, borderRadius:999, background: s <= trainingStep ? RED : `rgba(0,0,0,0.10)` }} />
-              ))}
-            </div>
-          </div>
-
-          {/* ── Step content ── */}
-          <div style={{ flex:1, overflowY:'auto' }}>
-            <div style={{ padding:'24px 0' }}>
-
-              {/* Step 1: Category selection */}
-              {trainingStep === 1 && (
-                <div>
-                  <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:20 }}>
-                    What type of training material?
-                  </h3>
-                  <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                    {CATEGORY_DEFS.map(({ id, Icon, desc }) => {
-                      const sel = trainingForm.category === id;
-                      return (
-                        <button key={id} onClick={() => setTrainingForm(p => ({ ...p, category:id, customCategory:'' }))}
-                          style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%',
-                            background: sel ? 'rgba(239,68,68,0.06)' : CARD,
-                            border: sel ? `2px solid ${RED}` : `2px solid ${BORDER}`,
-                            boxShadow: sel ? '0 4px 20px rgba(239,68,68,0.12)' : 'none',
-                          }}>
-                          <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: sel ? 'rgba(239,68,68,0.12)' : CARD2 }}>
-                            <Icon size={24} color={sel ? RED : MUTED} />
-                          </div>
-                          <div style={{ flex:1 }}>
-                            <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:'0 0 3px' }}>{id}</p>
-                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0, lineHeight:1.4 }}>{desc}</p>
-                          </div>
-                          {sel && (
-                            <div style={{ width:26, height:26, borderRadius:'50%', background:RED, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                              <Check size={14} color="white" />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {trainingForm.category === 'Other' && (
-                    <div style={{ marginTop:20 }}>
-                      <label style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', display:'block', marginBottom:10 }}>Custom Category Name</label>
-                      <input type="text" placeholder="e.g. Lease Renewals" value={trainingForm.customCategory}
-                        onChange={e => setTrainingForm(p => ({ ...p, customCategory:e.target.value }))}
-                        style={{ ...tInput, border:`1.5px solid ${trainingForm.customCategory?RED:BORDER}` }} />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Step 2: File + Title */}
-              {trainingStep === 2 && (
-                <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
-                  <div>
-                    <h3 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:6 }}>Upload your file</h3>
-                    <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, marginBottom:16 }}>Attach a PDF document, photo, or video clip.</p>
-                    <input ref={trainingFileRef} type="file" accept="image/*,video/*,.pdf,application/pdf"
-                      onChange={handleTrainingFileSelect} style={{ display:'none' }} id="training-file-input" />
-                    {fileError && <p role="alert" style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:RED, margin:'0 0 10px' }}>{fileError}</p>}
-                    <label htmlFor="training-file-input" style={{ cursor:'pointer' }}>
-                      <div style={{ width:'100%', padding: trainingForm.dataURL ? '24px 0' : '48px 0', border:`2px dashed ${trainingForm.dataURL ? RED : BORDER}`, borderRadius:16, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, background: trainingForm.dataURL ? 'rgba(239,68,68,0.04)' : CARD }}>
-                        {trainingForm.dataURL ? (
-                          <>
-                            {trainingForm.fileType === 'image' ? (
-                              <img src={trainingForm.dataURL} alt="preview" style={{ maxHeight:140, maxWidth:'90%', borderRadius:10, objectFit:'contain' }} />
-                            ) : (
-                              <div style={{ width:60, height:60, borderRadius:16, background:'rgba(239,68,68,0.12)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                                {trainingForm.fileType === 'video' ? <Video size={30} color={RED} /> : <FileText size={30} color={RED} />}
-                              </div>
-                            )}
-                            <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:RED, margin:0, textAlign:'center', maxWidth:240, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{trainingForm.fileName}</p>
-                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Tap to change file</p>
-                          </>
-                        ) : (
-                          <>
-                            <Upload size={40} color={MUTED} />
-                            <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, fontWeight:600, margin:0 }}>Tap to add file</p>
-                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>PDF, Image, or Video</p>
-                          </>
-                        )}
-                      </div>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', display:'block', marginBottom:10 }}>Material Title</label>
-                    <input type="text" placeholder="e.g. How to Handle a Lockout" value={trainingForm.title}
-                      onChange={e => setTrainingForm(p => ({ ...p, title:e.target.value }))}
-                      style={{ ...tInput, border:`1.5px solid ${trainingForm.title ? RED : BORDER}` }} />
-                  </div>
-
-                  {/* Summary card */}
-                  <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:16 }}>
-                    <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', margin:'0 0 8px' }}>Selected Category</p>
-                    {(() => {
-                      const cat = trainingForm.category === 'Other'
-                        ? (trainingForm.customCategory.trim() || 'Other')
-                        : trainingForm.category;
-                      const def = CATEGORY_DEFS.find(d => d.id === trainingForm.category);
-                      const CatIcon = def ? def.Icon : HelpCircle;
-                      return (
-                        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                          <div style={{ width:40, height:40, borderRadius:12, background:'rgba(239,68,68,0.10)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                            <CatIcon size={20} color={RED} />
-                          </div>
-                          <span style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT }}>{cat}</span>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
-
-            </div>
-          </div>
-
-          {/* ── Footer ── */}
-          <div style={{ flexShrink:0, padding:'12px 0 4px', background:CARD, borderTop:`1px solid ${BORDER}` }}>
-            <div style={{ display:'flex', gap:12 }}>
-              {trainingStep > 1 && (
-                <button onClick={() => setTrainingStep(trainingStep - 1)}
-                  style={{ flex:1, padding:'16px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
-                  Back
-                </button>
-              )}
-              {trainingStep === 1 ? (
-                <button onClick={() => setTrainingStep(2)} disabled={!trainingForm.category}
-                  style={{ flex:2, padding:'16px 0', borderRadius:14, border:'none', background:trainingForm.category?RED:'rgba(255,56,92,0.25)', fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:trainingForm.category?'pointer':'default' }}>
-                  Continue
-                </button>
-              ) : (
-                <button onClick={saveTrainingItem} disabled={!step2Valid}
-                  style={{ flex:2, padding:'16px 0', borderRadius:14, border:'none', background:step2Valid?RED:'rgba(255,56,92,0.25)', fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:step2Valid?'pointer':'default' }}>
-                  Save Material
-                </button>
-              )}
-            </div>
-          </div>
-
-        </div>
+        <KnowledgeEditor key={editingTraining?.id || 'new-training'} kind="training" item={editingTraining} categories={CATEGORY_DEFS}
+          colors={knowledgeEditorColors} isPhone={isPhone} font={INTER} onCancel={close}
+          onSave={async (fields, opts) => { await saveKnowledgeItem('training', { ...(editingTraining || {}), ...fields }, opts); close(); }}
+          onDelete={editingTraining ? async () => { await deleteKnowledgeItem('training', editingTraining.id); close(); } : null} />
       );
     }
 
     /* ── List / history view ── */
     const knowledgeColors = { accent:BLUE, success:GREEN, warning:ORANGE, danger:RED, card:CARD, surface:CARD2, border:BORDER, text:TEXT, muted:MUTED, shadow:SHADOW };
     const trainingCategories = ['All', ...Array.from(new Set(trainingItems.map(item=>item.category).filter(Boolean)))];
-    const visibleTraining = trainingItems.filter(item => (trainingFilter==='All'||item.category===trainingFilter) && (!trainingSearch.trim() || `${item.title} ${item.category} ${item.fileName||''}`.toLowerCase().includes(trainingSearch.trim().toLowerCase())));
+    const visibleTraining = trainingItems.filter(item => (trainingFilter==='All'||item.category===trainingFilter) && (!trainingSearch.trim() || `${item.title} ${item.category} ${item.fileName||''} ${item.body||''}`.toLowerCase().includes(trainingSearch.trim().toLowerCase())));
     const deskCount = team.filter(m => m.concierge_id).length;
     const completions = trainingItems.reduce((sum, item) => sum + Math.min((item.completedBy || []).length, deskCount || Infinity), 0);
     const completionTotal = trainingItems.length * deskCount;
@@ -2548,13 +2312,16 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', gap:16 }}>
         <KnowledgeFilters search={trainingSearch} onSearch={setTrainingSearch} placeholder="Search training by topic or building system…" categories={trainingCategories} selected={trainingFilter} onSelect={setTrainingFilter} colors={knowledgeColors}/>
         <KnowledgeProgress value={completionTotal?Math.round(completions/completionTotal*100):0} detail={`${completions} of ${completionTotal} reviews completed by the desk · ${trainingItems.length} material${trainingItems.length===1?'':'s'}`} colors={knowledgeColors}/>
-        {trainingItems.length===0 ? <KnowledgeEmpty icon={GraduationCap} title="No training materials yet" description="Upload documents, visual guides, or videos and assign them to the concierge team." colors={knowledgeColors}/> : visibleTraining.length===0 ? <KnowledgeEmpty icon={Search} title="No training matches this view" description="Try a broader search or choose another category." colors={knowledgeColors}/> : <div style={{ flex:1, overflowY:'auto', display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,minmax(0,1fr))', gap:10 }}>{visibleTraining.map(item=>{ const def=CATEGORY_DEFS.find(d=>d.id===item.category); return <KnowledgeCard key={item.id} item={{...item,assignmentCount:deskCount}} kind="training" icon={def?.Icon||HelpCircle} onOpen={setFullscreenTraining} status={deskCount>0 && (item.completedBy||[]).length>=deskCount ? 'reviewed' : 'assigned'} colors={knowledgeColors} actions={<button onClick={()=>setTrainingItems(list=>list.filter(entry=>entry.id!==item.id))} aria-label={`Remove ${item.title}`} title={(item.completedBy||[]).length ? `Reviewed by ${(item.completedBy||[]).join(', ')}` : 'Remove this material'} style={{ width:34,height:34,borderRadius:9,border:`1px solid ${BORDER}`,background:CARD2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center' }}><Trash2 size={14} color={MUTED}/></button>}/>})}</div>}
+        {trainingItems.length===0 ? <KnowledgeEmpty icon={GraduationCap} title="No training materials yet" description="Upload documents, visual guides, or videos and assign them to the concierge team." colors={knowledgeColors}/> : visibleTraining.length===0 ? <KnowledgeEmpty icon={Search} title="No training matches this view" description="Try a broader search or choose another category." colors={knowledgeColors}/> : <div style={{ flex:1, overflowY:'auto', display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,minmax(0,1fr))', gap:10 }}>{visibleTraining.map(item=>{ const def=CATEGORY_DEFS.find(d=>d.id===item.category); return <KnowledgeCard key={item.id} item={{...item,assignmentCount:deskCount}} kind="training" icon={def?.Icon||HelpCircle} onOpen={setFullscreenTraining} status={deskCount>0 && (item.completedBy||[]).length>=deskCount ? 'reviewed' : 'assigned'} colors={knowledgeColors} actions={<>
+          <button onClick={()=>{ setEditingTraining(item); setTrainingUploadOpen(true); }} aria-label={`Edit ${item.title}`} title="Edit" style={{ width:34,height:34,borderRadius:9,border:`1px solid ${BORDER}`,background:CARD2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center' }}><Pencil size={14} color={MUTED}/></button>
+          <button onClick={()=>setKnowledgeDeleteTarget({ kind:'training', item })} aria-label={`Delete ${item.title}`} title={(item.completedBy||[]).length ? `Reviewed by ${(item.completedBy||[]).join(', ')}` : 'Delete'} style={{ width:34,height:34,borderRadius:9,border:`1px solid ${BORDER}`,background:CARD2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center' }}><Trash2 size={14} color={RED}/></button>
+        </>}/>})}</div>}
 
         <div style={{ flexShrink:0, paddingTop:16 }}>
-          <button onClick={() => setTrainingUploadOpen(true)}
+          <button onClick={() => { setEditingTraining(null); setTrainingUploadOpen(true); }}
             style={{ width:'100%', padding:'16px 0', borderRadius:14, border:'none', background:RED, fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10 }}>
-            <Upload size={18} color="white" />
-            Add Training Material
+            <Plus size={18} color="white" />
+            Add training: video, file or steps
           </button>
         </div>
       </div>
@@ -2574,7 +2341,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const renderMore = () => {
     const knowledgeColors = { accent:BLUE, success:GREEN, warning:ORANGE, danger:RED, card:CARD, surface:CARD2, border:BORDER, text:TEXT, muted:MUTED, shadow:SHADOW };
     const managerSopCategories = ['All', ...Array.from(new Set(ALL_SOPS.map(s=>s.category).filter(Boolean)))];
-    const visibleSops = ALL_SOPS.filter(sop => (sopFilter==='All'||sop.category===sopFilter) && (!sopSearch.trim() || `${sop.title} ${sop.category} ${sop.fileName||''}`.toLowerCase().includes(sopSearch.trim().toLowerCase())));
+    const visibleSops = ALL_SOPS.filter(sop => (sopFilter==='All'||sop.category===sopFilter) && (!sopSearch.trim() || `${sop.title} ${sop.category} ${sop.fileName||''} ${sop.body||''}`.toLowerCase().includes(sopSearch.trim().toLowerCase())));
     const SOP_CATEGORY_DEFS = [
       { id:'Amenity Hours',       Icon:Waves,         desc:'Pool, gym, rooftop hours and access rules' },
       { id:'Guest Policy',        Icon:User,          desc:'Visitor registration, guest parking, overnight stays' },
@@ -2586,186 +2353,13 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       { id:'Other',               Icon:HelpCircle,    desc:'Any other building policy or procedure' },
     ];
 
-    const sInput = {
-      width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12,
-      color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box',
-    };
-
-    const cancelSop = () => {
-      setSopUploadOpen(false);
-      setSopStep(1);
-      setUploadForm({ category:'', customCategory:'', title:'', fileName:'', fileType:'', dataURL:'' });
-      setEditingSopId(null);
-      if (uploadFileRef.current) uploadFileRef.current.value = '';
-    };
-
     if (sopUploadOpen) {
-      const step2Valid = uploadForm.title.trim() && uploadForm.dataURL;
+      const close = () => { setSopUploadOpen(false); setEditingSop(null); };
       return (
-        <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-
-          {/* ── Wizard header ── */}
-          <div style={{ flexShrink:0, padding:'16px 0 14px', borderBottom:`1px solid ${BORDER}`, background:CARD }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-              <div>
-                <h2 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>{editingSopId?'Edit procedure':'Upload a Binder Document'}</h2>
-                <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:'2px 0 0' }}>Step {sopStep} of 2</p>
-              </div>
-              <button onClick={cancelSop}
-                style={{ padding:'10px 20px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, fontSize:14, fontWeight:600, color:TEXT, cursor:'pointer', fontFamily:INTER }}>
-                Cancel
-              </button>
-            </div>
-            <div style={{ display:'flex', gap:6 }}>
-              {[1,2].map(s => (
-                <div key={s} style={{ height:4, flex:1, borderRadius:999, background: s <= sopStep ? RED : 'rgba(0,0,0,0.10)' }} />
-              ))}
-            </div>
-          </div>
-
-          {/* ── Step content ── */}
-          <div style={{ flex:1, overflowY:'auto' }}>
-            <div style={{ padding:'24px 0' }}>
-
-              {/* Step 1: Category selection */}
-              {sopStep === 1 && (
-                <div>
-                  <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:20 }}>
-                    What type of procedure is this?
-                  </h3>
-                  <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                    {SOP_CATEGORY_DEFS.map(({ id, Icon, desc }) => {
-                      const sel = uploadForm.category === id;
-                      const catColor = SOP_COLOR[id] || MUTED;
-                      return (
-                        <button key={id} onClick={() => setUploadForm(p => ({ ...p, category:id, customCategory:'' }))}
-                          style={{ padding:20, borderRadius:16, textAlign:'left', display:'flex', alignItems:'center', gap:16, cursor:'pointer', width:'100%',
-                            background: sel ? 'rgba(239,68,68,0.06)' : CARD,
-                            border: sel ? `2px solid ${RED}` : `2px solid ${BORDER}`,
-                            boxShadow: sel ? '0 4px 20px rgba(239,68,68,0.12)' : 'none',
-                          }}>
-                          <div style={{ width:56, height:56, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: sel ? 'rgba(239,68,68,0.12)' : CARD2 }}>
-                            <Icon size={24} color={sel ? RED : catColor} />
-                          </div>
-                          <div style={{ flex:1 }}>
-                            <p style={{ fontFamily:INTER, fontWeight:700, color:TEXT, fontSize:17, margin:'0 0 3px' }}>{id}</p>
-                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0, lineHeight:1.4 }}>{desc}</p>
-                          </div>
-                          {sel && (
-                            <div style={{ width:26, height:26, borderRadius:'50%', background:RED, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                              <Check size={14} color="white" />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {uploadForm.category === 'Other' && (
-                    <div style={{ marginTop:20 }}>
-                      <label style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', display:'block', marginBottom:10 }}>Custom Category Name</label>
-                      <input type="text" placeholder="e.g. Parking Policy" value={uploadForm.customCategory}
-                        onChange={e => setUploadForm(p => ({ ...p, customCategory:e.target.value }))}
-                        style={{ ...sInput, border:`1.5px solid ${uploadForm.customCategory ? RED : BORDER}` }} />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Step 2: File + Title */}
-              {sopStep === 2 && (
-                <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
-                  <div>
-                    <h3 style={{ fontFamily:INTER, fontSize:'1.1rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', marginBottom:6 }}>Upload your document</h3>
-                    <p style={{ fontFamily:INTER, fontSize:14, color:MUTED, marginBottom:16 }}>Scan pages, take a photo, or upload a PDF from your binder.</p>
-                    <input ref={uploadFileRef} type="file" accept="image/*,.pdf,application/pdf"
-                      onChange={handleFileSelect} style={{ display:'none' }} id="sop-file-input" />
-                    {fileError && <p role="alert" style={{ fontFamily:INTER, fontSize:13, fontWeight:600, color:RED, margin:'0 0 10px' }}>{fileError}</p>}
-                    <label htmlFor="sop-file-input" style={{ cursor:'pointer' }}>
-                      <div style={{ width:'100%', padding: uploadForm.dataURL ? '24px 0' : '48px 0', border:`2px dashed ${uploadForm.dataURL ? RED : BORDER}`, borderRadius:16, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, background: uploadForm.dataURL ? 'rgba(239,68,68,0.04)' : CARD }}>
-                        {uploadForm.dataURL ? (
-                          <>
-                            {uploadForm.fileType === 'image' ? (
-                              <img src={uploadForm.dataURL} alt="preview" style={{ maxHeight:140, maxWidth:'90%', borderRadius:10, objectFit:'contain' }} />
-                            ) : (
-                              <div style={{ width:60, height:60, borderRadius:16, background:'rgba(239,68,68,0.12)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                                <FileText size={30} color={RED} />
-                              </div>
-                            )}
-                            <p style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:RED, margin:0, textAlign:'center', maxWidth:240, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{uploadForm.fileName}</p>
-                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>Tap to change file</p>
-                          </>
-                        ) : (
-                          <>
-                            <Upload size={40} color={MUTED} />
-                            <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, fontWeight:600, margin:0 }}>Tap to add file</p>
-                            <p style={{ fontFamily:INTER, fontSize:13, color:MUTED, margin:0 }}>PDF, JPG, or PNG</p>
-                          </>
-                        )}
-                      </div>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', display:'block', marginBottom:10 }}>Document Title</label>
-                    <input type="text" placeholder="e.g. Building Rules & Regulations" value={uploadForm.title}
-                      onChange={e => setUploadForm(p => ({ ...p, title:e.target.value }))}
-                      style={{ ...sInput, border:`1.5px solid ${uploadForm.title ? RED : BORDER}` }} />
-                  </div>
-
-                  {/* Summary card */}
-                  <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:16, padding:16 }}>
-                    <p style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:MUTED, textTransform:'uppercase', letterSpacing:'0.12em', margin:'0 0 8px' }}>Selected Category</p>
-                    {(() => {
-                      const cat = uploadForm.category === 'Other'
-                        ? (uploadForm.customCategory.trim() || 'Other')
-                        : uploadForm.category;
-                      const def = SOP_CATEGORY_DEFS.find(d => d.id === uploadForm.category);
-                      const CatIcon = def ? def.Icon : HelpCircle;
-                      const catColor = SOP_COLOR[uploadForm.category] || MUTED;
-                      return (
-                        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                          <div style={{ width:40, height:40, borderRadius:12, background:'rgba(239,68,68,0.10)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                            <CatIcon size={20} color={RED} />
-                          </div>
-                          <div>
-                            <span style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT }}>{cat}</span>
-                            {def && <p style={{ fontFamily:INTER, fontSize:12, color:MUTED, margin:'2px 0 0' }}>{def.desc}</p>}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
-
-            </div>
-          </div>
-
-          {/* ── Footer ── */}
-          <div style={{ flexShrink:0, padding:'12px 0 4px', background:CARD, borderTop:`1px solid ${BORDER}` }}>
-            <div style={{ display:'flex', gap:12 }}>
-              {sopStep > 1 && (
-                <button onClick={() => setSopStep(sopStep - 1)}
-                  style={{ flex:1, padding:'16px 0', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:14, fontFamily:INTER, fontSize:16, fontWeight:600, color:TEXT, cursor:'pointer' }}>
-                  Back
-                </button>
-              )}
-              {sopStep === 1 ? (
-                <button onClick={() => setSopStep(2)} disabled={!uploadForm.category}
-                  style={{ flex:2, padding:'16px 0', borderRadius:14, border:'none', background:uploadForm.category?RED:'rgba(255,56,92,0.25)', fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:uploadForm.category?'pointer':'default' }}>
-                  Continue
-                </button>
-              ) : (
-                <button onClick={saveUploadedSOP} disabled={!step2Valid}
-                  style={{ flex:2, padding:'16px 0', borderRadius:14, border:'none', background:step2Valid?RED:'rgba(255,56,92,0.25)', fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', cursor:step2Valid?'pointer':'default' }}>
-                  Save Document
-                </button>
-              )}
-            </div>
-          </div>
-
-        </div>
+        <KnowledgeEditor key={editingSop?.id || 'new-sop'} kind="sop" item={editingSop} categories={SOP_CATEGORY_DEFS}
+          colors={knowledgeEditorColors} isPhone={isPhone} font={INTER} onCancel={close}
+          onSave={async (fields, opts) => { await saveKnowledgeItem('sop', { ...(editingSop || {}), ...fields }, opts); close(); }}
+          onDelete={editingSop ? async () => { await deleteKnowledgeItem('sop', editingSop.id); if (expandedSOPId === editingSop.id) setExpandedSOPId(null); close(); } : null} />
       );
     }
 
@@ -2775,14 +2369,14 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         <>
           {/* CTA button */}
           <div style={{ paddingBottom:16, flexShrink:0 }}>
-            <button onClick={() => setSopUploadOpen(true)}
+            <button onClick={() => { setEditingSop(null); setSopUploadOpen(true); }}
               style={{ width:'100%', display:'flex', alignItems:'center', gap:16, padding:'20px', background:BLUE, border:'none', borderRadius:18, cursor:'pointer', textAlign:'left', boxShadow:'0 8px 28px rgba(255,56,92,0.32)' }}>
               <div style={{ width:56, height:56, borderRadius:16, background:'rgba(255,255,255,0.20)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                 <Upload size={26} color="white" strokeWidth={2.5} />
               </div>
               <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:'white', marginBottom:3 }}>Upload Document</div>
-                <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.75)' }}>Scan or photo pages from your binder</div>
+                <div style={{ fontFamily:INTER, fontSize:17, fontWeight:700, color:'white', marginBottom:3 }}>Add an SOP</div>
+                <div style={{ fontFamily:INTER, fontSize:13, color:'rgba(255,255,255,0.75)' }}>Type the steps, upload a PDF or Word file, or record a video</div>
               </div>
               <ChevronRight size={22} color="rgba(255,255,255,0.75)" />
             </button>
@@ -2803,9 +2397,9 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:10, paddingBottom:24 }}>
             {visibleSops.length===0 ? <KnowledgeEmpty icon={Search} title={ALL_SOPS.length?'No procedures match this view':'No procedures yet'} description={ALL_SOPS.length?'Try a broader search or choose another category.':'Create the first approved procedure for the concierge team.'} colors={knowledgeColors}/> : visibleSops.map((sop) => {
               const open = expandedSOPId === sop.id;
-              const isUploaded = !!sop._uploaded;
-              const SopIcon = isUploaded
-                ? (sop.fileType === 'image' ? Image : FileText)
+              const withFile = hasKnowledgeFile(sop);
+              const SopIcon = withFile
+                ? (sop.fileType === 'image' ? Image : sop.fileType === 'video' ? Video : FileText)
                 : (SOP_ICON_CONFIG[sop.category] || BookOpen);
               const catColor = SOP_COLOR[sop.category] || MUTED;
               const isEmergency = sop.category === 'Emergency';
@@ -2819,66 +2413,44 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4, flexWrap:'wrap' }}>
                         <span style={{ fontFamily:INTER, fontSize:10, fontWeight:800, color:open?catColor:MUTED, letterSpacing:'0.12em', textTransform:'uppercase', transition:'color 150ms' }}>{sop.category}</span>
-                        {isUploaded && <span style={{ fontFamily:INTER, fontSize:9, fontWeight:700, color:GREEN, background:'rgba(52,199,89,0.10)', borderRadius:4, padding:'1px 6px', textTransform:'uppercase' }}>{sop.fileType === 'image' ? 'Photo' : 'PDF'}</span>}
+                        <span style={{ fontFamily:INTER, fontSize:9, fontWeight:700, color:GREEN, background:'rgba(52,199,89,0.10)', borderRadius:4, padding:'1px 6px', textTransform:'uppercase' }}>{knowledgeTypeLabel(sop)}</span>
                         <KnowledgeStatusBadge status={knowledgeStatus[sop.id] || 'published'} colors={knowledgeColors}/>
                       </div>
                       <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:TEXT, lineHeight:1.3 }}>{sop.title}</div>
-                      {isUploaded && sop.fileName && (
+                      {withFile && sop.fileName && (
                         <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sop.fileName}</div>
                       )}
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-                      {isUploaded&&<button onClick={e=>{e.stopPropagation();setEditingSopId(sop.id);setUploadForm({category:SOP_CATEGORIES.includes(sop.category)?sop.category:'Other',customCategory:SOP_CATEGORIES.includes(sop.category)?'':sop.category,title:sop.title,fileName:sop.fileName,fileType:sop.fileType,dataURL:sop.dataURL});setSopStep(2);setSopUploadOpen(true);}} aria-label={`Edit ${sop.title}`} style={{ width:30,height:30,borderRadius:8,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}><Pencil size={14} color={MUTED}/></button>}
+                      <button onClick={e=>{e.stopPropagation();setEditingSop(sop);setSopUploadOpen(true);}} aria-label={`Edit ${sop.title}`} title="Edit" style={{ width:30,height:30,borderRadius:8,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}><Pencil size={14} color={MUTED}/></button>
                       <button onClick={e => { e.stopPropagation(); setKnowledgeItemStatus(sop.id, (knowledgeStatus[sop.id]||'published')==='published'?'review':'published'); }} aria-label={(knowledgeStatus[sop.id]||'published')==='published'?'Hide from the desk (mark as in review)':'Publish to the desk'} title={(knowledgeStatus[sop.id]||'published')==='published'?'Published to the desk. Click to hide while you review it.':'Hidden from the desk. Click to publish.'} style={{ width:30,height:30,borderRadius:8,border:`1px solid ${BORDER}`,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}><CheckCircle size={14} color={(knowledgeStatus[sop.id]||'published')==='published'?GREEN:ORANGE}/></button>
-                      {isUploaded && (
-                        <button onClick={e => {
-                          e.stopPropagation();
-                          setUploadedSOPs(p=>p.filter(s=>s.id!==sop.id));
-                          if(expandedSOPId===sop.id) setExpandedSOPId(null);
-                        }} style={{ width:30, height:30, borderRadius:8, border:'none', background:'rgba(255,59,48,0.08)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-                          <X size={14} color={RED} />
-                        </button>
-                      )}
+                      <button onClick={e => { e.stopPropagation(); setKnowledgeDeleteTarget({ kind:'sop', item:sop }); }} aria-label={`Delete ${sop.title}`} title="Delete"
+                        style={{ width:30, height:30, borderRadius:8, border:'none', background:'rgba(255,59,48,0.08)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                        <Trash2 size={14} color={RED} />
+                      </button>
                       <ChevronDown size={20} color={MUTED} strokeWidth={2} style={{ transform:open?'rotate(180deg)':'none', transition:'transform 200ms' }} />
                     </div>
                   </button>
 
                   {open && (
                     <div style={{ borderTop:`1px solid ${BORDER}` }}>
-                      {isUploaded ? (
-                        /* Document thumbnail — tap to go fullscreen */
-                        <div style={{ padding:'16px 20px 20px' }}>
+                      <div style={{ padding:'16px 20px 20px', display:'flex', flexDirection:'column', gap:12 }}>
+                        {withFile && (
                           <button onClick={e => { e.stopPropagation(); setFullscreenDoc(sop); }}
-                            style={{ width:'100%', background:'none', border:'none', padding:0, cursor:'pointer', display:'block' }}>
-                            <div style={{ position:'relative', borderRadius:12, overflow:'hidden', border:`1px solid ${BORDER}` }}>
-                              {sop.fileType === 'image' ? (
-                                <img src={sop.dataURL} alt={sop.title}
-                                  style={{ width:'100%', display:'block', maxHeight:220, objectFit:'cover', background:CARD2 }} />
-                              ) : (
-                                <iframe src={sop.dataURL} title={sop.title}
-                                  style={{ width:'100%', height:200, border:'none', display:'block', pointerEvents:'none' }}
-                                  tabIndex={-1} />
-                              )}
-                              {/* Tap-to-fullscreen overlay */}
-                              <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.30)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8 }}>
-                                <div style={{ width:52, height:52, borderRadius:'50%', background:'rgba(255,255,255,0.95)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.25)' }}>
-                                  <Eye size={22} color="#111" />
-                                </div>
-                                <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:'white', letterSpacing:'-0.01em' }}>Tap to view full screen</span>
-                              </div>
-                            </div>
+                            style={{ width:'100%', minHeight:120, background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, padding:0, cursor:'pointer', position:'relative', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            <KnowledgeThumb item={sop} Icon={SopIcon} color={MUTED} accent={BLUE} />
+                            <span style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.30)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8 }}>
+                              <span style={{ width:52, height:52, borderRadius:'50%', background:'rgba(255,255,255,0.95)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.25)' }}>
+                                {sop.fileType === 'video' ? <Play size={22} color="#111" /> : <Eye size={22} color="#111" />}
+                              </span>
+                              <span style={{ fontFamily:INTER, fontSize:13, fontWeight:700, color:'white' }}>{sop.fileType === 'video' ? 'Watch the video' : 'Tap to view full screen'}</span>
+                            </span>
                           </button>
-                          <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, padding:'9px 13px', background:CARD2, borderRadius:10 }}>
-                            <Eye size={14} color={MUTED} />
-                            <span style={{ fontFamily:INTER, fontSize:12, color:MUTED, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sop.fileName}</span>
-                          </div>
-                        </div>
-                      ) : (
-                        /* Text content */
-                        <div style={{ padding:'0 20px 20px' }}>
-                          <p style={{ fontFamily:INTER, fontSize:14, color:TEXT, lineHeight:1.8, margin:'16px 0 0', whiteSpace:'pre-line' }}>{sop.content}</p>
-                        </div>
-                      )}
+                        )}
+                        {(sop.body || '').trim() && (
+                          <p style={{ fontFamily:INTER, fontSize:14, color:TEXT, lineHeight:1.8, margin:0, whiteSpace:'pre-wrap', overflowWrap:'anywhere' }}>{sop.body}</p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -3531,7 +3103,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <h2 id="emergency-contacts-title" style={{ fontFamily: INTER, fontSize: isMobile ? 32 : 42, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: '-0.045em', lineHeight:0.95 }}>Emergency Contacts</h2>
                 <p style={{ fontFamily: INTER, fontSize: 15, color: MUTED, margin: '10px 0 0', lineHeight:1.5 }}>Building contact directory for the desk</p>
               </div>
-              <button onClick={() => { setConOpen(false); setShowAddContact(false); }} aria-label="Close emergency contacts"
+              <button onClick={() => { setConOpen(false); setEditingContact(null); }} aria-label="Close emergency contacts"
                 style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${BORDER}`, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                 <X size={19} color={TEXT} />
               </button>
@@ -3539,8 +3111,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
             <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 20px 40px' : '28px 32px 48px', display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-              {/* CTA — full-width incident-style */}
-              <button type="button" aria-expanded={showAddContact} onClick={() => { setNewContactDraft({ label:'', number:'' }); setShowAddContact(s => !s); }}
+              {/* Add contact — manager only */}
+              <button type="button" aria-expanded={!!editingContact && !editingContact.id} onClick={() => setEditingContact(c => (c && !c.id) ? null : {})}
                 style={{ width: '100%', minHeight:64, padding:isPhone?16:20, background:CARD, borderRadius: 16, border:`1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap:12, cursor: 'pointer', boxShadow:SHADOW, textAlign:'left' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   <div style={{ width: 44, height: 44, background:`${BLUE}12`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink:0 }}>
@@ -3548,101 +3120,34 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   </div>
                   <div>
                     <p style={{ fontFamily: INTER, fontSize: '1rem', fontWeight: 700, color:TEXT, letterSpacing: '-0.01em', margin: 0 }}>Add contact</p>
-                    <p style={{ fontSize: 13, color:MUTED, margin:'3px 0 0' }}>Add a trusted building contact</p>
+                    <p style={{ fontSize: 13, color:MUTED, margin:'3px 0 0' }}>Emergency services, staff, vendors, or your own group</p>
                   </div>
                 </div>
-                <ChevronRight size={20} color={MUTED} style={{transform:showAddContact?'rotate(90deg)':'none'}} />
+                <ChevronRight size={20} color={MUTED} style={{transform:editingContact && !editingContact.id?'rotate(90deg)':'none'}} />
               </button>
 
-              {/* Inline add form — drops in below CTA */}
-              {showAddContact && (() => {
-                const canAdd = !!newContactDraft.label.trim() && !!newContactDraft.number.trim();
-                return (
-                  <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20 }}>
-                    {/* Form header */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,59,48,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Phone size={18} color={RED} />
-                        </div>
-                        <p style={{ fontFamily: INTER, fontSize: 15, fontWeight: 700, color: TEXT, margin: 0 }}>New Emergency Contact</p>
-                      </div>
-                      <button onClick={() => { setShowAddContact(false); setNewContactDraft({ label:'', number:'' }); }}
-                        style={{ width: 32, height: 32, borderRadius: 8, background: CARD2, border: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                        <X size={14} color={MUTED} />
-                      </button>
-                    </div>
-                    {/* Inputs */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-                      <label htmlFor="contact-label" style={{fontSize:13,fontWeight:700,color:TEXT}}>Name or role</label>
-                      <input id="contact-label"
-                        value={newContactDraft.label}
-                        onChange={e => setNewContactDraft(d => ({ ...d, label: e.target.value }))}
-                        placeholder="Name or role  e.g. Night Security"
-                        style={{ width: '100%', padding: '14px 16px', background: CARD2, borderRadius: 12, border: newContactDraft.label ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}`, color: TEXT, outline: 'none', fontSize: 16, fontFamily: INTER, boxSizing: 'border-box' }}
-                      />
-                      <label htmlFor="contact-number" style={{fontSize:13,fontWeight:700,color:TEXT}}>Phone number</label>
-                      <input id="contact-number" type="tel"
-                        value={newContactDraft.number}
-                        onChange={e => setNewContactDraft(d => ({ ...d, number: e.target.value }))}
-                        placeholder="Phone number  e.g. (215) 555-0199"
-                        style={{ width: '100%', padding: '14px 16px', background: CARD2, borderRadius: 12, border: newContactDraft.number ? `1.5px solid ${RED}` : `1.5px solid ${BORDER}`, color: TEXT, outline: 'none', fontSize: 16, fontFamily: INTER, boxSizing: 'border-box' }}
-                      />
-                    </div>
-                    {/* Action buttons */}
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <button onClick={() => { setShowAddContact(false); setNewContactDraft({ label:'', number:'' }); }}
-                        style={{ flex: 1, padding: '13px 0', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 600, color: TEXT, cursor: 'pointer' }}>
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (!canAdd) return;
-                          authApi.addContact(newContactDraft.label.trim(), newContactDraft.number.trim())
-                            .then(saved => { setCustomContacts(prev => [...prev, saved]); setNewContactDraft({ label:'', number:'' }); setShowAddContact(false); })
-                            .catch(() => setTaskSuccess('The contact could not be saved. Check your connection and try again.'));
-                        }}
-                        disabled={!canAdd}
-                        style={{ flex: 2, padding: '13px 0', background: canAdd ? RED : CARD2, border: canAdd ? 'none' : `1px solid ${BORDER}`, borderRadius: 12, fontFamily: INTER, fontSize: 14, fontWeight: 700, color: canAdd ? 'white' : MUTED, cursor: canAdd ? 'pointer' : 'not-allowed', boxShadow: canAdd ? '0 8px 24px rgba(255,59,48,0.35)' : 'none' }}>
-                        Add Contact
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
+              {editingContact && (
+                <ContactForm key={editingContact.id || 'new'} initial={editingContact} team={propertyTeam} colors={contactColors}
+                  onCancel={() => setEditingContact(null)}
+                  onSave={async (fields) => {
+                    if (editingContact.id) {
+                      const saved = await authApi.updateContact(editingContact.id, fields);
+                      setCustomContacts(prev => prev.map(x => x.id === saved.id ? saved : x));
+                    } else {
+                      const saved = await authApi.addContact(fields);
+                      setCustomContacts(prev => [...prev, saved]);
+                    }
+                    setEditingContact(null);
+                  }} />
+              )}
 
-              {/* Emergency Numbers section */}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <AlertTriangle size={20} color={RED} />
-                    <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Emergency Numbers</h2>
-                  </div>
-                  <span style={{ width: 32, height: 32, borderRadius: '50%', background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: MUTED, flexShrink: 0 }}>2</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {[
-                    { label: 'Police / Fire / EMS',    number: '911',                                               urgent: true  },
-                    { label: 'Poison Control',          number: '(800) 222-1222',          urgent: false },
-                  ].map(({ label, number, urgent }) => (
-                    <div key={label} style={{ background: CARD, border: `1px solid ${urgent ? `rgba(255,59,48,0.35)` : BORDER}`, borderRadius: 16, padding:isPhone?16:20, display: 'flex', alignItems: 'center', flexWrap:isPhone?'wrap':'nowrap', gap:isPhone?12:16, boxShadow: urgent ? '0 4px 20px rgba(255,59,48,0.08)' : SHADOW }}>
-                      <div style={{ width: 48, height: 48, borderRadius: 14, background: urgent ? 'rgba(255,59,48,0.10)' : CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Phone size={22} color={urgent ? RED : MUTED} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 15, margin: '0 0 2px' }}>{label}</p>
-                        <p style={{ fontFamily: INTER, fontSize: 14, color: MUTED, margin: 0 }}>{number}</p>
-                      </div>
-                      <a aria-label={`Call ${label} at ${number}`} href={`tel:${number.replace(/\D/g, '')}`}
-                        style={{ minHeight:44, padding: '0 18px', background: urgent ? RED : BLUE, color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', flexShrink: 0, display:'inline-flex',alignItems:'center',justifyContent:'center',marginLeft:isPhone?64:0, boxShadow: urgent ? '0 4px 14px rgba(255,59,48,0.22)' : 'none' }}>
-                        Call
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Property Team section */}
+              <ContactGroups contacts={customContacts} colors={contactColors} isPhone={isPhone}
+                onEdit={c => setEditingContact(c)}
+                onDelete={async c => {
+                  try { await authApi.deleteContact(c.id); setCustomContacts(prev => prev.filter(x => x.id !== c.id)); }
+                  catch { setTaskSuccess('The contact could not be deleted. Check your connection and try again.'); }
+                }}
+                afterEmergency={
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3694,37 +3199,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   })}
                 </div>
               </div>
-
-              {/* Custom contacts */}
-              {customContacts.length > 0 && (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <Star size={20} color={ORANGE} />
-                    <h2 style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 17, margin: 0 }}>Property Contacts</h2>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {customContacts.map(c => (
-                      <div key={c.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20, display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                        <div style={{ width: 48, height: 48, borderRadius: 14, background: `${ORANGE}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Phone size={22} color={ORANGE} />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontFamily: INTER, fontWeight: 700, color: TEXT, fontSize: 15, margin: '0 0 2px' }}>{c.label}</p>
-                          <p style={{ fontFamily: INTER, fontSize: 14, color: MUTED, margin: 0 }}>{c.number}</p>
-                        </div>
-                        <a href={`tel:${c.number.replace(/\D/g,'')}`}
-                          style={{ padding: '10px 18px', background: BLUE, color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', flexShrink: 0, boxShadow: '0 4px 14px rgba(255,56,92,0.28)' }}>
-                          Call
-                        </a>
-                        <button aria-label={`Remove ${c.label}`} onClick={() => authApi.deleteContact(c.id).then(() => setCustomContacts(prev => prev.filter(x => x.id !== c.id))).catch(() => {})}
-                          style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${BORDER}`, background: CARD2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                          <X size={14} color={MUTED} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                } />
 
             </div>
           </motion.div>
@@ -3922,84 +3397,44 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       </AnimatePresence>
 
       {/* ── Fullscreen document viewer ────────────────────────────────────────── */}
-      {fullscreenDoc && (
-        <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.96)', display:'flex', flexDirection:'column' }}
-          onClick={() => setFullscreenDoc(null)}>
+      {fullscreenDoc && <KnowledgeViewer item={fullscreenDoc} onClose={() => setFullscreenDoc(null)} font={INTER} />}
+      {fullscreenTraining && <KnowledgeViewer item={fullscreenTraining} onClose={() => setFullscreenTraining(null)} font={INTER} />}
 
-          {/* Header bar */}
-          <div style={{ flexShrink:0, display:'flex', alignItems:'center', gap:14, padding:'14px 20px', background:'rgba(0,0,0,0.7)', backdropFilter:'blur(10px)' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.45)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:2 }}>{fullscreenDoc.category}</div>
-              <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', lineHeight:1.2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{fullscreenDoc.title}</div>
+      {/* ── Confirm delete of an SOP or training item ── */}
+      {knowledgeDeleteTarget && (
+        <div role="dialog" aria-modal="true" aria-labelledby="delete-knowledge-title"
+          onClick={() => { if (!knowledgeDeleteBusy) setKnowledgeDeleteTarget(null); }}
+          onKeyDown={e => { if (e.key === 'Escape' && !knowledgeDeleteBusy) setKnowledgeDeleteTarget(null); }}
+          style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.45)', display:'grid', placeItems:'center', padding:20, fontFamily:INTER }}>
+          <div onClick={e => e.stopPropagation()} style={{ width:'100%', maxWidth:400, background:CARD, border:`1px solid ${BORDER}`, borderRadius:20, padding:24, boxShadow:'0 24px 60px rgba(0,0,0,0.25)' }}>
+            <div style={{ width:48, height:48, borderRadius:14, background:`${RED}12`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:14 }}>
+              <Trash2 size={22} color={RED} />
             </div>
-            <button onClick={() => setFullscreenDoc(null)}
-              style={{ width:40, height:40, borderRadius:12, background:'rgba(255,255,255,0.12)', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
-              <X size={20} color="white" />
-            </button>
-          </div>
-
-          {/* Document */}
-          <div style={{ flex:1, minHeight:0, display:'flex', alignItems:'center', justifyContent:'center', padding:'12px', overflowY:'auto' }}
-            onClick={e => e.stopPropagation()}>
-            {fullscreenDoc.fileType === 'image' ? (
-              <img src={fullscreenDoc.dataURL} alt={fullscreenDoc.title}
-                style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', borderRadius:8, display:'block' }} />
-            ) : (
-              <iframe src={fullscreenDoc.dataURL} title={fullscreenDoc.title}
-                style={{ width:'100%', height:'100%', border:'none', borderRadius:8, display:'block', background:'white' }} />
-            )}
-          </div>
-
-          {/* Footer */}
-          <div style={{ flexShrink:0, padding:'12px 20px 24px', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}
-            onClick={e => e.stopPropagation()}>
-            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:280 }}>{fullscreenDoc.fileName}</span>
-            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.20)' }}>·</span>
-            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)' }}>Tap outside to close</span>
-          </div>
-        </div>
-      )}
-
-      {/* ── Fullscreen training viewer ───────────────────────────────────────── */}
-      {fullscreenTraining && (
-        <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.96)', display:'flex', flexDirection:'column' }}
-          onClick={() => setFullscreenTraining(null)}>
-
-          {/* Header bar */}
-          <div style={{ flexShrink:0, display:'flex', alignItems:'center', gap:14, padding:'14px 20px', background:'rgba(0,0,0,0.7)', backdropFilter:'blur(10px)' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontFamily:INTER, fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.45)', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:2 }}>{fullscreenTraining.category}</div>
-              <div style={{ fontFamily:INTER, fontSize:16, fontWeight:700, color:'white', lineHeight:1.2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{fullscreenTraining.title}</div>
+            <h2 id="delete-knowledge-title" style={{ fontSize:18, fontWeight:800, color:TEXT, margin:'0 0 8px' }}>Delete “{knowledgeDeleteTarget.item.title}”?</h2>
+            <p style={{ fontSize:14, lineHeight:1.6, color:MUTED, margin:0 }}>
+              The desk will no longer see this {knowledgeDeleteTarget.kind === 'sop' ? 'SOP' : 'training'}, and any video or file attached to it is removed. This cannot be undone.
+            </p>
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button type="button" autoFocus disabled={knowledgeDeleteBusy} onClick={() => setKnowledgeDeleteTarget(null)}
+                style={{ flex:1, padding:'12px 16px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:12, cursor:'pointer', fontFamily:INTER, fontSize:14, fontWeight:700, color:TEXT }}>
+                Cancel
+              </button>
+              <button type="button" disabled={knowledgeDeleteBusy} onClick={async () => {
+                const { kind, item } = knowledgeDeleteTarget;
+                setKnowledgeDeleteBusy(true);
+                try {
+                  await deleteKnowledgeItem(kind, item.id);
+                  if (expandedSOPId === item.id) setExpandedSOPId(null);
+                  setKnowledgeDeleteTarget(null);
+                } catch {
+                  setTaskSuccess('That could not be deleted. Check your connection and try again.');
+                  setKnowledgeDeleteTarget(null);
+                } finally { setKnowledgeDeleteBusy(false); }
+              }}
+                style={{ flex:1, padding:'12px 16px', background:RED, border:'none', borderRadius:12, cursor:knowledgeDeleteBusy?'default':'pointer', opacity:knowledgeDeleteBusy?0.7:1, fontFamily:INTER, fontSize:14, fontWeight:700, color:'white' }}>
+                {knowledgeDeleteBusy ? 'Deleting...' : 'Delete'}
+              </button>
             </div>
-            <button onClick={() => setFullscreenTraining(null)}
-              style={{ width:40, height:40, borderRadius:12, background:'rgba(255,255,255,0.12)', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
-              <X size={20} color="white" />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div style={{ flex:1, minHeight:0, display:'flex', alignItems:'center', justifyContent:'center', padding:'12px', overflowY:'auto' }}
-            onClick={e => e.stopPropagation()}>
-            {fullscreenTraining.fileType === 'image' ? (
-              <img src={fullscreenTraining.dataURL} alt={fullscreenTraining.title}
-                style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', borderRadius:8, display:'block' }} />
-            ) : fullscreenTraining.fileType === 'video' ? (
-              <video src={fullscreenTraining.dataURL} controls autoPlay
-                style={{ maxWidth:'100%', maxHeight:'100%', borderRadius:8, display:'block', outline:'none' }} />
-            ) : (
-              <iframe src={fullscreenTraining.dataURL} title={fullscreenTraining.title}
-                style={{ width:'100%', height:'100%', border:'none', borderRadius:8, display:'block', background:'white' }} />
-            )}
-          </div>
-
-          {/* Footer */}
-          <div style={{ flexShrink:0, padding:'12px 20px 24px', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}
-            onClick={e => e.stopPropagation()}>
-            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:280 }}>{fullscreenTraining.fileName}</span>
-            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.20)' }}>·</span>
-            <span style={{ fontFamily:INTER, fontSize:12, color:'rgba(255,255,255,0.35)' }}>Tap outside to close</span>
           </div>
         </div>
       )}

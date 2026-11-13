@@ -146,3 +146,41 @@ async def test_profile_edits_are_saved(client):
     assert (await client.post('/api/auth/manager/signup', json={
         'first_name': 'A', 'last_name': 'B', 'email': 'not-an-email', 'phone': '1', 'job_title': 'GM', 'property_name': 'X',
         'address': '1', 'city': 'C', 'state': 'NY', 'units': 1, 'password': 'ManagerPass1'})).status_code == 400
+
+
+async def test_manager_writes_edits_and_deletes_sops_and_training_with_files(client, server):
+    manager = await _signup(client)
+    sam, _ = await _concierge(client, manager, 'sam@example.com')
+
+    # Written steps alone are enough for an SOP.
+    sop = {'kind': 'sop', 'title': 'Reserve the elevator', 'category': 'Move-In / Move-Out', 'body': '1. Check the calendar.\n2. Book the slot.'}
+    assert (await client.put('/api/knowledge/sop-1', headers=manager, json=sop)).status_code == 200
+    assert (await client.put('/api/knowledge/sop-2', headers=manager, json={**sop, 'body': ''})).status_code == 400
+
+    # A training item saved first, then a recorded video uploaded to it.
+    training = {'kind': 'training', 'title': 'Elevator walkthrough', 'category': 'Building Systems', 'file_to_follow': True}
+    assert (await client.put('/api/knowledge/tr-1', headers=manager, json=training)).status_code == 200
+    video = b'\x1aE\xdf\xa3' + b'v' * (5 * 1024 * 1024)   # bigger than one stored chunk
+    files = {'file': ('elevator.webm', video, 'video/webm')}
+    assert (await client.post('/api/knowledge/tr-1/file', headers=sam, files=files)).status_code == 403
+    up = await client.post('/api/knowledge/tr-1/file', headers=manager, files=files)
+    assert up.status_code == 200, up.text
+    assert up.json()['fileType'] == 'video' and up.json()['hasFile'] and up.json()['fileSize'] == len(video)
+
+    got = await client.get('/api/knowledge/tr-1/file', headers=sam)
+    assert got.status_code == 200 and got.content == video and got.headers['content-type'].startswith('video/webm')
+
+    # Editing the title keeps the video; replacing the file drops the old one.
+    edit = await client.put('/api/knowledge/tr-1', headers=manager, json={**training, 'title': 'Elevator booking', 'file_to_follow': False})
+    assert edit.status_code == 200 and edit.json()['hasFile'] and edit.json()['title'] == 'Elevator booking'
+    old_file = edit.json()['fileId']
+    await client.post('/api/knowledge/tr-1/file', headers=manager, files={'file': ('guide.pdf', b'%PDF-1.4 x', 'application/pdf')})
+    assert await server.db.knowledge_files.count_documents({'file_id': old_file}) == 0
+    seen = {i['id']: i for i in (await client.get('/api/knowledge', headers=sam)).json()['items']}
+    assert seen['tr-1']['fileType'] == 'pdf' and seen['sop-1']['body'].startswith('1. Check')
+
+    # Deleting an item removes its stored file too.
+    assert (await client.delete('/api/knowledge/tr-1', headers=sam)).status_code == 403
+    assert (await client.delete('/api/knowledge/tr-1', headers=manager)).status_code == 200
+    assert await server.db.knowledge_files.count_documents({}) == 0
+    assert (await client.get('/api/knowledge/tr-1/file', headers=sam)).status_code == 404

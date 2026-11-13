@@ -71,6 +71,7 @@ async def _ensure_indexes():
     await db.rate_limit_events.create_index('key',                      background=True)
     await db.rate_limit_events.create_index('created_at', expireAfterSeconds=900, background=True)
     await db.knowledge.create_index([('manager_id', 1), ('kind', 1)],     background=True)
+    await db.knowledge_files.create_index([('file_id', 1), ('n', 1)],     background=True)
     await db.desk_state.create_index([('manager_id', 1), ('section', 1)], unique=True, background=True)
     logger.info('MongoDB indexes ensured.')
 

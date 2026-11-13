@@ -27,3 +27,24 @@ async def test_manager_contacts_reach_the_desk_and_only_the_manager_can_change_t
     assert (await client.delete(f'/api/contacts/{contact_id}', headers=desk)).status_code == 403
     assert (await client.delete(f'/api/contacts/{contact_id}', headers=manager)).status_code == 200
     assert (await client.get('/api/contacts', headers=desk)).json()['contacts'] == []
+
+
+async def test_manager_files_contacts_under_a_group_and_can_edit_them(client):
+    manager = await _signup(client)
+    made = await client.post('/api/contacts', headers=manager, json={
+        'label': 'Jordan Miles', 'number': '555-0144', 'category': 'Staff', 'role': 'Maintenance lead'})
+    assert made.status_code == 200, made.text
+    assert made.json()['category'] == 'Staff' and made.json()['role'] == 'Maintenance lead'
+    custom = await client.post('/api/contacts', headers=manager, json={'label': 'Otis', 'number': '555-0190', 'category': 'Elevator company'})
+    assert custom.json()['category'] == 'Elevator company'
+    # Contacts saved before groups existed read as building contacts.
+    plain = await client.post('/api/contacts', headers=manager, json={'label': 'Locksmith', 'number': '555-0191'})
+    assert plain.json()['category'] == 'Building & vendors'
+
+    contact_id = made.json()['contact_id']
+    edited = await client.put(f'/api/contacts/{contact_id}', headers=manager, json={
+        'label': 'Jordan Miles', 'number': '555-0145', 'category': 'Emergency services', 'role': ''})
+    assert edited.status_code == 200 and edited.json()['number'] == '555-0145' and edited.json()['category'] == 'Emergency services'
+    assert (await client.put('/api/contacts/ct_missing', headers=manager, json={'label': 'X', 'number': '555'})).status_code == 404
+    listed = {c['label']: c for c in (await client.get('/api/contacts', headers=manager)).json()['contacts']}
+    assert listed['Jordan Miles']['number'] == '555-0145'
