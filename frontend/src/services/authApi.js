@@ -32,7 +32,7 @@ function saveToken(data) {
 
 const fmtTs = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
-function normalizeTask(t) {
+export function normalizeTask(t) {
   return {
     id:              t.task_id,
     task_id:         t.task_id,
@@ -47,6 +47,8 @@ function normalizeTask(t) {
     createdAt:       fmtTs(t.created_at),
     completedAt:     fmtTs(t.completed_at),
     completedByName: t.completed_by_name || '',
+    declinedAt:      fmtTs(t.declined_at),
+    declinedByName:  t.declined_by_name || '',
     createdBy:       t.created_by_name || '',
     createdByType:   t.created_by_type || 'concierge',
     sourceSection:   t.source_section || '',
@@ -56,7 +58,7 @@ function normalizeTask(t) {
   };
 }
 
-function normalizeIncident(i) {
+export function normalizeIncident(i) {
   return {
     id:              i.incident_id,
     incident_id:     i.incident_id,
@@ -72,6 +74,8 @@ function normalizeIncident(i) {
     person_involved: i.person_involved || '',
     evidenceUrls:    Array.isArray(i.evidence_urls) ? i.evidence_urls : [],
     createdAtMs:     i.created_at ? new Date(i.created_at).getTime() : 0,
+    shiftId:         i.shift_id || '',
+    resolvedAt:      fmtTs(i.resolved_at),
   };
 }
 
@@ -91,7 +95,8 @@ function normalizeConcierge(c) {
     phone:        c.phone || '',
     email:        c.email || '',
     sectionAccess: c.section_access || {},
-    shifts:       0,
+    shifts:       c.shift_count || 0,
+    onShiftSince: c.on_shift_since ? new Date(c.on_shift_since).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
     rating:       null,
     since:        c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : null,
   };
@@ -277,6 +282,7 @@ export const authApi = {
       assigned_to_id: form.toId || null,
       due_time:       form.dueTime || 'ASAP',
       source_section: form.sourceSection || null,
+      evidence_urls:  (form.evidenceUrls || []).filter(url => typeof url === 'string' && url),
     });
     return normalizeTask(data);
   },
@@ -432,6 +438,29 @@ export const authApi = {
     });
     return es;
   },
+
+  // SOPs and training: uploaded by the manager, read by the desk
+  async getKnowledge() {
+    const { data } = await api.get('/knowledge');
+    return data.items || [];
+  },
+  async saveKnowledge(kind, item) {
+    const { data } = await api.put(`/knowledge/${encodeURIComponent(item.id)}`, {
+      kind, title: item.title || item.fileName || 'Untitled', category: item.category || '',
+      file_name: item.fileName || '', file_type: item.fileType || '', data_url: item.dataURL || '',
+    });
+    return data;
+  },
+  async setKnowledgeStatus(id, status) { await api.put(`/knowledge/${encodeURIComponent(id)}/status`, { status }); },
+  async deleteKnowledge(id) { await api.delete(`/knowledge/${encodeURIComponent(id)}`); },
+  async setTrainingCompleted(id, completed) { await api.put(`/knowledge/${encodeURIComponent(id)}/completed`, { completed }); },
+
+  // Desk state: what is on site right now (packages on hand, guests in the lobby, …)
+  async getDeskState() {
+    const { data } = await api.get('/desk-state');
+    return data.sections || {};
+  },
+  async saveDeskState(section, value) { await api.put(`/desk-state/${section}`, { data: value }); },
 
   // Incidents
   async getIncidents() {

@@ -1,18 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Phone, Mail, Building2, Users, ChevronRight, FileText, MapPin, CalendarCheck, Monitor, Home, Star, HelpCircle, Check, Maximize2, LayoutGrid, X } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useDeskState } from '../lib/useDeskState';
 import MicButton from './MicButton';
 
 const GREEN  = '#34C759';
 const BLUE   = '#FF385C';
 const ORANGE = '#FF9500';
 
-export const LEASING_AGENTS = [
-  { id: 'sarah',  name: 'Sarah Mitchell', title: 'Leasing Consultant',     initials: 'SM', color: BLUE   },
-  { id: 'david',  name: 'David Chen',     title: 'Leasing Consultant',     initials: 'DC', color: '#8B5CF6' },
-  { id: 'priya',  name: 'Priya Sharma',   title: 'Sr. Leasing Consultant', initials: 'PS', color: ORANGE },
-  { id: 'marcus', name: 'Marcus Johnson', title: 'Leasing Manager',        initials: 'MJ', color: GREEN  },
-];
+const AGENT_COLORS = [BLUE, '#8B5CF6', ORANGE, GREEN];
+const initialsOf = name => String(name || '').trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() || '?';
 
 const UNIT_TYPE_CONFIG = [
   { id: 'Studio',         Icon: Maximize2,  desc: 'Open-concept, all-in-one layout'          },
@@ -114,20 +111,29 @@ export const ToursDashboard = ({ onActivityLogged, onWorkflowChange, propertyNam
   const { colors } = useTheme();
   const { BG, CARD, CARD2, TEXT, MUTED, BORDER, SHADOW, INTER } = colors;
   const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
-  const [tours, setTours] = useState([]);
+  const [tours, setTours] = useDeskState('tours', 'tours', []);
+  // The leasing contacts this desk hands tours to. The list builds itself from
+  // the names entered when a tour is logged.
+  const [savedAgents, setSavedAgents] = useDeskState('tours', 'agents', []);
+  const LEASING_AGENTS = savedAgents.map((agent, index) => ({ ...agent, title: agent.title || 'Leasing contact', initials: initialsOf(agent.name), color: AGENT_COLORS[index % AGENT_COLORS.length] }));
   const [view,  setView]  = useState('main');
   const [tourTab, setTourTab] = useState('team');
   const [tStep, setTStep] = useState(1);
-  const [tForm, setTF]    = useState({ visitorName: '', phone: '', email: '', unitType: '', source: '', agentId: '', notes: '' });
+  const [tForm, setTF]    = useState({ visitorName: '', phone: '', email: '', unitType: '', source: '', agentId: '', agentName: '', notes: '' });
 
   const changeView = nextView => { onWorkflowChange?.(nextView !== 'main'); setView(nextView); };
   useEffect(() => { onWorkflowChange?.(view !== 'main'); return () => onWorkflowChange?.(false); }, [view, onWorkflowChange]);
-  const goBack = () => { changeView('main'); setTF({ visitorName: '', phone: '', email: '', unitType: '', source: '', agentId: '', notes: '' }); setTStep(1); };
+  const goBack = () => { changeView('main'); setTF({ visitorName: '', phone: '', email: '', unitType: '', source: '', agentId: '', agentName: '', notes: '' }); setTStep(1); };
 
   const submitTour = () => {
-    if (!tForm.visitorName || !tForm.agentId) return;
-    const agent = LEASING_AGENTS.find(a => a.id === tForm.agentId);
-    setTours(p => [{ ...tForm, id: Date.now(), time: now(), agent }, ...p]);
+    const typedName = (tForm.agentName || '').trim();
+    if (!tForm.visitorName || (!tForm.agentId && !typedName)) return;
+    let agent = LEASING_AGENTS.find(a => a.id === tForm.agentId) || LEASING_AGENTS.find(a => a.name.toLowerCase() === typedName.toLowerCase());
+    if (!agent) {
+      agent = { id: `agent-${Date.now()}`, name: typedName, title: 'Leasing contact', initials: initialsOf(typedName), color: AGENT_COLORS[savedAgents.length % AGENT_COLORS.length] };
+      setSavedAgents(list => [...list, { id: agent.id, name: agent.name, title: agent.title }]);
+    }
+    setTours(p => [{ ...tForm, agentId: agent.id, id: Date.now(), time: now(), agent: { id: agent.id, name: agent.name, title: agent.title, initials: agent.initials, color: agent.color } }, ...p]);
     const tourNotes = [agent?.name ? `${agent.name} conducted the tour` : '', tForm.source ? `The prospect source was ${tForm.source.toLowerCase()}` : '', tForm.notes.trim()].filter(Boolean).join('. ');
     onActivityLogged?.({ title: `Tour · ${tForm.visitorName}${tForm.unitType ? ` · ${tForm.unitType}` : ''}`, category: 'Resident Assist', notes: tourNotes });
     goBack();
@@ -209,11 +215,18 @@ export const ToursDashboard = ({ onActivityLogged, onWorkflowChange, propertyNam
         <div style={{ flex:1,minHeight:0,overflowY:'auto',padding:isPhone?18:'24px 28px',display:'flex',flexDirection:'column',gap:18 }}>
           <div><div style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:BLUE,letterSpacing:'.16em',textTransform:'uppercase',marginBottom:6}}>04 · Ownership</div><h2 style={{fontFamily:INTER,fontSize:20,fontWeight:800,color:TEXT,letterSpacing:'-.03em',margin:'0 0 5px'}}>Who handled the visit?</h2><p style={{fontFamily:INTER,fontSize:12,color:MUTED,margin:0}}>Select the leasing agent required for the completed record.</p></div>
 
+          <div style={{ background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:isPhone?16:20,boxShadow:SHADOW }}>
+            <Label>{LEASING_AGENTS.length ? 'Someone new? Type their name' : 'Name of the person who handled the tour'}</Label>
+            <input data-testid="tour-agent-name" value={tForm.agentName} onChange={e => setTF(p => ({ ...p, agentName: e.target.value, agentId: '' }))} placeholder="Example: Jordan Lee, leasing office"
+              style={{ width:'100%',minHeight:48,padding:'12px 14px',borderRadius:12,border:`1.5px solid ${tForm.agentName?BLUE:BORDER}`,fontFamily:INTER,fontSize:16,color:TEXT,background:CARD2,outline:'none',boxSizing:'border-box' }} />
+            <p style={{ fontFamily:INTER,fontSize:11,color:MUTED,margin:'8px 0 0',lineHeight:1.5 }}>New names are saved to your leasing team so you can pick them next time.</p>
+          </div>
+
           <div style={{ display:'grid',gridTemplateColumns:isPhone?'1fr':'repeat(2,minmax(0,1fr))',gap:9 }}>
             {LEASING_AGENTS.map(agent => {
               const sel = tForm.agentId === agent.id;
               return (
-                <button key={agent.id} onClick={() => setTF(p => ({ ...p, agentId: agent.id }))}
+                <button key={agent.id} onClick={() => setTF(p => ({ ...p, agentId: agent.id, agentName: '' }))}
                   style={{ minHeight:84,display:'grid',gridTemplateColumns:'40px 1fr 22px',alignItems:'center',gap:11,padding:13,background:sel?'rgba(255,56,92,.045)':CARD,border:`1.5px solid ${sel?BLUE:BORDER}`,borderRadius:14,cursor:'pointer',textAlign:'left',width:'100%',boxShadow:sel?'0 5px 18px rgba(255,56,92,.10)':SHADOW,transition:'all 150ms' }}>
                   <div style={{ width:40,height:40,borderRadius:'50%',background:`${agent.color}18`,border:`2px solid ${sel?agent.color:`${agent.color}35`}`,display:'flex',alignItems:'center',justifyContent:'center' }}>
                     <span style={{ fontFamily:INTER,fontSize:13,fontWeight:800,color:agent.color }}>{agent.initials}</span>
@@ -241,7 +254,7 @@ export const ToursDashboard = ({ onActivityLogged, onWorkflowChange, propertyNam
             </div>
           </div>
         </div>
-        <WizardFooter onBack={() => setTStep(3)} onContinue={submitTour} continueLabel="Log Tour" continueDisabled={!tForm.agentId} />
+        <WizardFooter onBack={() => setTStep(3)} onContinue={submitTour} continueLabel="Log Tour" continueDisabled={!tForm.agentId && !(tForm.agentName || '').trim()} />
       </div>
     );
   }
@@ -253,7 +266,7 @@ export const ToursDashboard = ({ onActivityLogged, onWorkflowChange, propertyNam
       <nav aria-label="Tour views" style={{ flexShrink:0,padding:isPhone?'14px 18px 0':'16px 28px 0' }}><div style={{display:'flex',padding:4,background:CARD2,border:`1px solid ${BORDER}`,borderRadius:14}}>{[{id:'team',label:'Leasing team',count:LEASING_AGENTS.length},{id:'tours',label:"Today's tours",count:tours.length}].map(tab=>{const active=tourTab===tab.id;return <button key={tab.id} onClick={()=>setTourTab(tab.id)} aria-current={active?'page':undefined} style={{flex:1,minHeight:42,borderRadius:11,border:active?`1px solid ${BORDER}`:'1px solid transparent',background:active?CARD:'transparent',boxShadow:active?'0 2px 8px rgba(0,0,0,.07)':'none',color:active?TEXT:MUTED,fontFamily:INTER,fontSize:12,fontWeight:750,cursor:'pointer',transition:'all 160ms'}}>{tab.label}<span style={{color:active?BLUE:MUTED,fontSize:9,marginLeft:6}}>{tab.count}</span></button>})}</div></nav>
       <main style={{ flex:1,minHeight:0,overflowY:'auto',padding:isPhone?18:'20px 28px 30px',display:'grid',alignContent:'start',gap:20 }}>
         <button onClick={()=>changeView('form')} style={{width:'100%',minHeight:64,padding:'12px 16px',background:BLUE,borderRadius:16,border:'none',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',boxShadow:`0 7px 22px ${BLUE}28`}}><span style={{display:'flex',alignItems:'center',gap:12}}><span style={{width:38,height:38,background:'rgba(255,255,255,.17)',borderRadius:11,display:'flex',alignItems:'center',justifyContent:'center'}}><Plus size={20} color="white"/></span><span style={{textAlign:'left'}}><strong style={{display:'block',fontFamily:INTER,fontSize:14,color:'white'}}>Log a tour</strong><span style={{display:'block',fontFamily:INTER,fontSize:11,color:'rgba(255,255,255,.72)',marginTop:3}}>Create a prospect visit record</span></span></span><ChevronRight size={18} color="rgba(255,255,255,.75)"/></button>
-        {tourTab==='team' ? <section><SectionTitle Icon={Users} title="Leasing team" count={LEASING_AGENTS.length} colors={{CARD2,TEXT,MUTED,INTER}}/><div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,boxShadow:SHADOW,overflow:'hidden'}}>{LEASING_AGENTS.map((agent,index)=>{const count=tours.filter(t=>t.agentId===agent.id).length;return <div key={agent.id} style={{minHeight:66,padding:'10px 14px',display:'grid',gridTemplateColumns:'42px 1fr auto',alignItems:'center',gap:12,borderBottom:index<LEASING_AGENTS.length-1?`1px solid ${BORDER}`:'none'}}><span style={{width:42,height:42,borderRadius:'50%',background:`${agent.color}16`,border:`2px solid ${agent.color}38`,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:INTER,fontSize:13,fontWeight:800,color:agent.color}}>{agent.initials}</span><span><strong style={{display:'block',fontFamily:INTER,fontSize:13,fontWeight:750,color:TEXT}}>{agent.name}</strong><span style={{display:'block',fontFamily:INTER,fontSize:10,color:MUTED,marginTop:3}}>{agent.title}</span></span><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:count?BLUE:MUTED,background:count?'rgba(255,56,92,.1)':CARD2,borderRadius:999,padding:'5px 8px',textTransform:'uppercase',letterSpacing:'.06em'}}>{count?`${count} tour${count>1?'s':''}`:'On duty'}</span></div>})}</div></section> : <section><SectionTitle Icon={FileText} title="Today's tours" count={tours.length} colors={{CARD2,TEXT,MUTED,INTER}}/>{tours.length===0?<div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:'36px 20px',textAlign:'center',boxShadow:SHADOW}}><div style={{width:50,height:50,borderRadius:14,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px'}}><Users size={22} color={MUTED}/></div><p style={{fontFamily:INTER,fontSize:15,fontWeight:800,color:TEXT,margin:'0 0 4px'}}>No tours logged yet</p><p style={{fontFamily:INTER,fontSize:12,color:MUTED,margin:0}}>New visit records will appear here.</p></div>:<div style={{display:'grid',gap:9}}>{tours.map(t=><article key={t.id} style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:16,boxShadow:SHADOW}}><div style={{display:'grid',gridTemplateColumns:'42px 1fr auto',gap:12,alignItems:'start'}}><span style={{width:42,height:42,borderRadius:12,background:`${t.agent?.color||BLUE}14`,display:'flex',alignItems:'center',justifyContent:'center'}}><Users size={18} color={t.agent?.color||BLUE}/></span><div><p style={{fontFamily:INTER,fontSize:14,fontWeight:800,color:TEXT,margin:'0 0 4px'}}>{t.visitorName}</p><p style={{fontFamily:INTER,fontSize:11,color:MUTED,margin:0}}>{t.agent?.name}{t.unitType?` · ${t.unitType}`:''}{t.source?` · ${t.source}`:''}</p></div><span style={{fontFamily:INTER,fontSize:10,color:MUTED}}>{t.time}</span></div>{(t.phone||t.email||t.notes)&&<div style={{marginTop:12,paddingTop:11,borderTop:`1px solid ${BORDER}`,display:'flex',gap:12,flexWrap:'wrap'}}>{t.phone&&<span style={{fontFamily:INTER,fontSize:10,color:MUTED}}><Phone size={10}/> {t.phone}</span>}{t.email&&<span style={{fontFamily:INTER,fontSize:10,color:MUTED}}><Mail size={10}/> {t.email}</span>}{t.notes&&<span style={{width:'100%',fontFamily:INTER,fontSize:11,color:MUTED,lineHeight:1.45}}>{t.notes}</span>}</div>}</article>)}</div>}</section>}
+        {tourTab==='team' ? <section><SectionTitle Icon={Users} title="Leasing team" count={LEASING_AGENTS.length} colors={{CARD2,TEXT,MUTED,INTER}}/>{LEASING_AGENTS.length===0 ? <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,boxShadow:SHADOW,padding:'30px 20px',textAlign:'center'}}><strong style={{display:'block',fontFamily:INTER,fontSize:15,color:TEXT}}>No leasing contacts yet</strong><span style={{display:'block',fontFamily:INTER,fontSize:12,color:MUTED,marginTop:6,lineHeight:1.55}}>Log a tour and name who handled it. They are saved here so the desk can pick them next time.</span></div> : <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,boxShadow:SHADOW,overflow:'hidden'}}>{LEASING_AGENTS.map((agent,index)=>{const count=tours.filter(t=>t.agentId===agent.id).length;return <div key={agent.id} style={{minHeight:66,padding:'10px 14px',display:'grid',gridTemplateColumns:'42px 1fr auto',alignItems:'center',gap:12,borderBottom:index<LEASING_AGENTS.length-1?`1px solid ${BORDER}`:'none'}}><span style={{width:42,height:42,borderRadius:'50%',background:`${agent.color}16`,border:`2px solid ${agent.color}38`,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:INTER,fontSize:13,fontWeight:800,color:agent.color}}>{agent.initials}</span><span><strong style={{display:'block',fontFamily:INTER,fontSize:13,fontWeight:750,color:TEXT}}>{agent.name}</strong><span style={{display:'block',fontFamily:INTER,fontSize:10,color:MUTED,marginTop:3}}>{agent.title}</span></span><span style={{fontFamily:INTER,fontSize:9,fontWeight:800,color:count?BLUE:MUTED,background:count?'rgba(255,56,92,.1)':CARD2,borderRadius:999,padding:'5px 8px',textTransform:'uppercase',letterSpacing:'.06em'}}>{count?`${count} tour${count>1?'s':''}`:'No tours yet'}</span></div>})}</div>}</section> : <section><SectionTitle Icon={FileText} title="Today's tours" count={tours.length} colors={{CARD2,TEXT,MUTED,INTER}}/>{tours.length===0?<div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:'36px 20px',textAlign:'center',boxShadow:SHADOW}}><div style={{width:50,height:50,borderRadius:14,background:CARD2,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px'}}><Users size={22} color={MUTED}/></div><p style={{fontFamily:INTER,fontSize:15,fontWeight:800,color:TEXT,margin:'0 0 4px'}}>No tours logged yet</p><p style={{fontFamily:INTER,fontSize:12,color:MUTED,margin:0}}>New visit records will appear here.</p></div>:<div style={{display:'grid',gap:9}}>{tours.map(t=><article key={t.id} style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:16,padding:16,boxShadow:SHADOW}}><div style={{display:'grid',gridTemplateColumns:'42px 1fr auto',gap:12,alignItems:'start'}}><span style={{width:42,height:42,borderRadius:12,background:`${t.agent?.color||BLUE}14`,display:'flex',alignItems:'center',justifyContent:'center'}}><Users size={18} color={t.agent?.color||BLUE}/></span><div><p style={{fontFamily:INTER,fontSize:14,fontWeight:800,color:TEXT,margin:'0 0 4px'}}>{t.visitorName}</p><p style={{fontFamily:INTER,fontSize:11,color:MUTED,margin:0}}>{t.agent?.name}{t.unitType?` · ${t.unitType}`:''}{t.source?` · ${t.source}`:''}</p></div><span style={{fontFamily:INTER,fontSize:10,color:MUTED}}>{t.time}</span></div>{(t.phone||t.email||t.notes)&&<div style={{marginTop:12,paddingTop:11,borderTop:`1px solid ${BORDER}`,display:'flex',gap:12,flexWrap:'wrap'}}>{t.phone&&<span style={{fontFamily:INTER,fontSize:10,color:MUTED}}><Phone size={10}/> {t.phone}</span>}{t.email&&<span style={{fontFamily:INTER,fontSize:10,color:MUTED}}><Mail size={10}/> {t.email}</span>}{t.notes&&<span style={{width:'100%',fontFamily:INTER,fontSize:11,color:MUTED,lineHeight:1.45}}>{t.notes}</span>}</div>}</article>)}</div>}</section>}
       </main>
     </div>
   );

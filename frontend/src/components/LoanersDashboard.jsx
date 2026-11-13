@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useDeskState } from '../lib/useDeskState';
 import { ShoppingCart, Archive, Key, Flame, AlertTriangle, Check, FileText, ChevronRight, RotateCcw, Camera, X, ClipboardCheck } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { SignaturePad } from './SignaturePad';
@@ -47,7 +48,9 @@ function FieldLabel({ children, optional }) {
 
 export const LoanersDashboard = ({ onActivityLogged, propertyName='', onClose, isPhone=false }) => {
   const { colors:{ BG,CARD,CARD2,TEXT,MUTED,BORDER,SHADOW,INTER } } = useTheme();
-  const [loaners,setLoaners]=useState(LOANER_INIT);
+  const [outMap,setOutMap]=useDeskState('loaners','out',{});
+  const loaners=LOANER_INIT.map(item=>outMap[item.id]?{...item,checkedOut:true,...outMap[item.id]}:item);
+  const setLoaners=change=>{const next=change(loaners);setOutMap(Object.fromEntries(next.filter(item=>item.checkedOut).map(item=>[item.id,{resident:item.resident,unit:item.unit,checkoutTime:item.checkoutTime}])));};
   const [subTab,setSubTab]=useState('items');
   const [view,setView]=useState('main');
   const [step,setStep]=useState(1);

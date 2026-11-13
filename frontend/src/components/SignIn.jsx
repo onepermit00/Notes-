@@ -100,7 +100,12 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onForgotPassword, onBack }) => 
                 </button>
               </>
             ) : (
-              <span>Contact your property manager to get access.</span>
+              <span>
+                Front desk staff join from the invitation their manager sends.{' '}
+                <button onClick={onGoToSignUp} className="font-bold text-[#ff385c]" data-testid="go-to-signup-btn">
+                  Managers can sign up here
+                </button>
+              </span>
             )}
           </p>
 

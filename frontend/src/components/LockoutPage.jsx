@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useDeskState } from '../lib/useDeskState';
 import { Lock, Key, Clock, FileText, AlertTriangle, Check, Home, Wrench, CreditCard, UserCheck, Phone, Building2, HelpCircle, Wifi, X, ChevronRight } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import MicButton from './MicButton';
@@ -114,7 +115,7 @@ export const LockoutPage = ({ onActivityLogged, onWorkflowChange, propertyName='
   const gc = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' };
   const LockoutHeader = props => <WizardHeader propertyName={propertyName} compact={isPhone} {...props}/>;
   const LockoutFooter = props => <WizardFooter compact={isPhone} {...props}/>;
-  const [log,   setLog]   = useState([]);
+  const [log,   setLog]   = useDeskState('lockouts', 'log', []);
   const [view,  setView]  = useState('main');
   const [recordTab, setRecordTab] = useState('records');
   const [lStep, setLStep] = useState(1);
