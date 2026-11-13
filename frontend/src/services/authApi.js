@@ -55,6 +55,7 @@ export function normalizeTask(t) {
     completedAt:     fmtTs(t.completed_at),
     completedByName: t.completed_by_name || '',
     completedAtRaw:  t.completed_at || '',
+    endTime:         t.end_time || '',
     declinedAt:      fmtTs(t.declined_at),
     declinedByName:  t.declined_by_name || '',
     createdBy:       t.created_by_name || '',
@@ -384,6 +385,11 @@ export const authApi = {
     }
   },
 
+  // What is planned for each day from start to end (YYYY-MM-DD), for the Shifts calendar
+  async getScheduleCalendar(start, end) {
+    const { data } = await api.get('/schedule/calendar', { params: { start, end } });
+    return data.days || {};
+  },
   // Planned tasks: the body is already in the server's shape (see PlannedTasksPage)
   async createPlannedTask(body) {
     const { data } = await api.post('/scheduled-tasks', body);

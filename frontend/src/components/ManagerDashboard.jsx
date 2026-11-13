@@ -373,7 +373,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       }).map(t => ({
         id:       t.task_id,
         time:     new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-        title:    t.created_by_type === 'manager' ? `${t.source_section === 'scheduled' ? 'Scheduled task' : 'Assigned task'} done${t.completed_by_name ? ` by ${t.completed_by_name}` : ''} · ${t.title}` : t.title,
+        title:    t.created_by_type === 'manager' ? (t.not_done ? `Not done · ${t.source_section === 'scheduled' ? 'Scheduled task' : 'Assigned task'} · ${t.title}` : `${t.source_section === 'scheduled' ? 'Scheduled task' : 'Assigned task'} done${t.completed_by_name ? ` by ${t.completed_by_name}` : ''} · ${t.title}`) : t.title,
         notes:    t.notes || '',
         category: t.category || 'Other',
         sourceSection: t.created_by_type === 'manager' ? 'tasks' : (t.source_section || ''),
