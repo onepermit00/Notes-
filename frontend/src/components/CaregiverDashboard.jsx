@@ -1356,7 +1356,15 @@ export const CaregiverDashboard = ({
                       <div data-testid="todo-assigned-by" style={{ fontFamily:INTER, fontSize:12, color:TEXT, fontWeight:650, marginTop:3 }}>Assigned by {task.createdBy || task.created_by_name || 'your manager'}</div>
                       {task.notes && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:5, lineHeight:1.45 }}>{task.notes}</div>}
                     </div>
-                    <button onClick={() => handleStartTask(task)} aria-label={`Mark ${task.title} done`} style={{ gridColumn:isPhone?'2':'auto', justifySelf:isPhone?'start':'end', minHeight:40, padding:'0 16px', border:0, borderRadius:999, background:BLUE, color:'white', fontFamily:INTER, fontSize:13, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6 }}><Check size={15} />Done</button>
+                    <button data-testid="todo-start" onClick={() => {
+                      // Starting tells the manager the desk is on it; then the task opens to finish it.
+                      if (task.status === 'pending') {
+                        const taskId = task.id || task.task_id;
+                        setTasks(p => p.map(t => (t.id || t.task_id) === taskId ? { ...t, status: 'in_progress' } : t));
+                        authApi.updateTask(taskId, { status: 'in_progress' }).catch(() => {});
+                      }
+                      handleStartTask({ ...task, status: 'in_progress' });
+                    }} aria-label={`${task.status === 'in_progress' ? 'Finish' : 'Start'} ${task.title}`} style={{ gridColumn:isPhone?'2':'auto', justifySelf:isPhone?'start':'end', minHeight:40, padding:'0 16px', border:0, borderRadius:999, background:task.status === 'in_progress' ? TEXT : BLUE, color:task.status === 'in_progress' ? CARD : 'white', fontFamily:INTER, fontSize:13, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, whiteSpace:'nowrap' }}>{task.status === 'in_progress' ? <><Check size={15} />Finish task</> : <><Play size={14} />Start task</>}</button>
                   </div>
                 );
               })}
