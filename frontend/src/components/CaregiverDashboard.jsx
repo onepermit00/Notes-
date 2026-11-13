@@ -129,7 +129,7 @@ const TASK_CATEGORY_CONFIG = [
 ];
 
 // The report line for finished manager work: a planned task reads differently from a one-off request.
-const managerDoneTitle = t => ((t.source_section || t.sourceSection) === 'scheduled' ? `Planned task done · ${t.title}` : `Request completed · ${t.title}`);
+const managerDoneTitle = t => ((t.source_section || t.sourceSection) === 'scheduled' ? `Scheduled task done · ${t.title}` : `Assigned task done · ${t.title}`);
 
 const inferDarSource = ({ source_section, sourceSection, title = '', category = '', created_by_type, createdByType } = {}) => {
   const persisted = source_section || sourceSection;
@@ -1350,7 +1350,7 @@ export const CaregiverDashboard = ({
                     <div style={{ width:isPhone?36:40, height:isPhone?36:40, borderRadius:11, background:`${BLUE}10`, display:'flex', alignItems:'center', justifyContent:'center' }}>{planned ? <CalendarClock size={18} color={BLUE} /> : <Bell size={18} color={BLUE} />}</div>
                     <div style={{ minWidth:0 }}>
                       <div style={{ fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, lineHeight:1.35 }}>{task.title}</div>
-                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3 }}>{[time, planned ? 'Planned task' : 'Request', task.status === 'in_progress' ? 'In progress' : ''].filter(Boolean).join(' · ')}</div>
+                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3 }}>{[time, planned ? 'Scheduled task' : 'Assigned task', task.status === 'in_progress' ? 'In progress' : ''].filter(Boolean).join(' · ')}</div>
                       {task.notes && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:5, lineHeight:1.45 }}>{task.notes}</div>}
                     </div>
                     <button onClick={() => handleStartTask(task)} aria-label={`Mark ${task.title} done`} style={{ gridColumn:isPhone?'2':'auto', justifySelf:isPhone?'start':'end', minHeight:40, padding:'0 16px', border:0, borderRadius:999, background:BLUE, color:'white', fontFamily:INTER, fontSize:13, fontWeight:750, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6 }}><Check size={15} />Done</button>
