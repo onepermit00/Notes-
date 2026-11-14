@@ -79,7 +79,7 @@ const ordinal = n => `${n}${[11, 12, 13].includes(n % 100) ? 'th' : ({ 1: 'st', 
 /* How often, as in "Every Monday at 9:00 AM until Feb 13, 2027". */
 export function repeatText(plan) {
   const repeat = repeatOf(plan);
-  const at = plan.scheduled_time ? ` at ${clockText(plan.scheduled_time)}` : '';
+  const at = plan.scheduled_time ? ` at ${clockText(plan.scheduled_time)}${plan.end_time ? ` – ${clockText(plan.end_time)}` : ''}` : '';
   const until = plan.end_date ? ` until ${dateText(plan.end_date)}` : '';
   if (repeat === 'once') return `${dateText(plan.start_date)}${at}`;
   if (repeat === 'daily') return `Every day${at}${until}`;
