@@ -962,41 +962,6 @@ export const CaregiverDashboard = ({
       );
     }
 
-    const acts     = prevShift.activities || [];
-    const delivery = acts.filter(a => a.category === 'Delivery');
-    const security = acts.filter(a => a.category === 'Safety / Security');
-    const resident = acts.filter(a => a.category === 'Resident Assist');
-    const vends    = acts.filter(a => a.category === 'Vendor / Contractor');
-    const amenity  = acts.filter(a => a.category === 'Amenity');
-    const audit    = acts.find(a => a.category === 'Administrative' && a.title?.toLowerCase().includes('audit'));
-    const loaners  = amenity.filter(a => a.title?.toLowerCase().includes('loaner'));
-    const guests   = resident.filter(a => a.title?.toLowerCase().includes('guest') || a.title?.toLowerCase().includes('arrival'));
-    const tours    = resident.filter(a => a.title?.toLowerCase().includes('tour') || a.title?.toLowerCase().includes('move'));
-    const pickups  = delivery.filter(a => a.title?.toLowerCase().includes('pickup'));
-    const incoming = delivery.filter(a => !a.title?.toLowerCase().includes('pickup'));
-    const lockouts = security.filter(a => a.title?.toLowerCase().includes('lockout'));
-    const rounds   = security.filter(a => !a.title?.toLowerCase().includes('lockout'));
-    const claimedActIds = new Set([...guests, ...tours, ...loaners, ...pickups, ...incoming, ...lockouts, ...rounds, ...vends, ...(audit ? [audit] : [])].map(a => a.id).filter(Boolean));
-    const tasksDone = acts.filter(a => a.id && !claimedActIds.has(a.id));
-
-    // Same Sect/Field/toStr as Manager Dashboard — unified DAR format
-    const Sect = ({ title, accent = '#6597FF' }) => (
-      <div style={{ background: 'transparent', borderTop: `2px solid ${accent}`, padding: isPhone ? '8px 14px 2px' : isMobile ? '8px 18px 2px' : '10px 32px 2px', marginTop: 10 }}>
-        <span style={{ fontFamily: INTER, fontSize: 11, fontWeight: 800, color: accent, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{title}</span>
-      </div>
-    );
-    const Field = ({ label, value, sub, last }) => (
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'flex-start', gap: isMobile ? 3 : 18, padding: isPhone ? '12px 14px' : isMobile ? '12px 18px' : '14px 32px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
-        <div style={{ width: isMobile ? '100%' : 210, flexShrink: 0, fontFamily: INTER, fontSize: 13, fontWeight: isMobile ? 700 : 600, color: MUTED, lineHeight: 1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: INTER, fontSize: 15, color: TEXT, lineHeight: 1.6, whiteSpace: 'pre-line' }}>{value}</div>
-          {sub && <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 2 }}>{sub}</div>}
-        </div>
-      </div>
-    );
-    const toStr = arr => arr.length > 0
-      ? arr.map(a => `${a.time || '—'}: ${a.title}${a.notes ? ' · ' + a.notes : ''}`).join('\n')
-      : 'N/A';
 
     const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed' && t.status !== 'declined');
     const sevColor = (sev) => sev === 'critical' || sev === 'high' ? RED : sev === 'medium' ? ORANGE : BLUE;
@@ -1004,89 +969,10 @@ export const CaregiverDashboard = ({
     return (
       <div style={{ flex:1, minHeight:0, overflowY:'auto', padding: isMobile ? '64px 16px 80px' : '28px 28px 80px' }}>
         <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
-          <div style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
-            {/* Header */}
-            <div style={{ background: '#0b0b0b', padding: isPhone ? '16px 18px' : isMobile ? '18px 20px 16px' : '20px 32px 18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: isPhone ? 5 : 6 }}>Previous Shift · Handoff</div>
-                  <div style={{ fontFamily: INTER, fontSize: isPhone ? 17 : isMobile ? 18 : 18, fontWeight: 700, color: 'white', marginBottom: isPhone ? 4 : 5 }}>{prevShift.concierge?.name}</div>
-                  <div style={{ fontFamily: INTER, fontSize: isPhone ? 13 : 14, color: 'rgba(255,255,255,0.55)' }}>
-                    {prevShift.clockIn} – {prevShift.clockOut || 'End of shift'} · {prevShift.duration}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(52,199,89,0.15)', borderRadius: 999, padding: '5px 12px' }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: GREEN, boxShadow: '0 0 0 3px rgba(52,199,89,0.25)' }} />
-                    <span style={{ fontFamily: INTER, fontSize: 12, fontWeight: 700, color: GREEN }}>Completed</span>
-                  </div>
-                  <div style={{ fontFamily: INTER, fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>{prevShift.duration}</div>
-                </div>
-              </div>
-            </div>
-            {/* Sections — identical layout to Manager DAR */}
-            <div style={{ background: CARD }}>
-              {audit && <><Sect title="Start of Shift Package Audit" /><Field label="Package Room Count" value={audit.notes} last /></>}
-
-              <Sect title="Packages" />
-              <Field label="Delivered by Couriers" value={toStr(incoming)} />
-              <Field label="Picked Up by Residents" value={toStr(pickups)} last />
-
-              <Sect title="Guests" />
-              <Field label="Guest Arrivals / Check-ins" value={toStr(guests)} last />
-
-              <Sect title="Tours" />
-              <Field label="Scheduled & Walk-in Tours" value={toStr(tours)} last />
-
-              <Sect title="Loaners" />
-              <Field label="Checkouts & Returns" value={toStr(loaners)} last />
-
-              <Sect title="Lockouts" />
-              <Field label="Keys & Access Requests" value={toStr(lockouts)} last />
-
-              <Sect title="Vendors" />
-              <Field label="Vendor Activity" value={toStr(vends)} last />
-
-              {rounds.length > 0 && (
-                <>
-                  <Sect title="Security & Rounds" />
-                  <Field label="Rounds Completed" value={toStr(rounds)} last />
-                </>
-              )}
-
-              <Sect title="Tasks Completed" />
-              <Field label="Logged Tasks" value={toStr(tasksDone)} last />
-
-              <Sect title="Shift Notes" />
-              <div style={{ padding: isPhone ? '14px 14px 18px' : isMobile ? '14px 18px 18px' : '16px 32px 20px' }}>
-                <p style={{ fontFamily: INTER, fontSize: 15, color: prevShift.note ? TEXT : MUTED, lineHeight: 1.65, margin: 0, fontStyle: prevShift.note ? 'normal' : 'italic' }}>{prevShift.note || 'No shift notes.'}</p>
-                {prevShift.closedReason && (
-                  <p data-testid="shift-closed-note" style={{ fontFamily: INTER, fontSize: 14, color: MUTED, lineHeight: 1.6, margin: '10px 0 0' }}>
-                    {prevShift.closedReason === 'auto'
-                      ? `This shift was not ended by the concierge. Noted closed it automatically at ${prevShift.clockOut || 'the last entry'}, the time of the last entry.`
-                      : `This shift was ended by the manager at ${prevShift.clockOut || 'the end of the shift'}.`}
-                  </p>
-                )}
-              </div>
-
-              {prevShift.openItems?.length > 0 && (
-                <>
-                  <Sect title="Open Items (Carry Over)" accent={ORANGE} />
-                  {prevShift.openItems.map((item, i, arr) => (
-                    <Field key={i} label={`Item ${i + 1}`} value={item} last={i === arr.length - 1} />
-                  ))}
-                </>
-              )}
-
-              {prevShift.incidents?.length > 0 && (
-                <>
-                  <Sect title="Incidents Filed" accent={RED} />
-                  {prevShift.incidents.map((inc, i, arr) => (
-                    <Field key={i} label={`Incident ${i + 1}`} value={typeof inc === "string" ? inc : inc.text} last={i === arr.length - 1} />
-                  ))}
-                </>
-              )}
-            </div>
+          <div style={{ order: isMobile ? 1 : 0 }}>
+            <DailyActivityReport mode="concierge" shift={prevShift} editable={false} showConciergeIdentity
+              propertyName={propertyName} dateLabel={prevShift.dateLabel}
+              hiddenSections={hiddenDarSections} customSections={visibleCustomSections} />
           </div>
 
           {/* Right column */}
