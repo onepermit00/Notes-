@@ -24,7 +24,9 @@ load_dotenv(ROOT_DIR / '.env')
 
 # ── Database ───────────────────────────────────────────────────────────────────
 mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-client    = AsyncIOMotorClient(mongo_url)
+# tz_aware: dates come back marked as UTC, so the browser shows them in local time
+# instead of reading a bare "2026-11-17T14:00:00" as already local.
+client    = AsyncIOMotorClient(mongo_url, tz_aware=True)
 db        = client[os.environ.get('DB_NAME', 'adltrack')]
 
 # ── Password hashing ──────────────────────────────────────────────────────────

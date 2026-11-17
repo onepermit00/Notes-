@@ -50,6 +50,8 @@ export const buildDailyActivitySections = (shift, { taskEntries, incidents, cust
     buckets.tasks = [...taskEntries, ...buckets.tasks.filter(entry => !seen.has(entryKey(entry)))];
   }
   const handoff = [
+    ...(shift?.closedReason === 'auto' ? [{ id:'closed-auto', plain:true, text:`Shift not ended by the concierge. Noted closed it automatically at ${shift.clockOut || 'the last entry'}, the time of the last entry` }] : []),
+    ...(shift?.closedReason === 'manager' ? [{ id:'closed-manager', plain:true, text:`Shift ended by the manager at ${shift.clockOut || 'the end of the shift'}` }] : []),
     ...(shift?.note ? [{ id:'shift-note', plain:true, text:`Handoff note: ${shift.note}` }] : []),
     ...(shift?.openItems || []).filter(Boolean).map((item, i) => ({ id:`open-item-${i}`, plain:true, text:`Open item: ${item}` })),
   ];

@@ -1,6 +1,7 @@
 """Shift clock-in/out, history and handover."""
+import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Cookie, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Optional
@@ -17,6 +18,7 @@ async def start_shift(request: Request, day: Optional[str] = None, session_token
     concierge = await db.concierges.find_one({'concierge_id': session['user_id']})
     if not concierge:
         raise HTTPException(404, 'Concierge not found.')
+    await close_stale_shifts({'concierge_id': session['user_id']})
     # Return existing active shift if already clocked in
     existing = await db.shifts.find_one({'concierge_id': session['user_id'], 'status': 'active'}, {'_id': 0})
     if existing:
@@ -77,6 +79,49 @@ def _as_dt(value):
     except ValueError:
         return None
     return d.replace(tzinfo=timezone.utc) if d and not d.tzinfo else d
+
+
+# A shift nobody ended is closed automatically, so a report left open on
+# Saturday never shows as today's live shift. Concierge shifts here run 8 to
+# 12 hours; a double is 16, so anything older than that was forgotten.
+MAX_SHIFT_HOURS = float(os.environ.get('MAX_SHIFT_HOURS', '16'))
+
+
+async def _last_activity(shift: dict) -> Optional[datetime]:
+    sid = shift['shift_id']
+    times = []
+    async for t in db.tasks.find({'$or': [{'shift_id': sid}, {'completed_shift_id': sid}]}, {'created_at': 1, 'completed_at': 1, 'declined_at': 1}):
+        times += [_as_dt(t.get(k)) for k in ('created_at', 'completed_at', 'declined_at')]
+    async for i in db.incidents.find({'shift_id': sid}, {'created_at': 1}):
+        times.append(_as_dt(i.get('created_at')))
+    times = [t for t in times if t]
+    return max(times) if times else None
+
+
+async def close_shift(shift: dict, reason: str, closed_by: str = '', when: Optional[datetime] = None) -> datetime:
+    """Ends a shift that the concierge did not end themselves."""
+    clock_in = _as_dt(shift.get('clock_in')) or datetime.now(timezone.utc)
+    if when is None:
+        # The shift really ended around the last thing that was logged.
+        last = await _last_activity(shift)
+        when = min(last or clock_in + timedelta(hours=MAX_SHIFT_HOURS), clock_in + timedelta(hours=MAX_SHIFT_HOURS))
+        when = max(when, clock_in)
+    await db.shifts.update_one(
+        {'shift_id': shift['shift_id'], 'status': 'active'},
+        {'$set': {'status': 'completed', 'clock_out': when, 'closed_reason': reason, 'closed_by': closed_by}},
+    )
+    await _audit(shift.get('manager_id', ''), closed_by or 'system', 'manager' if reason == 'manager' else 'system',
+                 'clock_out', 'shift', shift['shift_id'], {'closed_reason': reason, 'concierge': shift.get('concierge_name', '')})
+    return when
+
+
+async def close_stale_shifts(query: dict):
+    """Closes every active shift matching `query` that has run past the limit."""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=MAX_SHIFT_HOURS)
+    async for shift in db.shifts.find({**query, 'status': 'active'}, {'_id': 0}):
+        started = _as_dt(shift.get('clock_in'))
+        if started and started < cutoff:
+            await close_shift(shift, 'auto')
 
 
 async def _not_done_on_shift(shift: dict, mgr_id: str) -> list:
@@ -152,6 +197,7 @@ async def _shift_activities(shift_id: str, mgr_id: str, shift: Optional[dict] = 
 @api.get('/shifts/active')
 async def get_active_shift(request: Request, session_token: Optional[str] = Cookie(default=None)):
     user, user_type, mgr_id = await _resolve_user(request, session_token)
+    await close_stale_shifts({'manager_id': mgr_id})
     if user_type == 'concierge':
         shift = await db.shifts.find_one({'concierge_id': user['concierge_id'], 'status': 'active'}, {'_id': 0})
         if not shift:
@@ -176,6 +222,7 @@ async def get_previous_shift(request: Request, session_token: Optional[str] = Co
     """The most recent finished shift at the property, whoever worked it, so the
     person coming on reads the handoff the last person actually left."""
     user, user_type, mgr_id = await _resolve_user(request, session_token)
+    await close_stale_shifts({'manager_id': mgr_id})
     shift = await db.shifts.find_one(
         {'manager_id': mgr_id, 'status': 'completed'},
         {'_id': 0},
@@ -193,6 +240,7 @@ async def get_previous_shift(request: Request, session_token: Optional[str] = Co
 @api.get('/shifts/history')
 async def get_shift_history(request: Request, session_token: Optional[str] = Cookie(default=None)):
     user, user_type, mgr_id = await _resolve_user(request, session_token)
+    await close_stale_shifts({'manager_id': mgr_id})
     if user_type == 'concierge':
         query = {'concierge_id': user['concierge_id'], 'manager_id': mgr_id}
     else:
@@ -232,3 +280,18 @@ async def shift_handover(data: ShiftHandoverRequest, request: Request, session_t
     await _audit(mgr_id, session['user_id'], 'concierge', 'clock_out', 'shift',
                  (shift or {}).get('shift_id', ''), {'handover_notes': data.handover_notes[:200]})
     return {'message': 'Shift closed with handover notes.', 'clock_out': now.isoformat()}
+
+
+@api.post('/shifts/{shift_id}/end')
+async def manager_end_shift(shift_id: str, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    """Lets the manager close a shift the concierge forgot to end."""
+    user, user_type, mgr_id = await _resolve_user(request, session_token)
+    if user_type != 'manager':
+        raise HTTPException(403, 'Manager access required.')
+    shift = await db.shifts.find_one({'shift_id': shift_id, 'manager_id': mgr_id}, {'_id': 0})
+    if not shift:
+        raise HTTPException(404, 'Shift not found.')
+    if shift.get('status') != 'active':
+        raise HTTPException(409, 'This shift has already ended.')
+    when = await close_shift(shift, 'manager', mgr_id, datetime.now(timezone.utc))
+    return {'message': 'Shift ended.', 'clock_out': when.isoformat()}

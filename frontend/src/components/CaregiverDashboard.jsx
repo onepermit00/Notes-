@@ -171,6 +171,7 @@ const mapPreviousShift = (s) => {
     duration:  hours > 0 ? `${hours}h ${mins}m` : `${mins}m`,
     note:      s.handover_notes || '',
     openItems: s.open_items || [],
+    closedReason: s.closed_reason || '',
     incidents: (s.incidents || []).map(i => ({ text: `${i.created_at ? `${time(i.created_at).toLowerCase()} — ` : ''}${i.type || 'Incident'}: ${i.description || ''}`, evidenceUrls: Array.isArray(i.evidence_urls) ? i.evidence_urls : [] })),
     activities: (s.activities || []).map(t => ({
       id: t.task_id,
@@ -429,10 +430,7 @@ export const CaregiverDashboard = ({
       // Restore active shift if already clocked in — ignore shifts that ended before today
       if (activeRes?.shift) {
         const s = activeRes.shift;
-        const todayStr = new Date().toLocaleDateString();
-        if (s.clock_out && new Date(s.clock_out).toLocaleDateString() !== todayStr) {
-          // Shift ended before today — treat as no active shift
-        } else {
+        {
           setCurrentShiftId(s.shift_id);
           setIsShiftActive(true);
           setShiftStarted(true);
@@ -706,6 +704,30 @@ export const CaregiverDashboard = ({
     // Open the editorial handoff drawer instead of ending the shift silently
     setShowHandover(true);
   };
+
+  // A shift can be ended away from this screen: the manager ends it, or Noted
+  // closes one left open past the limit. Check now and then so a page left
+  // open does not keep showing a shift that is over.
+  useEffect(() => {
+    if (!isShiftActive) return undefined;
+    const check = async () => {
+      const res = await authApi.getActiveShift();
+      if (res && !res.shift) {
+        setIsShiftActive(false); setCurrentShiftId(null); setSelfTasks([]); setShiftStarted(false); setShowHandover(false);
+        setClockAlertTitle('Your shift has ended');
+        setClockAlertMsg('This shift was closed by your manager or because it ran past the shift limit. Everything you logged is saved in the previous shift report.');
+        setShowClockAlert(true);
+        authApi.getPreviousShift().then(r => setPreviousShiftData(mapPreviousShift(r?.shift))).catch(() => {});
+      }
+    };
+    const timer = setInterval(check, 5 * 60 * 1000);
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [isShiftActive]);
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNowTick(Date.now()), 60000); return () => clearInterval(t); }, []);
+  const hoursOnShift = isShiftActive && shiftStartMs ? (nowTick - shiftStartMs) / 3600000 : 0;
 
   const submitHandover = async (skipNotes = false) => {
     setHandoverSaving(true);
@@ -1038,6 +1060,13 @@ export const CaregiverDashboard = ({
               <Sect title="Shift Notes" />
               <div style={{ padding: isPhone ? '14px 14px 18px' : isMobile ? '14px 18px 18px' : '16px 32px 20px' }}>
                 <p style={{ fontFamily: INTER, fontSize: 15, color: prevShift.note ? TEXT : MUTED, lineHeight: 1.65, margin: 0, fontStyle: prevShift.note ? 'normal' : 'italic' }}>{prevShift.note || 'No shift notes.'}</p>
+                {prevShift.closedReason && (
+                  <p data-testid="shift-closed-note" style={{ fontFamily: INTER, fontSize: 14, color: MUTED, lineHeight: 1.6, margin: '10px 0 0' }}>
+                    {prevShift.closedReason === 'auto'
+                      ? `This shift was not ended by the concierge. Noted closed it automatically at ${prevShift.clockOut || 'the last entry'}, the time of the last entry.`
+                      : `This shift was ended by the manager at ${prevShift.clockOut || 'the end of the shift'}.`}
+                  </p>
+                )}
               </div>
 
               {prevShift.openItems?.length > 0 && (
@@ -1309,6 +1338,12 @@ export const CaregiverDashboard = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {hoursOnShift >= 12 && !viewingHandoff && <div role="status" data-testid="long-shift-reminder" style={{ maxWidth:1280, margin:'0 auto 16px', padding:'13px 16px', borderRadius:14, border:`1px solid ${ORANGE}55`, background:`${ORANGE}12`, display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', fontFamily:INTER }}>
+        <Clock size={18} color={ORANGE} style={{ flexShrink:0 }}/>
+        <span style={{ flex:1, minWidth:200, fontSize:13, color:TEXT, lineHeight:1.5 }}>You have been on shift for {Math.floor(hoursOnShift)} hours. If you are done, end your shift so the next person starts a fresh report.</span>
+        <button type="button" onClick={() => { setShowPreviousDar(false); setShowHandover(true); }} style={{ minHeight:40, padding:'0 16px', border:0, borderRadius:999, background:TEXT, color:BG, fontFamily:INTER, fontSize:13, fontWeight:750, cursor:'pointer' }}>End shift</button>
+      </div>}
 
       {isShiftActive && <ShiftViewHeader
         onAsk={() => setShowCopilot(true)}
