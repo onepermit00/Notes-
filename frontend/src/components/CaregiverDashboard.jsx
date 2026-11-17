@@ -171,6 +171,7 @@ const mapPreviousShift = (s) => {
     duration:  hours > 0 ? `${hours}h ${mins}m` : `${mins}m`,
     note:      s.handover_notes || '',
     openItems: s.open_items || [],
+    closedReason: s.closed_reason || '',
     incidents: (s.incidents || []).map(i => ({ text: `${i.created_at ? `${time(i.created_at).toLowerCase()} — ` : ''}${i.type || 'Incident'}: ${i.description || ''}`, evidenceUrls: Array.isArray(i.evidence_urls) ? i.evidence_urls : [] })),
     activities: (s.activities || []).map(t => ({
       id: t.task_id,
@@ -429,10 +430,7 @@ export const CaregiverDashboard = ({
       // Restore active shift if already clocked in — ignore shifts that ended before today
       if (activeRes?.shift) {
         const s = activeRes.shift;
-        const todayStr = new Date().toLocaleDateString();
-        if (s.clock_out && new Date(s.clock_out).toLocaleDateString() !== todayStr) {
-          // Shift ended before today — treat as no active shift
-        } else {
+        {
           setCurrentShiftId(s.shift_id);
           setIsShiftActive(true);
           setShiftStarted(true);
@@ -707,6 +705,30 @@ export const CaregiverDashboard = ({
     setShowHandover(true);
   };
 
+  // A shift can be ended away from this screen: the manager ends it, or Noted
+  // closes one left open past the limit. Check now and then so a page left
+  // open does not keep showing a shift that is over.
+  useEffect(() => {
+    if (!isShiftActive) return undefined;
+    const check = async () => {
+      const res = await authApi.getActiveShift();
+      if (res && !res.shift) {
+        setIsShiftActive(false); setCurrentShiftId(null); setSelfTasks([]); setShiftStarted(false); setShowHandover(false);
+        setClockAlertTitle('Your shift has ended');
+        setClockAlertMsg('This shift was closed by your manager or because it ran past the shift limit. Everything you logged is saved in the previous shift report.');
+        setShowClockAlert(true);
+        authApi.getPreviousShift().then(r => setPreviousShiftData(mapPreviousShift(r?.shift))).catch(() => {});
+      }
+    };
+    const timer = setInterval(check, 5 * 60 * 1000);
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [isShiftActive]);
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNowTick(Date.now()), 60000); return () => clearInterval(t); }, []);
+  const hoursOnShift = isShiftActive && shiftStartMs ? (nowTick - shiftStartMs) / 3600000 : 0;
+
   const submitHandover = async (skipNotes = false) => {
     setHandoverSaving(true);
     try {
@@ -940,41 +962,6 @@ export const CaregiverDashboard = ({
       );
     }
 
-    const acts     = prevShift.activities || [];
-    const delivery = acts.filter(a => a.category === 'Delivery');
-    const security = acts.filter(a => a.category === 'Safety / Security');
-    const resident = acts.filter(a => a.category === 'Resident Assist');
-    const vends    = acts.filter(a => a.category === 'Vendor / Contractor');
-    const amenity  = acts.filter(a => a.category === 'Amenity');
-    const audit    = acts.find(a => a.category === 'Administrative' && a.title?.toLowerCase().includes('audit'));
-    const loaners  = amenity.filter(a => a.title?.toLowerCase().includes('loaner'));
-    const guests   = resident.filter(a => a.title?.toLowerCase().includes('guest') || a.title?.toLowerCase().includes('arrival'));
-    const tours    = resident.filter(a => a.title?.toLowerCase().includes('tour') || a.title?.toLowerCase().includes('move'));
-    const pickups  = delivery.filter(a => a.title?.toLowerCase().includes('pickup'));
-    const incoming = delivery.filter(a => !a.title?.toLowerCase().includes('pickup'));
-    const lockouts = security.filter(a => a.title?.toLowerCase().includes('lockout'));
-    const rounds   = security.filter(a => !a.title?.toLowerCase().includes('lockout'));
-    const claimedActIds = new Set([...guests, ...tours, ...loaners, ...pickups, ...incoming, ...lockouts, ...rounds, ...vends, ...(audit ? [audit] : [])].map(a => a.id).filter(Boolean));
-    const tasksDone = acts.filter(a => a.id && !claimedActIds.has(a.id));
-
-    // Same Sect/Field/toStr as Manager Dashboard — unified DAR format
-    const Sect = ({ title, accent = '#6597FF' }) => (
-      <div style={{ background: 'transparent', borderTop: `2px solid ${accent}`, padding: isPhone ? '8px 14px 2px' : isMobile ? '8px 18px 2px' : '10px 32px 2px', marginTop: 10 }}>
-        <span style={{ fontFamily: INTER, fontSize: 11, fontWeight: 800, color: accent, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{title}</span>
-      </div>
-    );
-    const Field = ({ label, value, sub, last }) => (
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'flex-start', gap: isMobile ? 3 : 18, padding: isPhone ? '12px 14px' : isMobile ? '12px 18px' : '14px 32px', borderBottom: last ? 'none' : `1px solid ${BORDER}` }}>
-        <div style={{ width: isMobile ? '100%' : 210, flexShrink: 0, fontFamily: INTER, fontSize: 13, fontWeight: isMobile ? 700 : 600, color: MUTED, lineHeight: 1.4, textTransform: isMobile ? 'uppercase' : 'none', letterSpacing: isMobile ? '0.06em' : 'normal' }}>{label}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: INTER, fontSize: 15, color: TEXT, lineHeight: 1.6, whiteSpace: 'pre-line' }}>{value}</div>
-          {sub && <div style={{ fontFamily: INTER, fontSize: 13, color: MUTED, marginTop: 2 }}>{sub}</div>}
-        </div>
-      </div>
-    );
-    const toStr = arr => arr.length > 0
-      ? arr.map(a => `${a.time || '—'}: ${a.title}${a.notes ? ' · ' + a.notes : ''}`).join('\n')
-      : 'N/A';
 
     const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed' && t.status !== 'declined');
     const sevColor = (sev) => sev === 'critical' || sev === 'high' ? RED : sev === 'medium' ? ORANGE : BLUE;
@@ -982,82 +969,10 @@ export const CaregiverDashboard = ({
     return (
       <div style={{ flex:1, minHeight:0, overflowY:'auto', padding: isMobile ? '64px 16px 80px' : '28px 28px 80px' }}>
         <div style={{ display: isMobile ? 'flex' : 'grid', flexDirection:'column', gridTemplateColumns:'1fr', gap:24, alignItems: isMobile ? 'stretch' : 'start' }}>
-          <div style={{ background:CARD, border:`1.5px solid ${BORDER}`, borderRadius:20, overflow:'hidden', display:'flex', flexDirection:'column', order: isMobile ? 1 : 0 }}>
-            {/* Header */}
-            <div style={{ background: '#0b0b0b', padding: isPhone ? '16px 18px' : isMobile ? '18px 20px 16px' : '20px 32px 18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ fontFamily: INTER, fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: isPhone ? 5 : 6 }}>Previous Shift · Handoff</div>
-                  <div style={{ fontFamily: INTER, fontSize: isPhone ? 17 : isMobile ? 18 : 18, fontWeight: 700, color: 'white', marginBottom: isPhone ? 4 : 5 }}>{prevShift.concierge?.name}</div>
-                  <div style={{ fontFamily: INTER, fontSize: isPhone ? 13 : 14, color: 'rgba(255,255,255,0.55)' }}>
-                    {prevShift.clockIn} – {prevShift.clockOut || 'End of shift'} · {prevShift.duration}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(52,199,89,0.15)', borderRadius: 999, padding: '5px 12px' }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: GREEN, boxShadow: '0 0 0 3px rgba(52,199,89,0.25)' }} />
-                    <span style={{ fontFamily: INTER, fontSize: 12, fontWeight: 700, color: GREEN }}>Completed</span>
-                  </div>
-                  <div style={{ fontFamily: INTER, fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>{prevShift.duration}</div>
-                </div>
-              </div>
-            </div>
-            {/* Sections — identical layout to Manager DAR */}
-            <div style={{ background: CARD }}>
-              {audit && <><Sect title="Start of Shift Package Audit" /><Field label="Package Room Count" value={audit.notes} last /></>}
-
-              <Sect title="Packages" />
-              <Field label="Delivered by Couriers" value={toStr(incoming)} />
-              <Field label="Picked Up by Residents" value={toStr(pickups)} last />
-
-              <Sect title="Guests" />
-              <Field label="Guest Arrivals / Check-ins" value={toStr(guests)} last />
-
-              <Sect title="Tours" />
-              <Field label="Scheduled & Walk-in Tours" value={toStr(tours)} last />
-
-              <Sect title="Loaners" />
-              <Field label="Checkouts & Returns" value={toStr(loaners)} last />
-
-              <Sect title="Lockouts" />
-              <Field label="Keys & Access Requests" value={toStr(lockouts)} last />
-
-              <Sect title="Vendors" />
-              <Field label="Vendor Activity" value={toStr(vends)} last />
-
-              {rounds.length > 0 && (
-                <>
-                  <Sect title="Security & Rounds" />
-                  <Field label="Rounds Completed" value={toStr(rounds)} last />
-                </>
-              )}
-
-              <Sect title="Tasks Completed" />
-              <Field label="Logged Tasks" value={toStr(tasksDone)} last />
-
-              <Sect title="Shift Notes" />
-              <div style={{ padding: isPhone ? '14px 14px 18px' : isMobile ? '14px 18px 18px' : '16px 32px 20px' }}>
-                <p style={{ fontFamily: INTER, fontSize: 15, color: prevShift.note ? TEXT : MUTED, lineHeight: 1.65, margin: 0, fontStyle: prevShift.note ? 'normal' : 'italic' }}>{prevShift.note || 'No shift notes.'}</p>
-              </div>
-
-              {prevShift.openItems?.length > 0 && (
-                <>
-                  <Sect title="Open Items (Carry Over)" accent={ORANGE} />
-                  {prevShift.openItems.map((item, i, arr) => (
-                    <Field key={i} label={`Item ${i + 1}`} value={item} last={i === arr.length - 1} />
-                  ))}
-                </>
-              )}
-
-              {prevShift.incidents?.length > 0 && (
-                <>
-                  <Sect title="Incidents Filed" accent={RED} />
-                  {prevShift.incidents.map((inc, i, arr) => (
-                    <Field key={i} label={`Incident ${i + 1}`} value={typeof inc === "string" ? inc : inc.text} last={i === arr.length - 1} />
-                  ))}
-                </>
-              )}
-            </div>
+          <div style={{ order: isMobile ? 1 : 0 }}>
+            <DailyActivityReport mode="concierge" shift={prevShift} editable={false} showConciergeIdentity
+              propertyName={propertyName} dateLabel={prevShift.dateLabel}
+              hiddenSections={hiddenDarSections} customSections={visibleCustomSections} />
           </div>
 
           {/* Right column */}
@@ -1309,6 +1224,12 @@ export const CaregiverDashboard = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {hoursOnShift >= 12 && !viewingHandoff && <div role="status" data-testid="long-shift-reminder" style={{ maxWidth:1280, margin:'0 auto 16px', padding:'13px 16px', borderRadius:14, border:`1px solid ${ORANGE}55`, background:`${ORANGE}12`, display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', fontFamily:INTER }}>
+        <Clock size={18} color={ORANGE} style={{ flexShrink:0 }}/>
+        <span style={{ flex:1, minWidth:200, fontSize:13, color:TEXT, lineHeight:1.5 }}>You have been on shift for {Math.floor(hoursOnShift)} hours. If you are done, end your shift so the next person starts a fresh report.</span>
+        <button type="button" onClick={() => { setShowPreviousDar(false); setShowHandover(true); }} style={{ minHeight:40, padding:'0 16px', border:0, borderRadius:999, background:TEXT, color:BG, fontFamily:INTER, fontSize:13, fontWeight:750, cursor:'pointer' }}>End shift</button>
+      </div>}
 
       {isShiftActive && <ShiftViewHeader
         onAsk={() => setShowCopilot(true)}

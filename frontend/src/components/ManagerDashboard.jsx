@@ -334,6 +334,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
   const [activeShifts, setActiveShifts] = useState([]);  // every concierge on shift right now
   const [activeShiftId, setActiveShiftId] = useState('');
+  const [endingShift, setEndingShift] = useState('');
   const todayShift = activeShifts.find(shift => shift.shiftId === activeShiftId) || activeShifts[0] || null; // live DAR
   const [allShifts,   setAllShifts]   = useState([]);   // full shift history for calendar
   const [shiftFilter, setShiftFilter] = useState('all'); // filter by concierge id or 'all'
@@ -355,6 +356,8 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       dateLabel: s.clock_in ? new Date(s.clock_in).toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' }) : undefined,
       note:      s.handover_notes || '',
       openItems: s.open_items || [],
+      closedReason: s.closed_reason || '',
+      clockInMs: s.clock_in ? new Date(s.clock_in).getTime() : 0,
       incidents: (s.incidents || []).filter(i => {
         if (!i.created_at) return true;
         return recent(i.created_at);
@@ -1680,6 +1683,15 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         colors={{ card:CARD, card2:CARD2, text:TEXT, muted:MUTED, border:BORDER }}
         views={shiftViews}
       />
+
+      {managerSummaryView === 'dar' && todayShift && <div data-testid="live-shift-bar" style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',padding:'11px 14px',border:`1px solid ${BORDER}`,borderRadius:14,background:CARD,fontFamily:INTER}}>
+        <span style={{width:8,height:8,borderRadius:'50%',background:GREEN,boxShadow:`0 0 0 3px ${GREEN}22`,flexShrink:0}}/>
+        <span style={{flex:1,minWidth:0,fontSize:13,color:TEXT}}><b>{todayShift.concierge?.name || 'Concierge'}</b> on shift since {todayShift.clockIn}{todayShift.clockInMs && Date.now() - todayShift.clockInMs > 12 * 3600000 ? ` · ${Math.floor((Date.now() - todayShift.clockInMs) / 3600000)} hours, they may have forgotten to end it` : ''}</span>
+        {endingShift === todayShift.shiftId ? <span style={{display:'flex',gap:8,alignItems:'center',fontSize:12,color:MUTED}}>End {todayShift.concierge?.name?.split(' ')[0] || 'this'}'s shift now?
+          <button type="button" onClick={async () => { try { await authApi.endShiftForConcierge(todayShift.shiftId); setActiveShifts(list => list.filter(s => s.shiftId !== todayShift.shiftId)); authApi.getShiftHistory().then(h => setAllShifts(h?.shifts || [])).catch(() => {}); } catch { setSrAnnounce('The shift could not be ended. Try again.'); } finally { setEndingShift(''); } }} data-testid="confirm-end-shift" style={{minHeight:36,padding:'0 14px',border:0,borderRadius:999,background:RED,color:'#fff',fontFamily:INTER,fontSize:12,fontWeight:750,cursor:'pointer'}}>End shift</button>
+          <button type="button" onClick={() => setEndingShift('')} style={{minHeight:36,padding:'0 12px',border:`1px solid ${BORDER}`,borderRadius:999,background:CARD,color:TEXT,fontFamily:INTER,fontSize:12,fontWeight:700,cursor:'pointer'}}>Keep open</button>
+        </span> : <button type="button" onClick={() => setEndingShift(todayShift.shiftId)} data-testid="end-shift-btn" title="Use this if the concierge left without ending their shift" style={{minHeight:36,padding:'0 14px',border:`1px solid ${BORDER}`,borderRadius:999,background:CARD2,color:TEXT,fontFamily:INTER,fontSize:12,fontWeight:700,cursor:'pointer'}}>End shift</button>}
+      </div>}
 
       {openIncidents.length > 0 && <button type="button" onClick={() => setTab('incidents')} data-testid="open-incidents-banner" style={{display:'flex',alignItems:'center',gap:12,width:'100%',padding:'13px 16px',border:`1px solid ${RED}40`,borderRadius:14,background:`${RED}0d`,cursor:'pointer',textAlign:'left',fontFamily:INTER}}>
         <AlertTriangle size={18} color={RED} style={{flexShrink:0}}/>

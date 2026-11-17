@@ -261,6 +261,12 @@ export const authApi = {
     } catch { return null; }
   },
 
+  // The manager closing a shift the concierge forgot to end.
+  async endShiftForConcierge(shiftId) {
+    const { data } = await api.post(`/shifts/${shiftId}/end`);
+    return data;
+  },
+
   async getPreviousShift() {
     try {
       const { data } = await api.get('/shifts/previous');
