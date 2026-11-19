@@ -6,14 +6,14 @@ import { DASHBOARD_ACCENT, DASHBOARD_DANGER, DASHBOARD_FONT, DASHBOARD_SUCCESS }
 const DEFAULT_SECTIONS = [
   ['packages', 'Packages'], ['guests', 'Guests'], ['tasks', "Today's Tasks"],
   ['loaners', 'Loaners'], ['lockouts', 'Lockouts'], ['vendors', 'Vendors'],
-  ['tours', 'Tours'], ['security', 'Security & Rounds'], ['incidents', 'Incidents Filed'],
+  ['tours', 'Tours'], ['security', 'Security & Rounds'], ['maintenance', 'Maintenance'], ['incidents', 'Incidents Filed'],
 ];
 
 // Older entries and a few screens label their section differently. Map every
 // label onto a section of the report so nothing recorded goes missing.
 const SECTION_ALIASES = {
   lockout:'lockouts', package:'packages', guest:'guests', vendor:'vendors', loaner:'loaners', tour:'tours',
-  rounds:'security', incident:'incidents',
+  rounds:'security', incident:'incidents', work_order:'maintenance',
   'new-task':'tasks', requests:'tasks', dashboard:'tasks', scheduled:'tasks', task:'tasks',
 };
 
@@ -58,7 +58,7 @@ export const buildDailyActivitySections = (shift, { taskEntries, incidents, cust
   if (handoff.length) buckets.tasks = [...handoff, ...buckets.tasks];
   buckets.incidents = incidents ?? shift?.incidents ?? [];
   const all = [
-    ...DEFAULT_SECTIONS.map(([id, title]) => ({ id, title, entries: buckets[id], critical: id === 'incidents', wide: ['tasks', 'security', 'incidents'].includes(id) })),
+    ...DEFAULT_SECTIONS.map(([id, title]) => ({ id, title, entries: buckets[id], critical: id === 'incidents', wide: ['tasks', 'security', 'maintenance', 'incidents'].includes(id) })),
     ...customSections.map(section => ({
       id: section.id,
       title: section.label || section.title,

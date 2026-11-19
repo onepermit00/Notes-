@@ -14,6 +14,11 @@ from core import (
 
 api = APIRouter(prefix='/api')
 
+
+def team_role(title: Optional[str]) -> str:
+    """Team members invited as Maintenance get the maintenance app; everyone else the desk."""
+    return 'maintenance' if (title or '').strip().lower() == 'maintenance' else 'concierge'
+
 @api.post('/manager/concierge')
 async def add_concierge(data: AddConciergeRequest, request: Request, session_token: Optional[str] = Cookie(default=None)):
     session = await get_session(request, session_token)
@@ -39,6 +44,7 @@ async def add_concierge(data: AddConciergeRequest, request: Request, session_tok
         'last_name':     data.last_name,
         'phone':         data.phone,
         'title':         data.title,
+        'role':          team_role(data.title),
         'manager_id':    session['user_id'],
         'property_name': manager['property_name'],
         'is_active':     True,
@@ -122,6 +128,7 @@ async def list_concierges(request: Request, session_token: Optional[str] = Cooki
             'email':         inv['email'],
             'phone':         inv.get('phone', ''),
             'title':         inv.get('title', 'Concierge'),
+            'role':          inv.get('role', 'concierge'),
             'status':        'invited',
             'created_at':    inv['created_at'].isoformat() if isinstance(inv.get('created_at'), datetime) else inv.get('created_at'),
         })
@@ -195,7 +202,7 @@ async def remove_concierge(concierge_id: str, request: Request, session_token: O
 
     # Sign the removed person out everywhere and clear anything that would
     # stop this email from being invited again later.
-    await db.sessions.delete_many({'user_id': concierge_id, 'user_type': 'concierge'})
+    await db.sessions.delete_many({'user_id': concierge_id, 'user_type': {'$in': ['concierge', 'maintenance']}})
     await db.password_resets.delete_many({'user_id': concierge_id, 'user_type': 'concierge'})
     await db.invitations.delete_many({'manager_id': session['user_id'], 'email': con['email'], 'kind': {'$ne': 'resident'}})
 
@@ -257,6 +264,7 @@ async def create_concierge_invitation(data: CreateInvitationRequest, request: Re
         'email':         email,
         'phone':         data.phone or '',
         'title':         data.title or 'Concierge',
+        'role':          team_role(data.title),
         'status':        'pending',
         'created_at':    now,
         'expires_at':    expires_at,

@@ -15,6 +15,7 @@ import {
 import { PackageDashboard } from './PackageDashboard';
 import { ToursDashboard } from './ToursDashboard';
 import MicButton from './MicButton';
+import { WorkOrdersPage } from './maintenance/WorkOrders';
 import { toNarrative } from '../lib/toNarrative';
 import { TaskStatus, UserRole } from '../types';
 import { TaskCard } from './TaskCard';
@@ -135,7 +136,7 @@ const NT_EMPTY = { title: '', category: '', notes: '', location: '', priority: '
 
 const managerDoneTitle = t => {
   const source = t.source_section || t.sourceSection;
-  const kind = source === 'scheduled' ? 'Follow-up' : source === 'resident' ? 'Resident request' : 'Assigned task';
+  const kind = source === 'scheduled' ? 'Follow-up' : source === 'resident' ? 'Resident request' : source === 'work_order' ? 'Work order task' : 'Assigned task';
   // A task still open when the shift ended is listed as not done, whoever added it.
   const sentIso = source === 'resident' ? (t.assigned_at || '') : '';
   const sent = sentIso ? ` · sent ${new Date(sentIso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : (source === 'resident' && t.sentAt ? ` · sent ${t.sentAt}` : '');
@@ -145,8 +146,8 @@ const managerDoneTitle = t => {
 const inferDarSource = ({ source_section, sourceSection, title = '', category = '', created_by_type, createdByType } = {}) => {
   const persisted = source_section || sourceSection;
   // Planned tasks are manager work too: they go under Tasks Completed with requests.
-  if (persisted) return persisted === 'scheduled' || persisted === 'resident' ? 'requests' : persisted;
-  if (['manager', 'resident'].includes(created_by_type || createdByType)) return 'requests';
+  if (persisted) return ['scheduled', 'resident', 'work_order'].includes(persisted) ? 'requests' : persisted;
+  if (['manager', 'resident', 'system'].includes(created_by_type || createdByType)) return 'requests';
   const value = title.toLowerCase();
   if (/package|delivery|rts|carrier pickup/.test(value) || category === 'Delivery') return 'packages';
   if (/guest|visitor|resident notified/.test(value)) return 'guests';
@@ -461,6 +462,27 @@ export const CaregiverDashboard = ({
       setPreviousShiftData(mapPreviousShift(prevRes?.shift));
     }).catch(() => setPreviousShiftData(null));
   }, []);
+
+  // Maintenance writes into this shift's report too. Pull in their new lines
+  // every minute so the report the desk is looking at stays complete.
+  useEffect(() => {
+    if (!isShiftActive) return undefined;
+    const pull = () => authApi.getActiveShift().then(res => {
+      const logs = (res?.shift?.activities || []).filter(t => t.created_by_type === 'maintenance_log');
+      if (!logs.length) return;
+      setSelfTasks(prev => {
+        const have = new Set(prev.map(t => t.id));
+        const fresh = logs.filter(t => !have.has(t.task_id)).map(t => {
+          const at = t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+          return { id: t.task_id, evidenceUrls: Array.isArray(t.evidence_urls) ? t.evidence_urls : [], title: t.title, category: t.category || 'Maintenance',
+                   notes: t.notes || '', completedAt: at, startedAt: at, status: 'completed', _source: 'maintenance' };
+        });
+        return fresh.length ? [...prev, ...fresh] : prev;
+      });
+    }).catch(() => {});
+    const timer = setInterval(pull, 60000);
+    return () => clearInterval(timer);
+  }, [isShiftActive]);
 
   // Sync authUser into editInfoCG
   useEffect(() => {
@@ -827,7 +849,7 @@ export const CaregiverDashboard = ({
         status: updated.status,
         completion_note: updated.completionNote || updated.completion_note || '',
         evidence_urls: await shrinkImages(updated.evidenceUrls || []),
-        ...(updated.createdByType === 'resident' ? { resident_reply: updated.residentReply || '' } : {}),
+        ...((updated.createdByType === 'resident' || updated.woTask === 'followup') ? { resident_reply: updated.residentReply || '' } : {}),
       });
       setTasks(p => p.map(t => (t.id === saved.id || t.task_id === saved.task_id) ? saved : t));
     } catch { setSaveFailure(`"${updated.title || 'The request'}" could not be updated. Check your connection and try again.`); }
@@ -863,7 +885,7 @@ export const CaregiverDashboard = ({
     : pendingTasks;
   const requestTimeMinutes = task => {
     // Resident requests have no set time: urgent ones go to the top, the rest follow them.
-    if (task.createdByType === 'resident') return task.priority === 'Urgent' ? -2 : -1;
+    if (['resident', 'system'].includes(task.createdByType)) return task.priority === 'Urgent' ? -2 : -1;
     const raw = task.dueTime || task.due_time || task.scheduledTime || '23:59';
     const match = String(raw).match(/^(\d{1,2}):(\d{2})/);
     return match ? Number(match[1]) * 60 + Number(match[2]) : 1439;
@@ -1293,15 +1315,19 @@ export const CaregiverDashboard = ({
               {pendingRequests.map((task, i) => {
                 const planned = task.sourceSection === 'scheduled';
                 const fromResident = task.createdByType === 'resident';
-                const time = fromResident ? '' : [clockText(task.dueTime), task.endTime ? clockText(task.endTime) : ''].filter(Boolean).join(' – ');
+                const fromWorkOrder = task.createdByType === 'system';
+                const woLabel = { notify: 'Check with maintenance', remind: 'Reminder', followup: 'Follow up with resident' }[task.woTask] || 'Work order';
+                const time = fromResident || fromWorkOrder ? '' : [clockText(task.dueTime), task.endTime ? clockText(task.endTime) : ''].filter(Boolean).join(' – ');
                 return (
                   <div key={task.id || task.task_id} data-testid="todo-row" style={{ display:'grid', gridTemplateColumns:isPhone?'36px minmax(0,1fr)':'40px minmax(0,1fr) auto', gap:12, alignItems:'center', padding:isPhone?'13px 16px':'14px 22px', borderTop:i?`1px solid ${BORDER}`:'none' }}>
-                    <div style={{ width:isPhone?36:40, height:isPhone?36:40, borderRadius:11, background:`${BLUE}10`, display:'flex', alignItems:'center', justifyContent:'center' }}>{planned ? <CalendarClock size={18} color={BLUE} /> : fromResident ? <Home size={18} color={BLUE} /> : <Bell size={18} color={BLUE} />}</div>
+                    <div style={{ width:isPhone?36:40, height:isPhone?36:40, borderRadius:11, background:`${BLUE}10`, display:'flex', alignItems:'center', justifyContent:'center' }}>{planned ? <CalendarClock size={18} color={BLUE} /> : fromResident ? <Home size={18} color={BLUE} /> : fromWorkOrder ? <Wrench size={18} color={BLUE} /> : <Bell size={18} color={BLUE} />}</div>
                     <div style={{ minWidth:0 }}>
                       <div style={{ fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, lineHeight:1.35 }}>{task.title}</div>
-                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3 }}>{[time, planned ? 'Follow-up' : fromResident ? 'Resident request' : 'Assigned task', fromResident && task.priority === 'Urgent' ? 'Urgent' : '', task.status === 'in_progress' ? 'In progress' : ''].filter(Boolean).join(' · ')}</div>
+                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3 }}>{[time, planned ? 'Follow-up' : fromResident ? 'Resident request' : fromWorkOrder ? woLabel : 'Assigned task', (fromResident || fromWorkOrder) && task.priority === 'Urgent' ? 'Urgent' : '', task.status === 'in_progress' ? 'In progress' : ''].filter(Boolean).join(' · ')}</div>
                       {fromResident
                         ? <div data-testid="todo-assigned-by" style={{ fontFamily:INTER, fontSize:12, color:TEXT, fontWeight:650, marginTop:3 }}>From {task.residentName || 'a resident'}{task.unit ? `, Unit ${task.unit}` : ''} · sent {task.sentAt}</div>
+                        : fromWorkOrder
+                        ? <div data-testid="todo-assigned-by" style={{ fontFamily:INTER, fontSize:12, color:TEXT, fontWeight:650, marginTop:3 }}>Added by Noted · work order #{task.workOrderNumber || '?'} · {task.sentAt}</div>
                         : <div data-testid="todo-assigned-by" style={{ fontFamily:INTER, fontSize:12, color:TEXT, fontWeight:650, marginTop:3 }}>Assigned by {task.createdBy || task.created_by_name || 'your manager'}</div>}
                       {task.notes && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:5, lineHeight:1.45, whiteSpace:'pre-line' }}>{task.notes}</div>}
                       {task.requestPhotos?.length > 0 && <div style={{ display:'flex', gap:6, marginTop:8 }}>{task.requestPhotos.map((url, j) => <button key={j} type="button" onClick={() => setGallery({ urls: task.requestPhotos, idx: j })} aria-label={`Photo ${j + 1} from the resident`} style={{ width:44, height:44, padding:0, borderRadius:9, overflow:'hidden', border:`1px solid ${BORDER}`, cursor:'zoom-in', background:CARD2 }}><img src={url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} /></button>)}</div>}
@@ -2130,7 +2156,7 @@ export const CaregiverDashboard = ({
     vendors: 'Vendors', incident: 'Incident Report', calendar: 'Shifts',
     'shift-history': 'Shift History', messages: 'Messages',
     guests: 'Visitors', settings: 'Settings', profile: 'Profile',
-    sops: 'Property Knowledge', training: 'Training', followup: 'Follow-ups',
+    sops: 'Property Knowledge', training: 'Training', followup: 'Follow-ups', 'work-orders': 'Work orders',
   };
 
   const PAGE_SUBTITLES = {
@@ -2145,6 +2171,7 @@ export const CaregiverDashboard = ({
     'shift-history': 'Past shifts and daily reports',
     messages: 'Team messages for this property',
     followup: 'Leave tasks for whoever is on duty, today or any later day',
+    'work-orders': 'Send work to maintenance and sign vendors in and out',
     guests: 'Visitor check-ins and authorizations',
     settings: 'Account, appearance, and preferences',
     profile: 'Your account and certifications',
@@ -2157,6 +2184,7 @@ export const CaregiverDashboard = ({
     { id: 'new-task',      Icon: Plus,           label: 'New Task',           action: () => setShowNewTask(true) },
     { id: 'messages',      Icon: MessageSquare,  label: 'Messages'            },
     { id: 'followup',      Icon: Clock,          label: 'Follow-ups'          },
+    { id: 'work-orders',   Icon: ClipboardList,  label: 'Work orders'         },
     { id: 'packages',      Icon: Package,        label: 'Packages'            },
     { id: 'guests',        Icon: UserCheck,      label: 'Guests'              },
     { id: 'lockout',       Icon: Lock,           label: 'Lockouts'            },
@@ -2171,7 +2199,7 @@ export const CaregiverDashboard = ({
     { id: 'emergency',     Icon: Phone,          label: 'Emergency Contacts', action: () => setShowContacts(true) },
   ];
   const NAV_GROUPS = [
-    { label: 'Shift record', ids: ['home', 'new-task', 'followup', 'messages'] },
+    { label: 'Shift record', ids: ['home', 'new-task', 'followup', 'work-orders', 'messages'] },
     { label: 'Front desk', ids: ['packages', 'guests', 'lockout', 'vendors', 'tours', 'loaners', 'incident'] },
     { label: 'Property guide', ids: ['sops', 'training'] },
     { label: 'Account & support', ids: ['calendar', 'settings', 'emergency'] },
@@ -2685,6 +2713,7 @@ export const CaregiverDashboard = ({
                   {activeTab === 'shift-history' && <HistoryPage />}
                   {activeTab === 'profile'       && renderProfileContent()}
                   {activeTab === 'messages'      && <TeamMessagesPage user={authUser} isPhone={isPhone} />}
+                  {activeTab === 'work-orders'   && <div style={{ padding: isPhone ? '18px 16px 40px' : '24px 32px 48px' }}><WorkOrdersPage embedded role="concierge" user={authUser} wide={!isPhone} /></div>}
                   {activeTab === 'followup'      && <div style={{ padding: isPhone ? '18px 16px 40px' : '24px 32px 48px', display:'flex', flexDirection:'column', gap:28 }}>
                     <PlannedTasksPage desk isMobile={isMobile} openWith={schedOpenWith} onChanged={afterScheduleChange} />
                     <section aria-label="Your own reminders" style={{ display:'flex', flexDirection:'column', gap:12 }}>

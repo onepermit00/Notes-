@@ -33,6 +33,22 @@ export function toNarrative(activity) {
     .replace(/\bIn:\s*/gi, 'Checked in at '));
   const append = (base) => ctx ? `${period(base)} ${contextSentence(ctx)}` : period(base);
 
+  // ── MAINTENANCE (lines maintenance adds to the desk's report) ──────────
+  // "Work order done · Work order #4 · Unit 12B · Plumbing · added by James Ortiz (Maintenance)"
+  if (category === 'Maintenance' && / · added by /.test(title)) {
+    const closed = /^No one on shift · /.test(title);
+    const body = title.replace(/^No one on shift · /, '');
+    const [main, who] = body.split(' · added by ');
+    const [what, head, ...details] = main.split(' · ');
+    const verb = {
+      'Work order opened': 'opened', 'Work order sent by resident': 'sent in by the resident',
+      'Work order done': 'finished', 'Work order on hold': 'put on hold', 'Work order cancelled': 'cancelled',
+      'Note': 'updated', 'Vendor visit logged': 'started, vendor on site', 'Vendor visit finished': 'finished',
+    }[what] || String(what || '').toLowerCase();
+    const subject = `${head || 'Work order'}${details.length ? ` (${details.join(', ')})` : ''}`;
+    return `${pre}${closed ? 'No one on shift. ' : ''}${append(`${subject} ${verb}`)} Added by ${who}.`;
+  }
+
   // ── PACKAGE DELIVERY ─────────────────────────────────────────────────
   if (/package delivery/i.test(title)) {
     const m = title.match(/Package delivery[^·]*·\s*(.+?)\s*→\s*Unit\s*(.+)$/i);

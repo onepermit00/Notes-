@@ -13,12 +13,13 @@ import {
   ClipboardCheck, CalendarClock, RefreshCw, Activity, Pencil, Sparkles, MessageSquare,
 } from 'lucide-react';
 import { NotedAssistant } from '../assistant/NotedAssistant';
+import { WorkOrdersPage } from './maintenance/WorkOrders';
 import { PlannedTasksPage } from './manager/PlannedTasksPage';
 import { PlannedForDay, usePlannedCalendar } from './dashboard/PlannedForDay';
 import { TeamMessagesPage } from './TeamMessagesPage';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
-import { authApi, normalizeTask, normalizeIncident, isDeskWork } from '../services/authApi';
+import { authApi, normalizeTask, normalizeIncident, isDeskWork, isDeskStaff } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
 import { useAuthSession } from '../context/AuthSessionContext';
 import { useSharedData } from '../context/SharedDataContext';
@@ -159,6 +160,7 @@ const NAV = [
   { id:'home',        Icon:Home,          label:'Overview'            },
   { id:'tasks',       Icon:Send,          label:'Tasks'               },
   { id:'followups',   Icon:Clock,         label:'Follow-ups'          },
+  { id:'workorders',  Icon:Wrench,        label:'Work orders'         },
   { id:'incidents',   Icon:AlertTriangle, label:'Incidents'           },
   { id:'assistant',   Icon:Sparkles,      label:'Assistant',          action:'assistant' },
   { id:'messages',    Icon:MessageSquare, label:'Messages'            },
@@ -174,7 +176,7 @@ const NAV = [
 ];
 
 const MANAGER_NAV_GROUPS = [
-  { label:'Command center', ids:['home', 'tasks', 'followups', 'incidents', 'messages'] },
+  { label:'Command center', ids:['home', 'tasks', 'followups', 'workorders', 'incidents', 'messages'] },
   { label:'People & coverage', ids:['shifts', 'team', 'residents'] },
   { label:'Operations setup', ids:['sections'] },
   { label:'Property guide', ids:['more', 'training'] },
@@ -381,7 +383,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
         id:       t.task_id,
         time:     new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
         title:    isDeskWork(t) ? (() => {
-          const kind = t.source_section === 'scheduled' ? 'Follow-up' : t.source_section === 'resident' ? 'Resident request' : 'Assigned task';
+          const kind = t.source_section === 'scheduled' ? 'Follow-up' : t.source_section === 'resident' ? 'Resident request' : t.source_section === 'work_order' ? 'Work order task' : 'Assigned task';
           // A resident's request also says when it came in, so the wait is on record.
           const sent = t.source_section === 'resident' && t.assigned_at ? ` · sent ${new Date(t.assigned_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : '';
           return t.not_done ? `Not done · ${kind} · ${t.title}${sent}` : `${kind} done${t.completed_by_name ? ` by ${t.completed_by_name}` : ''} · ${t.title}${sent}`;
@@ -800,7 +802,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     const glassCard  = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:16 };
     const baseInput  = { width:'100%', padding:'14px 16px', background:CARD2, borderRadius:12, color:TEXT, outline:'none', fontSize:16, fontFamily:INTER, boxSizing:'border-box' };
     // Only people who have accepted their invite have a desk to configure.
-    const sectionTeam = team.filter(person => person.concierge_id);
+    const sectionTeam = team.filter(person => person.concierge_id && isDeskStaff(person));
     const activeConcierge = sectionTeam.some(person => person.id === setupConcierge) ? setupConcierge : (sectionTeam[0]?.id || null);
     const access     = sectionAccess[activeConcierge] || {};
     const allSections = [...CONCIERGE_SECTIONS, ...customSections];
@@ -2269,7 +2271,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px',border:`1px solid ${BORDER}`,borderRadius:12,background:CARD2,fontSize:13,color:MUTED,lineHeight:1.5}}><FileText size={16} color={TEXT} style={{flexShrink:0,marginTop:2}}/><span>Every finished task also goes into the daily activity report of the shift it was done on, with the name of who did it.</span></div>
       <div style={{display:'flex',alignItems:isMobile?'stretch':'flex-end',flexDirection:isMobile?'column':'row',justifyContent:'space-between',gap:12}}>
         <div><DashboardEyebrow>Done</DashboardEyebrow><DashboardSectionTitle as="h3" style={{margin:'5px 0 0'}}>Who did what</DashboardSectionTitle></div>
-        <select aria-label="Filter done tasks by team member" value={taskAssignee} onChange={e=>setTaskAssignee(e.target.value)} style={{...control,padding:'0 34px 0 12px'}}><option value="all">Everyone</option>{team.filter(c=>c.status!=='invited').map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+        <select aria-label="Filter done tasks by team member" value={taskAssignee} onChange={e=>setTaskAssignee(e.target.value)} style={{...control,padding:'0 34px 0 12px'}}><option value="all">Everyone</option>{team.filter(c=>c.status!=='invited'&&isDeskStaff(c)).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
       </div>
       {tasksLoading ? <div aria-label="Loading tasks" style={{height:96,borderRadius:16,background:CARD2,border:`1px solid ${BORDER}`}}/> : done.length === 0 ? <DashboardCard style={{padding:isMobile?28:38,textAlign:'center',border:`1px solid ${BORDER}`,boxShadow:'none'}}><div style={{width:44,height:44,borderRadius:13,background:CARD2,display:'grid',placeItems:'center',margin:'0 auto 12px'}}><ClipboardCheck size={20} color={MUTED}/></div><strong style={{display:'block',fontSize:15,color:TEXT}}>Nothing done yet</strong><span style={{display:'block',fontSize:13,color:MUTED,marginTop:5}}>When the desk finishes a task, it shows here with who did it.</span></DashboardCard>
       : days.map(day => <section key={day.k} aria-label={`Done ${day.k}`}>
@@ -2337,7 +2339,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       <div aria-label="Task filters" style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'minmax(220px,1fr) auto auto',gap:10}}>
         <label style={{position:'relative'}}><span className="sr-only">Search tasks</span><Search size={16} color={MUTED} style={{position:'absolute',left:14,top:13}}/><input value={taskSearch} onChange={e=>setTaskSearch(e.target.value)} placeholder="Search title, assignee, or category" style={{...control,width:'100%',padding:'0 14px 0 40px',boxSizing:'border-box'}}/></label>
         <select aria-label="Filter task status" value={taskFilter} onChange={e=>setTaskFilter(e.target.value)} style={{...control,padding:'0 34px 0 12px'}}><option value="open">All open work</option><option value="overdue">Overdue</option><option value="active">In progress</option><option value="pending">Waiting for the desk</option><option value="declined">Declined</option></select>
-        <select aria-label="Filter task assignee" value={taskAssignee} onChange={e=>setTaskAssignee(e.target.value)} style={{...control,padding:'0 34px 0 12px'}}><option value="all">All assignees</option>{team.filter(c=>c.status!=='invited').map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+        <select aria-label="Filter task assignee" value={taskAssignee} onChange={e=>setTaskAssignee(e.target.value)} style={{...control,padding:'0 34px 0 12px'}}><option value="all">All assignees</option>{team.filter(c=>c.status!=='invited'&&isDeskStaff(c)).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
       </div>
       {tasksLoading ? <div aria-label="Loading tasks" style={{display:'flex',flexDirection:'column',gap:10}}>{[1,2,3].map(i=><div key={i} style={{height:96,borderRadius:16,background:CARD2,border:`1px solid ${BORDER}`,opacity:1-i*.15}}/>)}</div> : tasksError ? <EmptyState error/> : filtered.length===0 ? <EmptyState/> : groupDefs.map(group=>{
         const items=filtered.filter(group.test); if(!items.length)return null;
@@ -2572,7 +2574,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
     const knowledgeColors = { accent:BLUE, success:GREEN, warning:ORANGE, danger:RED, card:CARD, surface:CARD2, border:BORDER, text:TEXT, muted:MUTED, shadow:SHADOW };
     const trainingCategories = ['All', ...Array.from(new Set(trainingItems.map(item=>item.category).filter(Boolean)))];
     const visibleTraining = trainingItems.filter(item => (trainingFilter==='All'||item.category===trainingFilter) && (!trainingSearch.trim() || `${item.title} ${item.category} ${item.fileName||''} ${item.body||''}`.toLowerCase().includes(trainingSearch.trim().toLowerCase())));
-    const deskCount = team.filter(m => m.concierge_id).length;
+    const deskCount = team.filter(m => m.concierge_id && isDeskStaff(m)).length;
     const completions = trainingItems.reduce((sum, item) => sum + Math.min((item.completedBy || []).length, deskCount || Infinity), 0);
     const completionTotal = trainingItems.length * deskCount;
     return (
@@ -3094,10 +3096,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontFamily:INTER, fontSize:12, fontWeight:800, color:BLUE, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:12 }}>{propertyName}</div>
                   <h2 style={{ fontFamily:INTER, fontSize: isMobile ? 32 : 42, fontWeight:800, color:TEXT, margin:0, letterSpacing:'-0.045em', lineHeight:0.95 }}>
-                    {{ shifts:'Shift Calendar', tasks:'Tasks', followups:'Follow-ups', incidents:'Incidents', team:'Team', residents:'Residents Directory', analytics:'Analytics', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings', messages:'Messages' }[tab]}
+                    {{ shifts:'Shift Calendar', tasks:'Tasks', followups:'Follow-ups', workorders:'Work orders', incidents:'Incidents', team:'Team', residents:'Residents Directory', analytics:'Analytics', more:'Building SOPs', training:'Training', sections:'Shift Sections', settings:'Settings', messages:'Messages' }[tab]}
                   </h2>
                   <p style={{ fontFamily:INTER, fontSize:15, color:MUTED, margin:'10px 0 0', lineHeight:1.5 }}>
-                    {{ incidents:'Reports filed by the front desk, for your review', messages:'Team messages for this property', shifts:'Browse shift history and daily activity reports', followups:'Leave tasks for a team member or whoever is on duty, on any day', tasks:'Assign work for today and see who did it', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
+                    {{ incidents:'Reports filed by the front desk, for your review', messages:'Team messages for this property', shifts:'Browse shift history and daily activity reports', followups:'Leave tasks for a team member or whoever is on duty, on any day', workorders:'Repairs and vendor visits, from residents, the desk and you', tasks:'Assign work for today and see who did it', team:'Concierge accounts and property access', residents:'Every resident and unit at a glance', analytics:'Performance across shifts, tasks, and incidents', more:'Standard operating procedures for the desk', training:'Onboarding guides and desk reference', sections:'Configure the concierge shift checklist', settings:'Property, account, and appearance' }[tab]}
                   </p>
                 </div>
                 <button onClick={() => setTab('home')} aria-label="Close panel" data-testid="panel-close-btn"
@@ -3112,6 +3114,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                 {tab==='shifts'    && renderShifts()}
                 {tab==='followups' && <PlannedTasksPage team={team} isMobile={isMobile} openWith={schedOpenWith} onChanged={refreshCalItems} />}
                 {tab==='tasks'     && renderTasks()}
+                {tab==='workorders' && <WorkOrdersPage embedded role="manager" user={authUser} wide={!isMobile} />}
                 {tab==='incidents' && renderIncidents()}
                 {tab==='team'      && renderTeam()}
                 {tab==='residents' && renderResidents()}
@@ -3130,7 +3133,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       {/* ── Assistant ────────────────────────────────────────────────────────── */}
       <NotedAssistant isOpen={assistantOpen} onClose={() => setAssistantOpen(false)} role="manager" user={authUser} propertyName={propertyName} isPhone={isPhone}
         requests={tasks} incidents={incidents}
-        team={team.map(c => ({ ...c, onShift: c.status === 'on_shift' }))}
+        team={team.filter(isDeskStaff).map(c => ({ ...c, onShift: c.status === 'on_shift' }))}
         actions={{
           createRequest: async (form) => { const saved = await authApi.createTask(form); setTasks(p => [saved, ...p]); },
           open: (place) => { if (place === 'contacts') setConOpen(true); else setTab(place); },
@@ -3269,7 +3272,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   <div>
                     <label style={{ fontFamily:INTER, fontSize:14, fontWeight:600, color:TEXT, display:'block', marginBottom:12 }}>Assign To *</label>
                     <div role="radiogroup" aria-label="Assignee" style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                      {team.filter(c=>c.status!=='invited').map(c => {
+                      {team.filter(c=>c.status!=='invited'&&isDeskStaff(c)).map(c => {
                         const sel = taskForm.toId === c.id;
                         const onShift = c.status === 'on_shift';
                         return (
@@ -3286,7 +3289,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                           </button>
                         );
                       })}
-                      {team.filter(c=>c.status!=='invited').length===0&&<div style={{padding:16,border:`1px solid ${BORDER}`,borderRadius:12,color:MUTED,fontSize:13}}>No active concierges are available. Add a team member before assigning this task.</div>}
+                      {team.filter(c=>c.status!=='invited'&&isDeskStaff(c)).length===0&&<div style={{padding:16,border:`1px solid ${BORDER}`,borderRadius:12,color:MUTED,fontSize:13}}>No active concierges are available. Add a team member before assigning this task.</div>}
                     </div>
                     {!taskForm.toId&&<p style={{fontFamily:INTER,fontSize:12,color:ORANGE,margin:'7px 0 0'}}>Choose an assignee before dispatching.</p>}
                   </div>
@@ -3532,11 +3535,10 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                     {[
                       { id:'Leasing',             Icon:Building2,     desc:'Leasing & rentals'       },
-                      { id:'Maintenance',          Icon:Wrench,        desc:'Repairs & upkeep'        },
+                      { id:'Maintenance',          Icon:Wrench,        desc:'Gets the maintenance app' },
                       { id:'Management',           Icon:Users,         desc:'Property management'     },
                       { id:'Concierge',            Icon:User,          desc:'Front desk & services'   },
                       { id:'Corporate Leasing',    Icon:Building2,     desc:'Corporate accounts'      },
-                      { id:'Third Party / Vendor', Icon:Truck,         desc:'External contractors'    },
                     ].map(({ id:t, Icon:RIcon, desc }) => {
                       const sel = leasingForm.role === t;
                       return (

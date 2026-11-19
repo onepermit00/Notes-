@@ -322,6 +322,8 @@ function InvitePanel() {
       <p className="mt-5 text-[15px] leading-7 text-[#717171]">
         {invitation.role === 'resident'
           ? <>You've been invited to join <strong>{invitation.property_name}</strong> on Noted{invitation.unit ? <> for <strong>Unit {invitation.unit}</strong></> : null}. Set a password to send requests to the front desk and follow them.</>
+          : invitation.role === 'maintenance'
+          ? <>You've been invited to join <strong>{invitation.property_name}</strong> on the maintenance team. Set a password to see work orders from residents, the desk and the manager.</>
           : <>You've been invited to join <strong>{invitation.property_name}</strong> as a concierge. Set a password to activate your account.</>}
       </p>
       <form onSubmit={submit} className="mt-7 flex flex-col gap-5" noValidate>
