@@ -25,6 +25,8 @@ export const TaskCompletionModal = ({ task, onClose, onComplete }) => {
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState([]); // [{ preview: string }]
   const [selectedReason, setSelectedReason] = useState('');
+  const [reply, setReply] = useState('');
+  const fromResident = task.createdByType === 'resident';
 
   const handlePhotoChange = (e) => {
     const files = Array.from(e.target.files || []);
@@ -50,6 +52,7 @@ export const TaskCompletionModal = ({ task, onClose, onComplete }) => {
       status: mode === 'complete' ? TaskStatus.COMPLETED : TaskStatus.MISSED,
       completedAt: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
       completionNote: note,
+      residentReply: reply.trim(),
       evidenceUrls: photos.map(p => p.preview),
       missedReason: mode === 'cantComplete' ? selectedReason : null
     });
@@ -106,6 +109,15 @@ export const TaskCompletionModal = ({ task, onClose, onComplete }) => {
           <p style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 8 }}>Instructions</p>
           <p style={{ fontSize: 14, color: TEXT, lineHeight: 1.65 }}>{task.instructions || task.description || task.notes}</p>
         </div>}
+
+        {fromResident && task.requestPhotos?.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 10 }}>Photos from the resident</p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {task.requestPhotos.map((url, i) => <img key={i} src={url} alt={`From the resident ${i + 1}`} style={{ width: 90, height: 90, borderRadius: 12, objectFit: 'cover', border: `1px solid ${BORDER}` }} />)}
+            </div>
+          </div>
+        )}
 
         {mode === 'complete' ? (
           <>
@@ -164,7 +176,24 @@ export const TaskCompletionModal = ({ task, onClose, onComplete }) => {
                 rows={4}
                 style={{ width: '100%', padding: '14px 16px', ...glassInner, color: TEXT, fontFamily: INTER, fontSize: 15, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
               />
+              {fromResident && <p style={{ fontSize: 12, color: MUTED, margin: '6px 0 0' }}>Notes go in the DAR for staff only.</p>}
             </div>
+
+            {fromResident && (
+              <div style={{ marginTop: 20 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 10 }}>Reply to the resident (optional)</p>
+                <textarea
+                  value={reply}
+                  onChange={(e) => setReply(e.target.value)}
+                  placeholder="We spoke to the neighbor and the noise has stopped."
+                  data-testid="resident-reply-input"
+                  rows={3}
+                  maxLength={1000}
+                  style={{ width: '100%', padding: '14px 16px', ...glassInner, color: TEXT, fontFamily: INTER, fontSize: 15, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
+                />
+                <p style={{ fontSize: 12, color: MUTED, margin: '6px 0 0' }}>The resident sees this and gets it by email. Keep other residents' names and units out of it.</p>
+              </div>
+            )}
           </>
         ) : (
           /* Can't complete */

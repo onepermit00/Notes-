@@ -1,4 +1,5 @@
 """Tasks and recurring scheduled tasks."""
+import asyncio
 import calendar
 import hashlib
 import re
@@ -7,7 +8,7 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Cookie, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Optional
-from core import TaskCreate, TaskUpdate, _audit, _resolve_user, db
+from core import TaskCreate, TaskUpdate, _audit, _resolve_user, db, esc, send_email
 from notifications import _notify_task_assigned
 
 api = APIRouter(prefix='/api')
@@ -175,6 +176,9 @@ async def get_tasks(request: Request, day: Optional[str] = None, session_token: 
                     {'assigned_to_id': {'$in': [None, '']}, 'assigned_to': {'$regex': f'^{re.escape(cname)}$', '$options': 'i'}},
                     # a manager request addressed to nobody in particular goes to whoever is at the desk
                     {'assigned_to_id': {'$in': [None, '']}, 'assigned_to': {'$in': [None, '']}, 'created_by_type': 'manager'},
+                    # a resident's request stays with the desk until it is dealt with, whoever
+                    # started on it, so an open one moves on to the next shift
+                    {'created_by_type': 'resident', 'status': {'$nin': ['completed', 'declined']}},
                 ]},
                 {'$or': [{'source_section': {'$ne': 'scheduled'}}, {'occurrence_date': today.isoformat()}]},
             ],
@@ -246,9 +250,15 @@ async def update_task(task_id: str, update: TaskUpdate, request: Request, sessio
     if update.completion_note: patch['completion_note'] = update.completion_note
     if update.evidence_url:    patch['evidence_url']    = update.evidence_url
     if update.evidence_urls:   patch['evidence_urls']   = update.evidence_urls[:12]
+    if update.status == 'in_progress' and not existing.get('started_at'):
+        patch['started_at']      = now
+        patch['started_by_name'] = who
     if update.status == 'completed':
         patch['completed_at']      = now
         patch['completed_by_name'] = who
+    from_resident = existing.get('source_section') == 'resident'
+    if from_resident and update.resident_reply is not None:
+        patch['resident_reply'] = update.resident_reply.strip()[:1000]
     if update.status == 'declined':
         patch['declined_at']      = now
         patch['declined_by_name'] = who
@@ -264,15 +274,52 @@ async def update_task(task_id: str, update: TaskUpdate, request: Request, sessio
                 patch['completed_shift_id'] = active['shift_id']
     if not patch:
         raise HTTPException(400, 'Nothing to update.')
-    await db.tasks.update_one({'task_id': task_id, 'manager_id': mgr_id}, {'$set': patch})
+    changes = {'$set': patch}
+    event = RESIDENT_EVENTS.get(update.status) if from_resident and update.status != existing.get('status') else None
+    if event:
+        # The resident's timeline: each step with its exact time and who did it.
+        changes['$push'] = {'timeline': {'at': now, 'event': event, 'by_type': user_type,
+                                         'by_id': user.get('concierge_id') or user.get('manager_id'), 'by_name': who}}
+    await db.tasks.update_one({'task_id': task_id, 'manager_id': mgr_id}, changes)
     updated = await db.tasks.find_one({'task_id': task_id}, {'_id': 0})
-    for f in ('created_at', 'completed_at', 'declined_at'):
+    if event in ('resolved', 'closed'):
+        asyncio.create_task(_tell_resident(updated, event))
+    for f in ('created_at', 'completed_at', 'declined_at', 'started_at'):
         if isinstance(updated.get(f), datetime):
             updated[f] = updated[f].isoformat()
+    updated.pop('timeline', None)
     if update.status and update.status != existing.get('status'):
         await _audit(mgr_id, user.get('manager_id') if user_type == 'manager' else user.get('concierge_id', ''), user_type,
                      'update', 'task', task_id, {'title': existing.get('title', ''), 'status': update.status})
     return updated
+
+
+RESIDENT_EVENTS = {'in_progress': 'started', 'completed': 'resolved', 'declined': 'closed'}
+
+
+async def _tell_resident(task: dict, event: str):
+    """Email the resident that their request was dealt with. Only the reply the
+    desk wrote for them is included, never the desk's own notes."""
+    resident = await db.residents.find_one({'resident_id': task.get('resident_id'), 'is_active': True})
+    if not resident or not resident.get('email'):
+        return
+    manager = await db.managers.find_one({'manager_id': task['manager_id']}, {'property_name': 1}) or {}
+    req = task.get('resident_request') or {}
+    kind = {'noise': 'noise complaint', 'work_order': 'work order'}.get(req.get('request_type'), 'report')
+    status = 'resolved' if event == 'resolved' else 'closed'
+    reply = task.get('resident_reply') or ''
+    first = (resident.get('name') or '').split(' ')[0] or 'there'
+    html = f"""
+    <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;padding:40px 20px">
+      <div style="background:#fff;border:1px solid #ebebeb;border-radius:16px;padding:32px">
+        <p style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#FF385C;margin:0 0 12px;font-weight:800">{esc(manager.get('property_name', 'Noted'))}</p>
+        <h1 style="color:#222;font-size:21px;font-weight:800;margin:0 0 14px">Your {esc(kind)} was {status}</h1>
+        <p style="color:#444;font-size:15px;line-height:1.7">Hi {esc(first)}, the front desk marked your {esc(kind)} as {status}.</p>
+        {f'<p style="color:#222;font-size:15px;line-height:1.7;background:#f7f7f7;border-radius:12px;padding:14px 16px">{esc(reply)}</p>' if reply else ''}
+        <p style="color:#aaa;font-size:13px">Open Noted to see the full timeline. If the problem is not fixed, send a new request.</p>
+      </div>
+    </div>"""
+    await send_email(resident['email'], f'Your {kind} was {status}', html)
 
 
 class ScheduledTaskCreate(BaseModel):

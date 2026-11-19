@@ -320,7 +320,9 @@ function InvitePanel() {
   return (
     <Shell eyebrow="Invitation" icon={KeyRound} title={`Welcome, ${invitation.name || invitation.email}.`}>
       <p className="mt-5 text-[15px] leading-7 text-[#717171]">
-        You've been invited to join <strong>{invitation.property_name}</strong> as a concierge. Set a password to activate your account.
+        {invitation.role === 'resident'
+          ? <>You've been invited to join <strong>{invitation.property_name}</strong> on Noted{invitation.unit ? <> for <strong>Unit {invitation.unit}</strong></> : null}. Set a password to send requests to the front desk and follow them.</>
+          : <>You've been invited to join <strong>{invitation.property_name}</strong> as a concierge. Set a password to activate your account.</>}
       </p>
       <form onSubmit={submit} className="mt-7 flex flex-col gap-5" noValidate>
         <Field label="Password" htmlFor="invite-password" error={fieldErrors.password}>

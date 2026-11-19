@@ -41,7 +41,7 @@ import {
 import { clockText } from '../lib/plannedTasks';
 import { PlannedForDay, usePlannedCalendar } from './dashboard/PlannedForDay';
 import { PlannedTasksPage } from './manager/PlannedTasksPage';
-import { authApi, normalizeTask, normalizeIncident } from '../services/authApi';
+import { authApi, normalizeTask, normalizeIncident, isDeskWork } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
 import { useSharedData } from '../context/SharedDataContext';
 import { useAuthSession } from '../context/AuthSessionContext';
@@ -134,16 +134,19 @@ const TASK_CATEGORY_CONFIG = [
 const NT_EMPTY = { title: '', category: '', notes: '', location: '', priority: 'normal', dueDate: '', flagFollowUp: false };
 
 const managerDoneTitle = t => {
-  const kind = (t.source_section || t.sourceSection) === 'scheduled' ? 'Follow-up' : 'Assigned task';
+  const source = t.source_section || t.sourceSection;
+  const kind = source === 'scheduled' ? 'Follow-up' : source === 'resident' ? 'Resident request' : 'Assigned task';
   // A task still open when the shift ended is listed as not done, whoever added it.
-  return t.not_done ? `Not done · ${kind} · ${t.title}` : `${kind} done · ${t.title}`;
+  const sentIso = source === 'resident' ? (t.assigned_at || '') : '';
+  const sent = sentIso ? ` · sent ${new Date(sentIso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : (source === 'resident' && t.sentAt ? ` · sent ${t.sentAt}` : '');
+  return t.not_done ? `Not done · ${kind} · ${t.title}${sent}` : `${kind} done · ${t.title}${sent}`;
 };
 
 const inferDarSource = ({ source_section, sourceSection, title = '', category = '', created_by_type, createdByType } = {}) => {
   const persisted = source_section || sourceSection;
   // Planned tasks are manager work too: they go under Tasks Completed with requests.
-  if (persisted) return persisted === 'scheduled' ? 'requests' : persisted;
-  if ((created_by_type || createdByType) === 'manager') return 'requests';
+  if (persisted) return persisted === 'scheduled' || persisted === 'resident' ? 'requests' : persisted;
+  if (['manager', 'resident'].includes(created_by_type || createdByType)) return 'requests';
   const value = title.toLowerCase();
   if (/package|delivery|rts|carrier pickup/.test(value) || category === 'Delivery') return 'packages';
   if (/guest|visitor|resident notified/.test(value)) return 'guests';
@@ -176,10 +179,10 @@ const mapPreviousShift = (s) => {
     activities: (s.activities || []).map(t => ({
       id: t.task_id,
       time: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
-      title: t.created_by_type === 'manager' ? managerDoneTitle(t) : t.title,
+      title: isDeskWork(t) ? managerDoneTitle(t) : t.title,
       notes: t.notes || '',
       category: t.category || 'Other',
-      evidenceUrls: Array.isArray(t.evidence_urls) ? t.evidence_urls : [],
+      evidenceUrls: [...(Array.isArray(t.evidence_urls) ? t.evidence_urls : []), ...(Array.isArray(t.request_photos) ? t.request_photos : [])],
       sourceSection: inferDarSource(t),
     })),
   };
@@ -442,7 +445,7 @@ export const CaregiverDashboard = ({
           }).map(t => ({
             id: t.task_id,
             evidenceUrls: Array.isArray(t.evidence_urls) ? t.evidence_urls : [],
-            title: t.created_by_type === 'manager' ? managerDoneTitle(t) : t.title,
+            title: isDeskWork(t) ? managerDoneTitle(t) : t.title,
             category: t.category || 'Other',
             notes: t.notes || '',
             completedAt: t.created_at ? new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
@@ -451,7 +454,7 @@ export const CaregiverDashboard = ({
             _source: inferDarSource(t),
           }));
           setSelfTasks(prevActivities);
-          setRestoredRequestIds(new Set((s.activities || []).filter(t => t.created_by_type === 'manager').map(t => t.task_id)));
+          setRestoredRequestIds(new Set((s.activities || []).filter(t => isDeskWork(t)).map(t => t.task_id)));
         }
       }
 
@@ -824,6 +827,7 @@ export const CaregiverDashboard = ({
         status: updated.status,
         completion_note: updated.completionNote || updated.completion_note || '',
         evidence_urls: await shrinkImages(updated.evidenceUrls || []),
+        ...(updated.createdByType === 'resident' ? { resident_reply: updated.residentReply || '' } : {}),
       });
       setTasks(p => p.map(t => (t.id === saved.id || t.task_id === saved.task_id) ? saved : t));
     } catch { setSaveFailure(`"${updated.title || 'The request'}" could not be updated. Check your connection and try again.`); }
@@ -858,11 +862,13 @@ export const CaregiverDashboard = ({
     ? pendingTasks.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : pendingTasks;
   const requestTimeMinutes = task => {
+    // Resident requests have no set time: urgent ones go to the top, the rest follow them.
+    if (task.createdByType === 'resident') return task.priority === 'Urgent' ? -2 : -1;
     const raw = task.dueTime || task.due_time || task.scheduledTime || '23:59';
     const match = String(raw).match(/^(\d{1,2}):(\d{2})/);
     return match ? Number(match[1]) * 60 + Number(match[2]) : 1439;
   };
-  const managerRequests = tasks.filter(t => (t.createdByType || t.created_by_type) === 'manager').sort((a,b) => requestTimeMinutes(a)-requestTimeMinutes(b));
+  const managerRequests = tasks.filter(isDeskWork).sort((a,b) => requestTimeMinutes(a)-requestTimeMinutes(b));
   const pendingRequests = managerRequests.filter(t => t.status !== 'completed' && t.status !== 'declined');
   const handledRequests = managerRequests.filter(t => t.status === 'completed' || t.status === 'declined');
   const completedCount  = displayTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
@@ -963,7 +969,7 @@ export const CaregiverDashboard = ({
     }
 
 
-    const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed' && t.status !== 'declined');
+    const activeTasks = tasks.filter(t => isDeskWork(t) && t.status !== 'completed' && t.status !== 'declined');
     const sevColor = (sev) => sev === 'critical' || sev === 'high' ? RED : sev === 'medium' ? ORANGE : BLUE;
 
     return (
@@ -1097,13 +1103,13 @@ export const CaregiverDashboard = ({
     const activeShift = viewingPreviousDar && previousShiftData
       ? { ...previousShiftData, incidents: previousShiftData.incidents || [], activities: previousShiftData.activities || [] }
       : currentDar;
-    const activeTasks = tasks.filter(t => t.createdByType === 'manager' && t.status !== 'completed' && t.status !== 'declined');
+    const activeTasks = tasks.filter(t => isDeskWork(t) && t.status !== 'completed' && t.status !== 'declined');
     const sevColor    = (sev) => sev === 'critical' || sev === 'high' ? RED : sev === 'medium' ? ORANGE : BLUE;
 
     const taskCatMap = { packages:'Delivery', mail:'Delivery', patrol:'Safety / Security', amenity:'Amenity', opening:'Administrative', coverage:'Administrative', documentation:'Administrative' };
     const todayLabel = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
     const isToday = ts => ts && ts.startsWith(todayLabel + ',');
-    const completedTaskActs = isShiftActive ? displayTasks.filter(t=>t.createdByType==='manager'&&t.status===TaskStatus.COMPLETED&&isToday(t.completedAt)&&!restoredRequestIds.has(t.id)).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:managerDoneTitle(t), notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[] })) : [];
+    const completedTaskActs = isShiftActive ? displayTasks.filter(t=>isDeskWork(t)&&t.status===TaskStatus.COMPLETED&&isToday(t.completedAt)&&!restoredRequestIds.has(t.id)).map(t=>({ id:'task-'+t.id, time:t.completedAt, title:managerDoneTitle(t), notes:t.completionNote||'', category:taskCatMap[t.category]||'Administrative', evidenceUrls:[...(t.evidenceUrls?.length?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[]), ...(t.requestPhotos||[])] })) : [];
     const selfTaskActs = viewingPreviousDar
       ? (activeShift?.activities || []).map(t=>({ id:`previous-${t.id}`, time:t.time||t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t.sourceSection || inferDarSource(t) }))
       : selfTasks.map(t=>({ id:'self-'+t.id, time:t.completedAt||'', title:t.title, notes:t.notes||'', category:t.category||'Administrative', evidenceUrls:Array.isArray(t.evidenceUrls)?t.evidenceUrls:t.evidenceUrl?[t.evidenceUrl]:[], _source:t._source || inferDarSource(t) }));
@@ -1286,15 +1292,19 @@ export const CaregiverDashboard = ({
               </div>
               {pendingRequests.map((task, i) => {
                 const planned = task.sourceSection === 'scheduled';
-                const time = [clockText(task.dueTime), task.endTime ? clockText(task.endTime) : ''].filter(Boolean).join(' – ');
+                const fromResident = task.createdByType === 'resident';
+                const time = fromResident ? '' : [clockText(task.dueTime), task.endTime ? clockText(task.endTime) : ''].filter(Boolean).join(' – ');
                 return (
                   <div key={task.id || task.task_id} data-testid="todo-row" style={{ display:'grid', gridTemplateColumns:isPhone?'36px minmax(0,1fr)':'40px minmax(0,1fr) auto', gap:12, alignItems:'center', padding:isPhone?'13px 16px':'14px 22px', borderTop:i?`1px solid ${BORDER}`:'none' }}>
-                    <div style={{ width:isPhone?36:40, height:isPhone?36:40, borderRadius:11, background:`${BLUE}10`, display:'flex', alignItems:'center', justifyContent:'center' }}>{planned ? <CalendarClock size={18} color={BLUE} /> : <Bell size={18} color={BLUE} />}</div>
+                    <div style={{ width:isPhone?36:40, height:isPhone?36:40, borderRadius:11, background:`${BLUE}10`, display:'flex', alignItems:'center', justifyContent:'center' }}>{planned ? <CalendarClock size={18} color={BLUE} /> : fromResident ? <Home size={18} color={BLUE} /> : <Bell size={18} color={BLUE} />}</div>
                     <div style={{ minWidth:0 }}>
                       <div style={{ fontFamily:INTER, fontSize:14, fontWeight:750, color:TEXT, lineHeight:1.35 }}>{task.title}</div>
-                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3 }}>{[time, planned ? 'Follow-up' : 'Assigned task', task.status === 'in_progress' ? 'In progress' : ''].filter(Boolean).join(' · ')}</div>
-                      <div data-testid="todo-assigned-by" style={{ fontFamily:INTER, fontSize:12, color:TEXT, fontWeight:650, marginTop:3 }}>Assigned by {task.createdBy || task.created_by_name || 'your manager'}</div>
-                      {task.notes && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:5, lineHeight:1.45 }}>{task.notes}</div>}
+                      <div style={{ fontFamily:INTER, fontSize:11, color:MUTED, marginTop:3 }}>{[time, planned ? 'Follow-up' : fromResident ? 'Resident request' : 'Assigned task', fromResident && task.priority === 'Urgent' ? 'Urgent' : '', task.status === 'in_progress' ? 'In progress' : ''].filter(Boolean).join(' · ')}</div>
+                      {fromResident
+                        ? <div data-testid="todo-assigned-by" style={{ fontFamily:INTER, fontSize:12, color:TEXT, fontWeight:650, marginTop:3 }}>From {task.residentName || 'a resident'}{task.unit ? `, Unit ${task.unit}` : ''} · sent {task.sentAt}</div>
+                        : <div data-testid="todo-assigned-by" style={{ fontFamily:INTER, fontSize:12, color:TEXT, fontWeight:650, marginTop:3 }}>Assigned by {task.createdBy || task.created_by_name || 'your manager'}</div>}
+                      {task.notes && <div style={{ fontFamily:INTER, fontSize:12, color:MUTED, marginTop:5, lineHeight:1.45, whiteSpace:'pre-line' }}>{task.notes}</div>}
+                      {task.requestPhotos?.length > 0 && <div style={{ display:'flex', gap:6, marginTop:8 }}>{task.requestPhotos.map((url, j) => <button key={j} type="button" onClick={() => setGallery({ urls: task.requestPhotos, idx: j })} aria-label={`Photo ${j + 1} from the resident`} style={{ width:44, height:44, padding:0, borderRadius:9, overflow:'hidden', border:`1px solid ${BORDER}`, cursor:'zoom-in', background:CARD2 }}><img src={url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} /></button>)}</div>}
                     </div>
                     <button data-testid="todo-start" onClick={() => {
                       // Starting tells the manager the desk is on it; then the task opens to finish it.
@@ -2190,7 +2200,7 @@ export const CaregiverDashboard = ({
         duration:  msElapsed > 0 ? `${hrs}h ${mins}m` : (s.status === 'active' ? 'Ongoing' : '—'),
         activities: (s.activities || []).map(t => ({
           id: t.task_id, time: t.created_at ? new Date(t.created_at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : '—',
-          title: t.created_by_type === 'manager' ? managerDoneTitle(t) : (t.title || ''), notes: t.notes || '', category: t.category || 'Other', source_section: t.created_by_type === 'manager' ? 'requests' : (t.source_section || ''),
+          title: isDeskWork(t) ? managerDoneTitle(t) : (t.title || ''), notes: t.notes || '', category: t.category || 'Other', source_section: isDeskWork(t) ? 'requests' : (t.source_section || ''),
         })),
         incidents: (s.incidents || []).map(i => `${i.type || 'Incident'}: ${i.description || i.title || ''}`),
         note: '',

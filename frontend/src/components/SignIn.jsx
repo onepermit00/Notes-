@@ -5,9 +5,11 @@ import { authApi, classifyAuthError } from '../services/authApi';
 
 const ACCENT = '#FF385C';
 
+const RESIDENT = 'resident';
 const ROLES = [
   { label: 'Concierge', value: UserRole.CONCIERGE },
   { label: 'Manager', value: UserRole.MANAGER },
+  { label: 'Resident', value: RESIDENT },
 ];
 
 export const SignIn = ({ onSignIn, onGoToSignUp, onForgotPassword, onBack }) => {
@@ -29,7 +31,7 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onForgotPassword, onBack }) => 
     setError('');
     setLoading(true);
     try {
-      const apiRole = role === UserRole.MANAGER ? 'manager' : 'concierge';
+      const apiRole = role === UserRole.MANAGER ? 'manager' : role === RESIDENT ? 'resident' : 'concierge';
       const user = await authApi.signIn(apiRole, form.email, form.password);
       onSignIn(role, user);
     } catch (err) {
@@ -66,7 +68,7 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onForgotPassword, onBack }) => 
         <div>
           <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-white/35">Built for</p>
           <div className="mt-4 flex flex-wrap gap-2.5">
-            {['Property Managers', 'Concierge Staff'].map((t) => (
+            {['Property Managers', 'Concierge Staff', 'Residents'].map((t) => (
               <span key={t} className="rounded-full border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-semibold text-white/60">
                 {t}
               </span>
@@ -99,6 +101,8 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onForgotPassword, onBack }) => 
                   Sign up
                 </button>
               </>
+            ) : role === RESIDENT ? (
+              <span>Residents join from the invitation their building sends by email.</span>
             ) : (
               <span>
                 Front desk staff join from the invitation their manager sends.{' '}

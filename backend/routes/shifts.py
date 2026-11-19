@@ -133,13 +133,16 @@ async def _not_done_on_shift(shift: dict, mgr_id: str) -> list:
     cid = shift.get('concierge_id')
     rows = await db.tasks.find({
         'manager_id': mgr_id,
-        'created_by_type': 'manager',
+        # work handed to the desk: manager requests, follow-ups and resident requests
+        'created_by_type': {'$in': ['manager', 'resident']},
         'status': {'$ne': 'declined'},
         '$or': [
             # a scheduled task picked up on this shift
             {'source_section': 'scheduled', 'shift_id': shift['shift_id']},
             # a task assigned to this person, or to whoever is at the desk
-            {'source_section': {'$ne': 'scheduled'}, 'assigned_to_id': {'$in': [cid, '', None]}},
+            {'source_section': {'$nin': ['scheduled', 'resident']}, 'assigned_to_id': {'$in': [cid, '', None]}},
+            # a resident's request is the whole desk's until it is dealt with
+            {'source_section': 'resident'},
         ],
     }, {'_id': 0}).to_list(500)
     out = []
@@ -170,7 +173,7 @@ async def _shift_activities(shift_id: str, mgr_id: str, shift: Optional[dict] = 
     ).sort('created_at', 1).to_list(500)
     done = []
     for t in tasks:
-        from_manager = t.get('created_by_type') == 'manager'
+        from_manager = t.get('created_by_type') in ('manager', 'resident')
         if from_manager and t.get('status') != 'completed':
             continue
         if from_manager and t.get('completed_at'):

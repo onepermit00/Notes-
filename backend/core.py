@@ -62,6 +62,9 @@ async def _ensure_indexes():
     await db.incidents.create_index([('manager_id', 1), ('created_at', -1)], background=True)
     await db.messages.create_index([('manager_id', 1), ('created_at', 1)],  background=True)
     await db.residents.create_index([('manager_id', 1), ('unit', 1)],       background=True)
+    await db.residents.create_index('resident_id',                          background=True)
+    await db.residents.create_index('email',                                background=True)
+    await db.tasks.create_index([('resident_id', 1), ('created_at', -1)],   background=True)
     await db.audit_logs.create_index([('manager_id', 1), ('created_at', -1)], background=True)
     await db.scheduled_tasks.create_index([('manager_id', 1), ('active', 1)], background=True)
     await db.tasks.create_index('schedule_occurrence_key', unique=True, sparse=True, background=True)
@@ -149,6 +152,7 @@ class TaskUpdate(BaseModel):
     completion_note: Optional[str] = None
     evidence_url:    Optional[str] = None
     evidence_urls:   Optional[List[str]] = None
+    resident_reply:  Optional[str] = None   # what a resident sees when their request is closed
 
 class MessageCreate(BaseModel):
     content:      str
@@ -340,14 +344,36 @@ async def send_email(to_email: str, subject: str, html: str) -> tuple:
         return False, f'The email provider rejected the message ({e}).'
 
 
-async def _resolve_user(request, session_token):
+# Where each kind of account lives. Residents sign in to their own small app;
+# staff (managers and concierges) to the property workspace.
+ACCOUNT_STORES = {
+    'manager':   ('managers',   'manager_id'),
+    'concierge': ('concierges', 'concierge_id'),
+    'resident':  ('residents',  'resident_id'),
+}
+STAFF_TYPES = ('manager', 'concierge')
+
+
+def account_store(user_type: str):
+    """(collection, id field) for a session's user type."""
+    name, id_field = ACCOUNT_STORES.get(user_type, ACCOUNT_STORES['concierge'])
+    return db[name], id_field
+
+
+async def _resolve_user(request, session_token, allow=STAFF_TYPES):
+    """The signed-in person, their type and their property's manager id.
+    Only staff are let in unless a route opts in to other account types, so a
+    resident can never reach the desk's data through a staff endpoint."""
     session = await get_session(request, session_token)
     if not session:
         raise HTTPException(401, 'Not authenticated.')
-    if session['user_type'] == 'manager':
-        user = await db.managers.find_one({'manager_id': session['user_id']})
-    else:
-        user = await db.concierges.find_one({'concierge_id': session['user_id']})
+    if session['user_type'] not in allow:
+        raise HTTPException(403, 'This part of Noted is for building staff.')
+    collection, id_field = account_store(session['user_type'])
+    query = {id_field: session['user_id']}
+    if session['user_type'] == 'resident':
+        query['is_active'] = True
+    user = await collection.find_one(query)
     if not user:
         # The account was removed while the session was still open.
         raise HTTPException(401, 'Not authenticated.')

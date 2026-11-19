@@ -64,8 +64,19 @@ export function normalizeTask(t) {
     completionNote:  t.completion_note || '',
     evidenceUrl:     t.evidence_url || '',
     evidenceUrls:    Array.isArray(t.evidence_urls) ? t.evidence_urls : (t.evidence_url ? [t.evidence_url] : []),
+    // Sent by a resident from their app: who, which unit, and the photos they added.
+    requestPhotos:   Array.isArray(t.request_photos) ? t.request_photos : [],
+    residentName:    t.resident_name || '',
+    unit:            t.unit || '',
+    requestType:     t.resident_request?.request_type || '',
+    sentAt:          fmtTs(t.created_at),
+    residentReply:   t.resident_reply || '',
   };
 }
+
+// Work the desk is handed by someone else: manager requests, follow-ups and resident requests.
+export const isDeskWork = t => ['manager', 'resident'].includes(t?.createdByType || t?.created_by_type);
+export const RESIDENT_REQUEST_LABELS = { noise: 'Noise complaint', work_order: 'Work order', report: 'Resident report' };
 
 export function normalizeIncident(i) {
   return {
@@ -334,6 +345,56 @@ export const authApi = {
       const { data } = await api.get('/residents');
       return data.residents || [];
     } catch { return []; }
+  },
+
+  async getResidentDirectory() {
+    const { data } = await api.get('/residents');
+    return { residents: data.residents || [], settings: data.settings || {} };
+  },
+
+  async inviteResident(residentId) {
+    const { data } = await api.post(`/residents/${residentId}/invite`);
+    return data;
+  },
+
+  async inviteAllResidents() {
+    const { data } = await api.post('/residents/invite-all');
+    return data;
+  },
+
+  async cancelResidentInvite(residentId) {
+    await api.delete(`/residents/${residentId}/invite`);
+  },
+
+  async importResidents(rows) {
+    const { data } = await api.post('/residents/import', { residents: rows });
+    return data;
+  },
+
+  async saveResidentSettings(settings) {
+    const { data } = await api.put('/manager/resident-settings', settings);
+    return data;
+  },
+
+  // Resident app
+  async getResidentHome() {
+    const { data } = await api.get('/resident/home');
+    return data;
+  },
+
+  async getMyRequests() {
+    const { data } = await api.get('/resident/requests');
+    return data.requests || [];
+  },
+
+  async getMyRequest(id) {
+    const { data } = await api.get(`/resident/requests/${encodeURIComponent(id)}`);
+    return data;
+  },
+
+  async sendResidentRequest(body) {
+    const { data } = await api.post('/resident/requests', body);
+    return data;
   },
 
   async createResident(form) {
