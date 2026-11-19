@@ -71,11 +71,20 @@ export function normalizeTask(t) {
     requestType:     t.resident_request?.request_type || '',
     sentAt:          fmtTs(t.created_at),
     residentReply:   t.resident_reply || '',
+    // Made by Noted from a work order: check maintenance has it, remind them, or follow up.
+    workOrderId:     t.work_order_id || '',
+    workOrderNumber: t.work_order_number || null,
+    woTask:          t.wo_task || '',
+    deskClosed:      !!t.desk_closed,
   };
 }
 
 // Work the desk is handed by someone else: manager requests, follow-ups and resident requests.
-export const isDeskWork = t => ['manager', 'resident'].includes(t?.createdByType || t?.created_by_type);
+export const isDeskWork = t => ['manager', 'resident', 'system'].includes(t?.createdByType || t?.created_by_type);
+// Lines maintenance adds to the day's report.
+export const isMaintenanceLog = t => (t?.createdByType || t?.created_by_type) === 'maintenance_log';
+// Maintenance staff are team members too, but they never work the desk.
+export const isDeskStaff = c => (c?.role || 'concierge') !== 'maintenance';
 export const RESIDENT_REQUEST_LABELS = { noise: 'Noise complaint', work_order: 'Work order', report: 'Resident report' };
 
 export function normalizeIncident(i) {
@@ -110,6 +119,7 @@ function normalizeConcierge(c) {
     name,
     init:         initials,
     title:        c.title || 'Concierge',
+    role:         c.role || ((c.title || '').toLowerCase() === 'maintenance' ? 'maintenance' : 'concierge'),
     co:           '',
     status:       c.status || 'active',
     phone:        c.phone || '',
@@ -389,6 +399,42 @@ export const authApi = {
 
   async getMyRequest(id) {
     const { data } = await api.get(`/resident/requests/${encodeURIComponent(id)}`);
+    return data;
+  },
+
+  // ── Work orders (residents, desk, manager and maintenance share them) ──
+  async getWorkOrders(status) {
+    const { data } = await api.get('/work-orders', { params: status ? { status } : {} });
+    return data;
+  },
+
+  async getWorkOrder(id) {
+    const { data } = await api.get(`/work-orders/${encodeURIComponent(id)}`);
+    return data;
+  },
+
+  async createWorkOrder(body) {
+    const { data } = await api.post('/work-orders', body);
+    return data;
+  },
+
+  async updateWorkOrder(id, body) {
+    const { data } = await api.put(`/work-orders/${encodeURIComponent(id)}`, body);
+    return data;
+  },
+
+  async addWorkOrderNote(id, body) {
+    const { data } = await api.post(`/work-orders/${encodeURIComponent(id)}/notes`, body);
+    return data;
+  },
+
+  async saveMaintenanceSettings(remindHours) {
+    const { data } = await api.put('/manager/maintenance-settings', { remind_hours: remindHours });
+    return data;
+  },
+
+  async getMaintenanceDar() {
+    const { data } = await api.get('/maintenance/dar');
     return data;
   },
 

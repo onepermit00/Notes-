@@ -26,7 +26,7 @@ export const TaskCompletionModal = ({ task, onClose, onComplete }) => {
   const [photos, setPhotos] = useState([]); // [{ preview: string }]
   const [selectedReason, setSelectedReason] = useState('');
   const [reply, setReply] = useState('');
-  const fromResident = task.createdByType === 'resident';
+  const fromResident = task.createdByType === 'resident' || (task.woTask === 'followup' && !!task.residentName);
 
   const handlePhotoChange = (e) => {
     const files = Array.from(e.target.files || []);

@@ -6,9 +6,11 @@ import { authApi, classifyAuthError } from '../services/authApi';
 const ACCENT = '#FF385C';
 
 const RESIDENT = 'resident';
+const MAINTENANCE = 'maintenance';
 const ROLES = [
   { label: 'Concierge', value: UserRole.CONCIERGE },
   { label: 'Manager', value: UserRole.MANAGER },
+  { label: 'Maintenance', value: MAINTENANCE },
   { label: 'Resident', value: RESIDENT },
 ];
 
@@ -31,7 +33,7 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onForgotPassword, onBack }) => 
     setError('');
     setLoading(true);
     try {
-      const apiRole = role === UserRole.MANAGER ? 'manager' : role === RESIDENT ? 'resident' : 'concierge';
+      const apiRole = role === UserRole.MANAGER ? 'manager' : role === RESIDENT ? 'resident' : role === MAINTENANCE ? 'maintenance' : 'concierge';
       const user = await authApi.signIn(apiRole, form.email, form.password);
       onSignIn(role, user);
     } catch (err) {
@@ -68,7 +70,7 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onForgotPassword, onBack }) => 
         <div>
           <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-white/35">Built for</p>
           <div className="mt-4 flex flex-wrap gap-2.5">
-            {['Property Managers', 'Concierge Staff', 'Residents'].map((t) => (
+            {['Property Managers', 'Concierge Staff', 'Maintenance', 'Residents'].map((t) => (
               <span key={t} className="rounded-full border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-semibold text-white/60">
                 {t}
               </span>
@@ -103,6 +105,8 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onForgotPassword, onBack }) => 
               </>
             ) : role === RESIDENT ? (
               <span>Residents join from the invitation their building sends by email.</span>
+            ) : role === MAINTENANCE ? (
+              <span>Maintenance staff join from the invitation their manager sends.</span>
             ) : (
               <span>
                 Front desk staff join from the invitation their manager sends.{' '}
@@ -116,7 +120,7 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onForgotPassword, onBack }) => 
           {/* Role selector */}
           <fieldset className="mt-8">
             <legend className="mb-2 block text-[13px] font-semibold text-[#222]">I am a</legend>
-            <div className="flex gap-2.5" role="group">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4" role="group">
               {ROLES.map(({ label, value }) => {
                 const active = role === value;
                 return (
@@ -126,7 +130,7 @@ export const SignIn = ({ onSignIn, onGoToSignUp, onForgotPassword, onBack }) => 
                     onClick={() => { setRole(value); setError(''); }}
                     aria-pressed={active}
                     data-testid={`role-${label.toLowerCase()}-btn`}
-                    className={`min-h-11 flex-1 rounded-xl border px-3 text-[14px] font-bold transition-colors ${
+                    className={`min-h-11 rounded-xl border px-2 text-[14px] font-bold transition-colors ${
                       active
                         ? 'border-[#222] bg-[#222] text-white'
                         : 'border-[#ebebeb] bg-[#f7f7f7] text-[#717171] hover:border-[#222]'

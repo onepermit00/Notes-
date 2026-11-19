@@ -65,6 +65,11 @@ async def _ensure_indexes():
     await db.residents.create_index('resident_id',                          background=True)
     await db.residents.create_index('email',                                background=True)
     await db.tasks.create_index([('resident_id', 1), ('created_at', -1)],   background=True)
+    await db.tasks.create_index('reminder_key', unique=True, sparse=True,  background=True)
+    await db.tasks.create_index([('work_order_id', 1)],                     background=True)
+    await db.work_orders.create_index('work_order_id',                      background=True)
+    await db.work_orders.create_index([('manager_id', 1), ('status', 1)],   background=True)
+    await db.work_orders.create_index([('resident_id', 1), ('created_at', -1)], background=True)
     await db.audit_logs.create_index([('manager_id', 1), ('created_at', -1)], background=True)
     await db.scheduled_tasks.create_index([('manager_id', 1), ('active', 1)], background=True)
     await db.tasks.create_index('schedule_occurrence_key', unique=True, sparse=True, background=True)
@@ -350,6 +355,8 @@ ACCOUNT_STORES = {
     'manager':   ('managers',   'manager_id'),
     'concierge': ('concierges', 'concierge_id'),
     'resident':  ('residents',  'resident_id'),
+    # Maintenance staff are team members (invited from the Team page) with role 'maintenance'.
+    'maintenance': ('concierges', 'concierge_id'),
 }
 STAFF_TYPES = ('manager', 'concierge')
 

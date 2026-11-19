@@ -25,7 +25,7 @@ const TYPES = {
   },
   work_order: {
     label: 'Work order', Icon: Wrench,
-    blurb: 'Something in your home needs fixing.',
+    blurb: 'Something in your home needs fixing. Goes straight to maintenance.',
   },
   report: {
     label: 'Report something', Icon: Flag,
@@ -42,10 +42,14 @@ const URGENCY = [
 
 const STATUS_STYLE = {
   pending:     { color: TEXT,   bg: SOFT },
+  open:        { color: TEXT,   bg: SOFT },
   in_progress: { color: ORANGE, bg: '#FFF4E5' },
+  on_hold:     { color: ORANGE, bg: '#FFF4E5' },
   completed:   { color: GREEN,  bg: '#E9F7EF' },
   declined:    { color: MUTED,  bg: SOFT },
+  cancelled:   { color: MUTED,  bg: SOFT },
 };
+const OPEN_STATUSES = ['pending', 'open', 'in_progress', 'on_hold'];
 
 const EVENT_TEXT = {
   sent:     'You sent this to the front desk',
@@ -54,8 +58,19 @@ const EVENT_TEXT = {
   resolved: 'Marked as resolved',
   closed:   'Closed by the front desk',
 };
+// A work order goes to maintenance; the front desk checks in once it's done.
+const WORK_ORDER_EVENT_TEXT = {
+  sent:      'You sent this to maintenance',
+  seen:      'Maintenance saw your work order',
+  started:   'Maintenance started on it',
+  on_hold:   'On hold',
+  completed: 'Maintenance finished the work',
+  resolved:  'The front desk checked in and resolved it',
+  closed:    'Closed',
+  reopened:  'Opened again',
+};
 
-const when = (iso, withDay = true) => {
+export const when = (iso, withDay = true) => {
   if (!iso) return '';
   const d = new Date(iso);
   const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -68,7 +83,7 @@ const when = (iso, withDay = true) => {
   return `${day}, ${time}`;
 };
 
-const useIsWide = () => {
+export const useIsWide = () => {
   const [wide, setWide] = useState(() => window.innerWidth >= 900);
   useEffect(() => {
     const onResize = () => setWide(window.innerWidth >= 900);
@@ -96,7 +111,7 @@ function StatusPill({ request }) {
   );
 }
 
-function Eyebrow({ children }) {
+export function Eyebrow({ children }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
       <span aria-hidden="true" style={{ width: 28, height: 2, background: ACCENT }} />
@@ -105,7 +120,7 @@ function Eyebrow({ children }) {
   );
 }
 
-function Label({ children, htmlFor, optional }) {
+export function Label({ children, htmlFor, optional }) {
   return (
     <label htmlFor={htmlFor} style={{ display: 'block', fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 8 }}>
       {children}{optional && <span style={{ fontWeight: 500, color: MUTED }}> (optional)</span>}
@@ -113,12 +128,12 @@ function Label({ children, htmlFor, optional }) {
   );
 }
 
-const inputStyle = {
+export const inputStyle = {
   width: '100%', minHeight: 50, boxSizing: 'border-box', padding: '12px 16px', borderRadius: 14,
   border: `1px solid ${BORDER}`, background: SOFT, color: TEXT, fontFamily: INTER, fontSize: 16, outline: 'none',
 };
 
-function Chips({ options, value, onChange, name }) {
+export function Chips({ options, value, onChange, name }) {
   return (
     <div role="radiogroup" aria-label={name} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       {options.map(option => {
@@ -134,7 +149,7 @@ function Chips({ options, value, onChange, name }) {
   );
 }
 
-function YesNo({ value, onChange, yes = 'Yes', no = 'No', name }) {
+export function YesNo({ value, onChange, yes = 'Yes', no = 'No', name }) {
   return (
     <div role="radiogroup" aria-label={name} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
       {[[true, yes], [false, no]].map(([v, label]) => {
@@ -150,7 +165,7 @@ function YesNo({ value, onChange, yes = 'Yes', no = 'No', name }) {
   );
 }
 
-function PhotoPicker({ photos, setPhotos }) {
+export function PhotoPicker({ photos, setPhotos }) {
   const add = async (e) => {
     const files = Array.from(e.target.files || []).slice(0, MAX_PHOTOS - photos.length);
     e.target.value = '';
@@ -195,7 +210,7 @@ function EmergencyNote({ home }) {
 
 function HomeScreen({ home, requests, loading, wide, go }) {
   const firstName = (home?.name || '').split(' ')[0];
-  const open = requests.filter(r => r.status === 'pending' || r.status === 'in_progress');
+  const open = requests.filter(r => OPEN_STATUSES.includes(r.status));
   const mail = home?.front_desk_email
     ? `mailto:${home.front_desk_email}?subject=${encodeURIComponent(`Message from Unit ${home.unit || ''}`.trim())}`
     : '';
@@ -407,7 +422,7 @@ function RequestForm({ type, home, onSent, onCancel, wide }) {
 
         <button type="submit" disabled={sending} data-testid="send-request"
           style={{ minHeight: 56, borderRadius: 16, border: 0, background: sending ? MUTED : ACCENT, color: '#fff', fontFamily: INTER, fontSize: 16, fontWeight: 800, cursor: sending ? 'wait' : 'pointer', boxShadow: sending ? 'none' : `0 10px 26px ${ACCENT}38` }}>
-          {sending ? 'Sending…' : 'Send to the front desk'}
+          {sending ? 'Sending…' : type === 'work_order' ? 'Send to maintenance' : 'Send to the front desk'}
         </button>
       </div>
     </form>
@@ -418,7 +433,7 @@ function SentScreen({ request, go, wide }) {
   return (
     <section data-testid="request-sent" style={{ textAlign: 'center', padding: wide ? '40px 0' : '28px 0' }}>
       <div style={{ width: 72, height: 72, borderRadius: 22, margin: '0 auto 22px', background: '#E9F7EF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={34} color={GREEN} /></div>
-      <h1 style={{ margin: 0, fontSize: wide ? 38 : 30, fontWeight: 800, letterSpacing: '-.04em', color: TEXT }}>Sent to the front desk</h1>
+      <h1 style={{ margin: 0, fontSize: wide ? 38 : 30, fontWeight: 800, letterSpacing: '-.04em', color: TEXT }}>{request.request_type === 'work_order' ? 'Sent to maintenance' : 'Sent to the front desk'}</h1>
       <p style={{ margin: '12px auto 0', maxWidth: 420, fontSize: 15, lineHeight: 1.6, color: MUTED }}>
         Logged {when(request.created_at)}. Your reference is <strong style={{ color: TEXT }}>#{request.reference}</strong>. You'll get an email when it's resolved.
       </p>
@@ -459,7 +474,12 @@ function RequestDetail({ id, go, wide }) {
     request.pets && ['Pets', request.pets],
     request.best_time && ['Best time', request.best_time],
   ].filter(Boolean);
-  const done = request.status === 'completed' || request.status === 'declined';
+  const done = !OPEN_STATUSES.includes(request.status);
+  const isWorkOrder = request.request_type === 'work_order';
+  const eventText = isWorkOrder ? WORK_ORDER_EVENT_TEXT : EVENT_TEXT;
+  const waitingText = isWorkOrder
+    ? (request.status === 'open' ? 'Waiting for maintenance' : request.status === 'on_hold' ? 'Waiting to start again' : 'Waiting for maintenance to finish')
+    : (request.status === 'pending' ? 'Waiting for the front desk' : 'Waiting to be resolved');
   const steps = [...request.timeline];
   if (!done) steps.push({ event: 'next', at: null });
 
@@ -491,11 +511,12 @@ function RequestDetail({ id, go, wide }) {
               return (
                 <li key={i} data-testid={pending ? undefined : 'timeline-step'} style={{ display: 'grid', gridTemplateColumns: '22px minmax(0,1fr)', gap: 12 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <span style={{ width: 12, height: 12, marginTop: 4, borderRadius: '50%', background: pending ? '#fff' : step.event === 'resolved' ? GREEN : TEXT, border: pending ? `2px solid ${BORDER}` : 0 }} />
+                    <span style={{ width: 12, height: 12, marginTop: 4, borderRadius: '50%', background: pending ? '#fff' : (step.event === 'resolved' || step.event === 'completed') ? GREEN : TEXT, border: pending ? `2px solid ${BORDER}` : 0 }} />
                     {!last && <span style={{ flex: 1, width: 2, background: BORDER, minHeight: 26 }} />}
                   </div>
                   <div style={{ paddingBottom: 16 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: pending ? MUTED : TEXT }}>{pending ? (request.status === 'pending' ? 'Waiting for the front desk' : 'Waiting to be resolved') : EVENT_TEXT[step.event] || step.event}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: pending ? MUTED : TEXT }}>{pending ? waitingText : eventText[step.event] || step.event}</div>
+                    {step.event === 'on_hold' && request.status === 'on_hold' && request.hold_reason && <div style={{ marginTop: 2, fontSize: 13, color: ORANGE, fontWeight: 650 }}>{request.hold_reason}</div>}
                     {step.at && <div style={{ marginTop: 2, fontSize: 13, color: MUTED }}>{when(step.at)}</div>}
                   </div>
                 </li>

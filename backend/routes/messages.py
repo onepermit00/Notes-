@@ -73,7 +73,7 @@ async def sse_events(request: Request, session_token: Optional[str] = Cookie(def
             if session['user_type'] == 'concierge':
                 # The desk only hears about work that is theirs: requests sent to them
                 # or to nobody in particular. Other people's entries stay out of their list.
-                task_query['created_by_type'] = {'$in': ['manager', 'resident']}
+                task_query['created_by_type'] = {'$in': ['manager', 'resident', 'system']}
                 task_query['assigned_to_id'] = {'$in': [user['concierge_id'], None, '']}
                 task_query['source_section'] = {'$ne': 'scheduled'}
             tasks = await db.tasks.find(task_query, {'_id': 0}).to_list(50)

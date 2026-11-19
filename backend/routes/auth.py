@@ -34,6 +34,9 @@ def _profile(user: dict, user_type: str) -> dict:
         return {**base, 'user_id': user['resident_id'], 'title': 'Resident', 'unit': user.get('unit', ''),
                 'name': user.get('name', ''), 'first_name': first, 'last_name': last.strip(),
                 'manager_id': user['manager_id'], 'property_address': user.get('_property_address', '')}
+    if user_type == 'maintenance':
+        return {**base, 'user_id': user['concierge_id'], 'title': user.get('title') or 'Maintenance',
+                'manager_id': user['manager_id'], 'property_address': user.get('_property_address', '')}
     if user_type == 'manager':
         return {**base, 'user_id': user['manager_id'], 'title': user.get('job_title') or 'Property Manager',
                 'property_address': _address(user), 'notification_prefs': _prefs(user)}
@@ -56,7 +59,7 @@ def _prefs(manager: dict) -> dict:
 
 async def _with_property(user: dict, user_type: str) -> dict:
     """Concierges and residents read the property's address from their manager's record."""
-    if user_type in ('concierge', 'resident'):
+    if user_type in ('concierge', 'resident', 'maintenance'):
         manager = await db.managers.find_one({'manager_id': user.get('manager_id')},
                                              {'address': 1, 'city': 1, 'state': 1, 'property_name': 1})
         user = {**user, '_property_address': _address(manager or {})}
@@ -120,8 +123,10 @@ async def manager_signup(data: ManagerSignupRequest, response: Response):
 @api.post('/auth/signin')
 async def signin(data: SignInRequest, response: Response):
     email = data.email.lower().strip()
+    if data.role == 'maintenance':
+        data.role = 'concierge'   # maintenance staff are team members; the account decides which app opens
     if data.role not in ('manager', 'concierge', 'resident'):
-        raise HTTPException(400, 'Role must be "manager", "concierge" or "resident".')
+        raise HTTPException(400, 'Role must be "manager", "concierge", "maintenance" or "resident".')
 
     async def _find(role: str):
         if role == 'manager':
@@ -144,6 +149,8 @@ async def signin(data: SignInRequest, response: Response):
     if not user:
         raise HTTPException(401, 'Invalid email or password.')
 
+    if role == 'concierge' and user.get('role') == 'maintenance':
+        role = 'maintenance'
     user_id = user[account_store(role)[1]]
     token = await create_session(user_id, role)
     set_cookie(response, token)
@@ -299,7 +306,7 @@ async def get_invitation(token: str):
         'email':         inv['email'],
         'name':          f"{inv['first_name']} {inv['last_name']}".strip(),
         'property_name': inv['property_name'],
-        'role':          inv.get('kind') or 'concierge',
+        'role':          inv.get('kind') or inv.get('role') or 'concierge',
         'unit':          inv.get('unit', ''),
         'expires_at':    expires_at.isoformat(),
     }
@@ -343,6 +350,7 @@ async def accept_invitation(token: str, data: AcceptInvitationRequest):
     con_id = f'con_{uuid.uuid4().hex[:12]}'
     await db.concierges.insert_one({
         'concierge_id':  con_id,
+        'role':          inv.get('role') or ('maintenance' if (inv.get('title') or '').strip().lower() == 'maintenance' else 'concierge'),
         'email':         inv['email'],
         'password_hash': hash_pw(data.password),
         'first_name':    inv['first_name'],

@@ -91,6 +91,53 @@ def public_view(task: dict) -> dict:
     }
 
 
+WORK_ORDER_STATUS_FOR_RESIDENT = {
+    'open':        'Received',
+    'in_progress': 'In progress',
+    'on_hold':     'On hold',
+    'completed':   'Resolved',
+    'cancelled':   'Closed',
+}
+# Which steps of a work order the resident sees. Staff notes stay with staff.
+WORK_ORDER_EVENTS_FOR_RESIDENT = {'sent': 'sent', 'opened': 'sent', 'seen': 'seen', 'started': 'started',
+                                  'on_hold': 'on_hold', 'completed': 'completed', 'resolved': 'resolved',
+                                  'cancelled': 'closed', 'reopened': 'reopened'}
+
+
+def work_order_view(wo: dict) -> dict:
+    """The resident's own copy of a work order, in the same shape as a request."""
+    timeline = [
+        {'at': _iso(e.get('at')), 'event': WORK_ORDER_EVENTS_FOR_RESIDENT[e['event']]}
+        for e in wo.get('timeline') or [] if e.get('event') in WORK_ORDER_EVENTS_FOR_RESIDENT
+    ]
+    status = wo.get('status', 'open')
+    return {
+        'request_id':    wo['work_order_id'],
+        'request_type':  'work_order',
+        'type_label':    REQUEST_TYPES['work_order'],
+        'number':        wo.get('number'),
+        'kind':          wo.get('category', ''),
+        'location':      wo.get('location', ''),
+        'description':   wo.get('description', ''),
+        'happening_now': None,
+        'urgency':       wo.get('urgency'),
+        'permission_to_enter': wo.get('permission_to_enter'),
+        'pets':          wo.get('pets', ''),
+        'best_time':     wo.get('best_time', ''),
+        'photos':        wo.get('photos') or [],
+        'unit':          wo.get('unit', ''),
+        'status':        status,
+        'status_label':  WORK_ORDER_STATUS_FOR_RESIDENT.get(status, 'Received'),
+        # "Waiting on parts" helps the resident; the rest of maintenance's notes stay internal.
+        'hold_reason':   wo.get('hold_reason', '') if status == 'on_hold' else '',
+        'reply':         wo.get('resident_reply') or '',
+        'reference':     str(wo.get('number') or wo['work_order_id'][3:9].upper()),
+        'created_at':    _iso(wo.get('created_at')),
+        'updated_at':    _iso((wo.get('timeline') or [{}])[-1].get('at') or wo.get('created_at')),
+        'timeline':      timeline,
+    }
+
+
 def _staff_title(req: dict, unit: str) -> str:
     kind = (req.get('kind') or '').strip()
     where = (req.get('location') or '').strip()
@@ -172,12 +219,23 @@ async def my_requests(request: Request, session_token: Optional[str] = Cookie(de
     rows = await db.tasks.find(
         {'manager_id': mgr_id, 'resident_id': user['resident_id'], 'source_section': 'resident'}, {'_id': 0},
     ).sort('created_at', -1).to_list(200)
-    return {'requests': [public_view(t) for t in rows]}
+    orders = await db.work_orders.find(
+        {'manager_id': mgr_id, 'resident_id': user['resident_id']}, {'_id': 0},
+    ).sort('created_at', -1).to_list(200)
+    out = [public_view(t) for t in rows] + [work_order_view(w) for w in orders]
+    out.sort(key=lambda r: str(r.get('created_at') or ''), reverse=True)
+    return {'requests': out}
 
 
 @api.get('/requests/{request_id}')
 async def my_request(request_id: str, request: Request, session_token: Optional[str] = Cookie(default=None)):
     user, mgr_id = await _resident(request, session_token)
+    if request_id.startswith('wo_'):
+        wo = await db.work_orders.find_one({'work_order_id': request_id, 'manager_id': mgr_id,
+                                            'resident_id': user['resident_id']}, {'_id': 0})
+        if not wo:
+            raise HTTPException(404, 'Request not found.')
+        return work_order_view(wo)
     task = await db.tasks.find_one({'task_id': request_id, 'manager_id': mgr_id, 'resident_id': user['resident_id'],
                                     'source_section': 'resident'}, {'_id': 0})
     if not task:
@@ -199,6 +257,16 @@ async def send_request(data: ResidentRequestCreate, request: Request, session_to
     photos = _clean_photos(data.photos)
     # Enough for a real problem, not enough to flood the desk.
     await _check_rate_limit(f"resident-request:{user['resident_id']}", 6, 15)
+
+    if data.request_type == 'work_order':
+        # A work order goes straight to maintenance; the desk gets a task to make sure it was picked up.
+        from routes.maintenance import WorkOrderCreate, create_work_order
+        wo = await create_work_order(mgr_id, user, 'resident', WorkOrderCreate(
+            unit=user.get('unit', ''), location=data.location or '', category=data.kind or '',
+            description=description, urgency=urgency, permission_to_enter=data.permission_to_enter,
+            pets=data.pets or '', best_time=data.best_time or '', photos=photos,
+        ), resident=user)
+        return work_order_view(wo)
 
     now = datetime.now(timezone.utc)
     unit = user.get('unit', '')

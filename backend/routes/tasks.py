@@ -158,6 +158,8 @@ async def _drop_waiting_occurrences(scheduled_task_id: str, mgr_id: str):
 @api.get('/tasks')
 async def get_tasks(request: Request, day: Optional[str] = None, session_token: Optional[str] = Cookie(default=None)):
     user, user_type, mgr_id = await _resolve_user(request, session_token)
+    from routes.maintenance import check_overdue
+    await check_overdue(mgr_id)   # a work order past its limit becomes a reminder on the desk's To do
     query = {'manager_id': mgr_id}
     if user_type == 'concierge':
         today = desk_day(day)
@@ -179,6 +181,8 @@ async def get_tasks(request: Request, day: Optional[str] = None, session_token: 
                     # a resident's request stays with the desk until it is dealt with, whoever
                     # started on it, so an open one moves on to the next shift
                     {'created_by_type': 'resident', 'status': {'$nin': ['completed', 'declined']}},
+                    # the same goes for desk tasks Noted makes from work orders
+                    {'created_by_type': 'system', 'status': {'$nin': ['completed', 'declined']}},
                 ]},
                 {'$or': [{'source_section': {'$ne': 'scheduled'}}, {'occurrence_date': today.isoformat()}]},
             ],
@@ -257,7 +261,8 @@ async def update_task(task_id: str, update: TaskUpdate, request: Request, sessio
         patch['completed_at']      = now
         patch['completed_by_name'] = who
     from_resident = existing.get('source_section') == 'resident'
-    if from_resident and update.resident_reply is not None:
+    wo_followup = existing.get('wo_task') == 'followup' and existing.get('work_order_id')
+    if (from_resident or wo_followup) and update.resident_reply is not None:
         patch['resident_reply'] = update.resident_reply.strip()[:1000]
     if update.status == 'declined':
         patch['declined_at']      = now
@@ -284,6 +289,17 @@ async def update_task(task_id: str, update: TaskUpdate, request: Request, sessio
     updated = await db.tasks.find_one({'task_id': task_id}, {'_id': 0})
     if event in ('resolved', 'closed'):
         asyncio.create_task(_tell_resident(updated, event))
+    if wo_followup and update.status == 'completed' and existing.get('status') != 'completed':
+        # The desk checked in with the resident: their work order now reads Resolved,
+        # with the desk's reply, and the resident hears about it.
+        wo_patch = {'resident_resolved_at': now}
+        if patch.get('resident_reply'):
+            wo_patch['resident_reply'] = patch['resident_reply']
+        await db.work_orders.update_one({'work_order_id': existing['work_order_id'], 'manager_id': mgr_id}, {
+            '$set': wo_patch,
+            '$push': {'timeline': {'at': now, 'event': 'resolved', 'by_type': user_type, 'by_name': who}}})
+        if patch.get('resident_reply'):
+            asyncio.create_task(_tell_resident({**updated, 'resident_request': {'request_type': 'work_order'}}, 'resolved'))
     for f in ('created_at', 'completed_at', 'declined_at', 'started_at'):
         if isinstance(updated.get(f), datetime):
             updated[f] = updated[f].isoformat()
