@@ -65,6 +65,8 @@ async def upload_image(
     session = await get_session(request, session_token)
     if not session:
         raise HTTPException(401, 'Not authenticated.')
+    if session['user_type'] not in ('manager', 'concierge'):
+        raise HTTPException(403, 'This part of Noted is for building staff.')
 
     content      = await file.read()
     content_type = file.content_type or 'image/jpeg'

@@ -11,7 +11,7 @@ from core import (
     AcceptInvitationRequest, FORGOT_PW_RATE_LIMIT, FORGOT_PW_RATE_WINDOW,
     ForgotPasswordRequest, ManagerSignupRequest, RESET_TOKEN_MINUTES, ResetPasswordRequest,
     SignInRequest, UpdateProfileRequest, _check_rate_limit, _generate_raw_token,
-    _hash_token, clean_email, create_session, db, get_session, hash_pw, logger, send_email, set_cookie,
+    _hash_token, account_store, clean_email, create_session, db, get_session, hash_pw, logger, send_email, set_cookie,
     validate_password_policy, verify_pw,
 )
 
@@ -29,6 +29,11 @@ def _profile(user: dict, user_type: str) -> dict:
         'phone':         user.get('phone', ''),
         'property_name': user.get('property_name', ''),
     }
+    if user_type == 'resident':
+        first, _, last = (user.get('name') or '').strip().partition(' ')
+        return {**base, 'user_id': user['resident_id'], 'title': 'Resident', 'unit': user.get('unit', ''),
+                'name': user.get('name', ''), 'first_name': first, 'last_name': last.strip(),
+                'manager_id': user['manager_id'], 'property_address': user.get('_property_address', '')}
     if user_type == 'manager':
         return {**base, 'user_id': user['manager_id'], 'title': user.get('job_title') or 'Property Manager',
                 'property_address': _address(user), 'notification_prefs': _prefs(user)}
@@ -50,10 +55,13 @@ def _prefs(manager: dict) -> dict:
 
 
 async def _with_property(user: dict, user_type: str) -> dict:
-    """Concierges read the property's address from their manager's record."""
-    if user_type == 'concierge':
-        manager = await db.managers.find_one({'manager_id': user.get('manager_id')}, {'address': 1, 'city': 1, 'state': 1})
+    """Concierges and residents read the property's address from their manager's record."""
+    if user_type in ('concierge', 'resident'):
+        manager = await db.managers.find_one({'manager_id': user.get('manager_id')},
+                                             {'address': 1, 'city': 1, 'state': 1, 'property_name': 1})
         user = {**user, '_property_address': _address(manager or {})}
+        if user_type == 'resident':
+            user['property_name'] = (manager or {}).get('property_name', '')
     return user
 
 
@@ -112,27 +120,31 @@ async def manager_signup(data: ManagerSignupRequest, response: Response):
 @api.post('/auth/signin')
 async def signin(data: SignInRequest, response: Response):
     email = data.email.lower().strip()
-    if data.role not in ('manager', 'concierge'):
-        raise HTTPException(400, 'Role must be "manager" or "concierge".')
+    if data.role not in ('manager', 'concierge', 'resident'):
+        raise HTTPException(400, 'Role must be "manager", "concierge" or "resident".')
 
     async def _find(role: str):
         if role == 'manager':
             user = await db.managers.find_one({'email': email})
+        elif role == 'resident':
+            user = await db.residents.find_one({'email': email, 'is_active': True})
         else:
             user = await db.concierges.find_one({'email': email, 'is_active': True})
-        return user if user and verify_pw(data.password, user['password_hash']) else None
+        return user if user and user.get('password_hash') and verify_pw(data.password, user['password_hash']) else None
 
     # Try the role that was picked first. If the email and password are right but
     # the other role was picked by mistake, sign them in to the account they have
     # instead of telling them their password is wrong.
-    other = 'concierge' if data.role == 'manager' else 'manager'
     role, user = data.role, await _find(data.role)
-    if not user:
-        role, user = other, await _find(other)
+    for other in ('manager', 'concierge', 'resident'):
+        if user:
+            break
+        if other != data.role:
+            role, user = other, await _find(other)
     if not user:
         raise HTTPException(401, 'Invalid email or password.')
 
-    user_id = user['manager_id'] if role == 'manager' else user['concierge_id']
+    user_id = user[account_store(role)[1]]
     token = await create_session(user_id, role)
     set_cookie(response, token)
     return {'token': token, **_profile(await _with_property(user, role), role)}
@@ -144,10 +156,9 @@ async def me(request: Request, session_token: Optional[str] = Cookie(default=Non
     if not session:
         raise HTTPException(401, 'Not authenticated.')
 
-    collection = db.managers if session['user_type'] == 'manager' else db.concierges
-    id_field   = 'manager_id' if session['user_type'] == 'manager' else 'concierge_id'
+    collection, id_field = account_store(session['user_type'])
     user = await collection.find_one({id_field: session['user_id']}, {'_id': 0, 'password_hash': 0})
-    if not user:
+    if not user or (session['user_type'] == 'resident' and not user.get('is_active')):
         raise HTTPException(401, 'User not found.')
     return _profile(await _with_property(user, session['user_type']), session['user_type'])
 
@@ -171,8 +182,7 @@ async def change_password(data: ChangePasswordRequest, request: Request, session
     if not session:
         raise HTTPException(401, 'Not authenticated.')
     validate_password_policy(data.new_password)
-    collection = db.managers if session['user_type'] == 'manager' else db.concierges
-    id_field   = 'manager_id'  if session['user_type'] == 'manager' else 'concierge_id'
+    collection, id_field = account_store(session['user_type'])
     user = await collection.find_one({id_field: session['user_id']})
     if not user:
         raise HTTPException(404, 'User not found.')
@@ -203,9 +213,12 @@ async def forgot_password(data: ForgotPasswordRequest):
     if not user:
         user_type = 'concierge'
         user = await db.concierges.find_one({'email': email, 'is_active': True})
+    if not user:
+        user_type = 'resident'
+        user = await db.residents.find_one({'email': email, 'is_active': True})
 
     if user:
-        user_id   = user['manager_id'] if user_type == 'manager' else user['concierge_id']
+        user_id   = user[account_store(user_type)[1]]
         raw_token = _generate_raw_token()
         now       = datetime.now(timezone.utc)
         await db.password_resets.insert_one({
@@ -226,7 +239,7 @@ async def forgot_password(data: ForgotPasswordRequest):
             <h1 style="color:white;font-size:22px;font-weight:800;margin:0">Reset your password</h1>
           </div>
           <div style="background:#fff;border:1px solid #ebebeb;border-top:none;border-radius:0 0 16px 16px;padding:32px">
-            <p style="color:#444;font-size:15px;line-height:1.7">Hi {esc(user.get('first_name', ''))},</p>
+            <p style="color:#444;font-size:15px;line-height:1.7">Hi {esc(user.get('first_name') or (user.get('name') or '').split(' ')[0])},</p>
             <p style="color:#444;font-size:15px;line-height:1.7">We received a request to reset your Noted password. This link expires in {esc(RESET_TOKEN_MINUTES)} minutes.</p>
             <a href="{esc(reset_link)}" style="display:block;background:#FF385C;color:white;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px;margin:20px 0">Reset password</a>
             <p style="color:#aaa;font-size:13px">If you didn't request this, you can safely ignore this email.</p>
@@ -252,8 +265,7 @@ async def reset_password(data: ResetPasswordRequest):
     if not record:
         raise HTTPException(400, 'This reset link is invalid or has expired.')
 
-    collection = db.managers if record['user_type'] == 'manager' else db.concierges
-    id_field   = 'manager_id'  if record['user_type'] == 'manager' else 'concierge_id'
+    collection, id_field = account_store(record['user_type'])
     user = await collection.find_one({id_field: record['user_id']})
     if not user:
         raise HTTPException(400, 'This reset link is invalid or has expired.')
@@ -287,7 +299,8 @@ async def get_invitation(token: str):
         'email':         inv['email'],
         'name':          f"{inv['first_name']} {inv['last_name']}".strip(),
         'property_name': inv['property_name'],
-        'role':          'concierge',
+        'role':          inv.get('kind') or 'concierge',
+        'unit':          inv.get('unit', ''),
         'expires_at':    expires_at.isoformat(),
     }
 
@@ -307,6 +320,22 @@ async def accept_invitation(token: str, data: AcceptInvitationRequest):
     manager = await db.managers.find_one({'manager_id': inv['manager_id']})
     if not manager:
         raise HTTPException(400, 'This invitation is no longer valid.')
+
+    if inv.get('kind') == 'resident':
+        # The manager already added this person to the directory; the invite
+        # only turns that entry into an account they can sign in with.
+        resident = await db.residents.find_one({'resident_id': inv.get('resident_id'), 'manager_id': inv['manager_id']})
+        if not resident:
+            raise HTTPException(400, 'This invitation is no longer valid.')
+        if await db.residents.find_one({'email': inv['email'], 'is_active': True, 'resident_id': {'$ne': resident['resident_id']}}):
+            raise HTTPException(409, 'An account with this email already exists.')
+        await db.residents.update_one({'resident_id': resident['resident_id']}, {'$set': {
+            'email':         inv['email'],
+            'password_hash': hash_pw(data.password),
+            'is_active':     True,
+            'joined_at':     datetime.now(timezone.utc),
+        }})
+        return {'message': 'Account activated. You can now sign in.'}
 
     if await db.concierges.find_one({'email': inv['email']}):
         raise HTTPException(409, 'An account with this email already exists.')
@@ -335,18 +364,25 @@ async def update_profile(data: UpdateProfileRequest, request: Request, session_t
     if not session:
         raise HTTPException(401, 'Not authenticated.')
     patch = {}
-    if data.first_name is not None:
-        if not data.first_name.strip():
-            raise HTTPException(400, 'Enter your name.')
-        patch['first_name'] = data.first_name.strip()[:80]
-    if data.last_name  is not None: patch['last_name']  = data.last_name.strip()[:80]
+    if session['user_type'] == 'resident':
+        # Residents have one name field, and the manager's directory shows it.
+        if data.first_name is not None or data.last_name is not None:
+            name = f"{data.first_name or ''} {data.last_name or ''}".strip()
+            if not name:
+                raise HTTPException(400, 'Enter your name.')
+            patch['name'] = name[:120]
+    else:
+        if data.first_name is not None:
+            if not data.first_name.strip():
+                raise HTTPException(400, 'Enter your name.')
+            patch['first_name'] = data.first_name.strip()[:80]
+        if data.last_name  is not None: patch['last_name']  = data.last_name.strip()[:80]
     if data.phone      is not None: patch['phone']      = data.phone.strip()[:40]
     if data.notification_prefs is not None and session['user_type'] == 'manager':
         patch['notification_prefs'] = {key: bool(data.notification_prefs.get(key, default)) for key, default in NOTIFICATION_DEFAULTS.items()}
     if not patch:
         raise HTTPException(400, 'No fields to update.')
-    collection = db.managers   if session['user_type'] == 'manager' else db.concierges
-    id_field   = 'manager_id'  if session['user_type'] == 'manager' else 'concierge_id'
+    collection, id_field = account_store(session['user_type'])
     result = await collection.update_one({id_field: session['user_id']}, {'$set': patch})
     if result.matched_count == 0:
         raise HTTPException(404, 'User not found.')

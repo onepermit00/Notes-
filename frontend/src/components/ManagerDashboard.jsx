@@ -18,7 +18,7 @@ import { PlannedForDay, usePlannedCalendar } from './dashboard/PlannedForDay';
 import { TeamMessagesPage } from './TeamMessagesPage';
 import { BUILDING_PROFILE, BUILDING_CONTACTS, BUILDING_SOPS } from '../services/mockData';
 import { UserRole } from '../types';
-import { authApi, normalizeTask, normalizeIncident } from '../services/authApi';
+import { authApi, normalizeTask, normalizeIncident, isDeskWork } from '../services/authApi';
 import { useTheme } from '../context/ThemeContext';
 import { useAuthSession } from '../context/AuthSessionContext';
 import { useSharedData } from '../context/SharedDataContext';
@@ -380,11 +380,16 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       }).map(t => ({
         id:       t.task_id,
         time:     new Date(t.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-        title:    t.created_by_type === 'manager' ? (t.not_done ? `Not done · ${t.source_section === 'scheduled' ? 'Follow-up' : 'Assigned task'} · ${t.title}` : `${t.source_section === 'scheduled' ? 'Follow-up' : 'Assigned task'} done${t.completed_by_name ? ` by ${t.completed_by_name}` : ''} · ${t.title}`) : t.title,
+        title:    isDeskWork(t) ? (() => {
+          const kind = t.source_section === 'scheduled' ? 'Follow-up' : t.source_section === 'resident' ? 'Resident request' : 'Assigned task';
+          // A resident's request also says when it came in, so the wait is on record.
+          const sent = t.source_section === 'resident' && t.assigned_at ? ` · sent ${new Date(t.assigned_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : '';
+          return t.not_done ? `Not done · ${kind} · ${t.title}${sent}` : `${kind} done${t.completed_by_name ? ` by ${t.completed_by_name}` : ''} · ${t.title}${sent}`;
+        })() : t.title,
         notes:    t.notes || '',
         category: t.category || 'Other',
-        sourceSection: t.created_by_type === 'manager' ? 'tasks' : (t.source_section || ''),
-        evidenceUrls: Array.isArray(t.evidence_urls) ? t.evidence_urls : (t.evidence_url ? [t.evidence_url] : []),
+        sourceSection: isDeskWork(t) ? 'tasks' : (t.source_section || ''),
+        evidenceUrls: [...(Array.isArray(t.evidence_urls) ? t.evidence_urls : (t.evidence_url ? [t.evidence_url] : [])), ...(Array.isArray(t.request_photos) ? t.request_photos : [])],
       })),
     };
   };
@@ -952,10 +957,114 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   const [resError,       setResError]       = useState(false);
   const [teamSearch,     setTeamSearch]     = useState('');
 
+  const [resSettings,    setResSettings]    = useState({ front_desk_email:'', front_desk_phone:'' });
+  const [resSettingsDraft, setResSettingsDraft] = useState(null);
+  const [resNotice,      setResNotice]      = useState(null); // { tone, text, link? }
+  const [resBusy,        setResBusy]        = useState('');
+  const [resConfirm,     setResConfirm]     = useState(null); // resident about to be removed
+  const resImportRef = useRef(null);
+
   useEffect(() => {
     setResLoading(true);
-    authApi.getResidents().then(list => { setResidents(list); setResError(false); setResLoading(false); }).catch(() => { setResError(true); setResLoading(false); });
+    authApi.getResidentDirectory()
+      .then(({ residents: list, settings }) => { setResidents(list); setResSettings(settings); setResError(false); setResLoading(false); })
+      .catch(() => { setResError(true); setResLoading(false); });
   }, []);
+
+  const residentError = err => err?.response?.data?.detail || 'That did not work. Check your connection and try again.';
+
+  const inviteResident = async (r) => {
+    setResBusy(r.resident_id);
+    try {
+      const sent = await authApi.inviteResident(r.resident_id);
+      setResidents(prev => prev.map(x => x.resident_id === r.resident_id ? { ...x, account_status:'invited' } : x));
+      setResNotice(sent.email_sent
+        ? { tone:'ok', text:`Invitation sent to ${sent.email}. ${r.name} can join from the link in that email.` }
+        : { tone:'warn', text:`The invitation for ${r.name} was created, but the email could not be sent. Share this join link with them instead:`, link: sent.invite_link });
+    } catch (err) { setResNotice({ tone:'error', text: residentError(err) }); }
+    finally { setResBusy(''); }
+  };
+
+  const cancelResidentInvite = async (r) => {
+    setResBusy(r.resident_id);
+    try {
+      await authApi.cancelResidentInvite(r.resident_id);
+      setResidents(prev => prev.map(x => x.resident_id === r.resident_id ? { ...x, account_status:'not_invited' } : x));
+      setResNotice({ tone:'ok', text:`The invitation for ${r.name} was cancelled. The link no longer works.` });
+    } catch (err) { setResNotice({ tone:'error', text: residentError(err) }); }
+    finally { setResBusy(''); }
+  };
+
+  const inviteAllResidents = async () => {
+    setResBusy('all');
+    try {
+      const { sent, failed } = await authApi.inviteAllResidents();
+      const { residents: list } = await authApi.getResidentDirectory();
+      setResidents(list);
+      setResNotice(sent || failed
+        ? { tone: failed ? 'warn' : 'ok', text: `${sent} invitation${sent === 1 ? '' : 's'} sent.${failed ? ` ${failed} could not be emailed; use Invite on each one to get a link to share.` : ''}` }
+        : { tone:'ok', text:'Everyone with an email address has already joined or has an invitation waiting.' });
+    } catch (err) { setResNotice({ tone:'error', text: residentError(err) }); }
+    finally { setResBusy(''); }
+  };
+
+  // A spreadsheet saved as CSV: a header row with name, unit, email and phone, in any order.
+  const parseResidentCsv = (text) => {
+    const rows = [];
+    let row = [], cell = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (quoted) {
+        if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+        else if (ch === '"') quoted = false;
+        else cell += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i++;
+        row.push(cell); rows.push(row); row = []; cell = '';
+      } else cell += ch;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    const clean = rows.map(r => r.map(c => c.trim())).filter(r => r.some(Boolean));
+    if (!clean.length) return [];
+    const head = clean[0].map(h => h.toLowerCase());
+    const find = (...names) => head.findIndex(h => names.some(n => h.includes(n)));
+    const hasHeader = find('name', 'unit', 'apt', 'email') > -1;
+    const col = hasHeader
+      ? { name: find('full name', 'resident', 'name'), first: find('first'), last: find('last'), unit: find('unit', 'apt', 'apartment', 'suite'), email: find('email', 'e-mail'), phone: find('phone', 'mobile', 'cell') }
+      : { name: 0, unit: 1, email: 2, phone: 3, first: -1, last: -1 };
+    if (hasHeader && col.first > -1 && col.name === col.first) col.name = -1;
+    return (hasHeader ? clean.slice(1) : clean).map(r => ({
+      name: (col.name > -1 ? r[col.name] : [r[col.first], r[col.last]].filter(Boolean).join(' ')) || '',
+      unit: (col.unit > -1 ? r[col.unit] : '') || '',
+      email: (col.email > -1 ? r[col.email] : '') || '',
+      phone: (col.phone > -1 ? r[col.phone] : '') || '',
+    }));
+  };
+
+  const importResidentCsv = async (file) => {
+    if (!file) return;
+    setResBusy('import');
+    try {
+      const rows = parseResidentCsv(await file.text());
+      if (!rows.length) { setResNotice({ tone:'error', text:'That file has no rows to import. Save the spreadsheet as CSV with name, unit and email columns.' }); return; }
+      const { added, skipped, problems } = await authApi.importResidents(rows);
+      setResidents(prev => [...prev, ...added].sort((a, b) => String(a.unit).localeCompare(String(b.unit), undefined, { numeric:true })));
+      setResNotice({ tone: problems.length ? 'warn' : 'ok', text: `${added.length} resident${added.length === 1 ? '' : 's'} added${skipped ? `, ${skipped} already listed` : ''}.${problems.length ? ` Not added: ${problems.slice(0, 3).join(' ')}${problems.length > 3 ? ` and ${problems.length - 3} more.` : ''}` : ''} Use Invite all to send their join links.` });
+    } catch (err) { setResNotice({ tone:'error', text: residentError(err) }); }
+    finally { setResBusy(''); if (resImportRef.current) resImportRef.current.value = ''; }
+  };
+
+  const saveResidentSettings = async () => {
+    setResBusy('settings');
+    try {
+      const saved = await authApi.saveResidentSettings(resSettingsDraft);
+      setResSettings(saved); setResSettingsDraft(null);
+      setResNotice({ tone:'ok', text:'Saved. Residents see these on their Email and Call buttons.' });
+    } catch (err) { setResNotice({ tone:'error', text: residentError(err) }); }
+    finally { setResBusy(''); }
+  };
 
   const saveResident = async () => {
     if (!resForm.name.trim() || !resForm.unit.trim()) return;
@@ -971,14 +1080,15 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
       }
       setResForm({ name:'', unit:'', phone:'', email:'', notes:'' });
       setResAddOpen(false);
-    } catch {} finally { setResSaving(false); }
+    } catch (err) { setResNotice({ tone:'error', text: residentError(err) }); } finally { setResSaving(false); }
   };
 
   const deleteResident = async (id) => {
     try {
       await authApi.deleteResident(id);
       setResidents(prev => prev.filter(r => r.resident_id !== id));
-    } catch {}
+      setResConfirm(null);
+    } catch (err) { setResConfirm(null); setResNotice({ tone:'error', text: residentError(err) }); }
   };
 
   const renderResidents = () => {
@@ -1018,6 +1128,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
             <h3 style={{ fontFamily:INTER, fontSize:'1.2rem', fontWeight:700, color:TEXT, letterSpacing:'-0.01em', margin:0 }}>
               Who are you adding?
             </h3>
+            <p style={{ fontSize:13, color:MUTED, margin:'-10px 0 0', lineHeight:1.5 }}>Add each adult on the lease separately, so everyone gets their own login for the resident app.</p>
 
             {/* Name + Unit row */}
             <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'1fr 1fr', gap:12 }}>
@@ -1094,6 +1205,59 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
           </button>
         </div>
 
+        {resNotice && <div role="status" data-testid="resident-notice" style={{ marginBottom:16, padding:'12px 14px', borderRadius:12, border:`1px solid ${(resNotice.tone==='ok'?GREEN:resNotice.tone==='warn'?ORANGE:RED)}55`, background:`${resNotice.tone==='ok'?GREEN:resNotice.tone==='warn'?ORANGE:RED}10`, color:TEXT, fontSize:13, lineHeight:1.5, display:'flex', gap:10, alignItems:'flex-start' }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div>{resNotice.text}</div>
+            {resNotice.link && <div style={{ display:'flex', gap:8, marginTop:8, alignItems:'center' }}>
+              <input readOnly value={resNotice.link} aria-label="Join link" onFocus={e => e.target.select()} style={{ flex:1, minWidth:0, minHeight:38, padding:'0 10px', border:`1px solid ${BORDER}`, borderRadius:8, background:CARD, color:TEXT, fontFamily:INTER, fontSize:12 }} />
+              <button type="button" onClick={() => { try { navigator.clipboard?.writeText(resNotice.link); setResNotice(n => n && ({ ...n, copied:true })); } catch {} }} style={{ minHeight:38, padding:'0 14px', border:0, borderRadius:8, background:TEXT, color:'white', fontFamily:INTER, fontSize:12, fontWeight:700, cursor:'pointer' }}>{resNotice.copied ? 'Copied' : 'Copy'}</button>
+            </div>}
+          </div>
+          <button type="button" aria-label="Dismiss" onClick={() => setResNotice(null)} style={{ border:0, background:'transparent', cursor:'pointer', display:'inline-flex', padding:2 }}><X size={16} color={MUTED}/></button>
+        </div>}
+
+        {/* Resident app: who has joined, the front desk contact, invite and import */}
+        {(() => {
+          const joined = residents.filter(r => r.account_status === 'active').length;
+          const invited = residents.filter(r => r.account_status === 'invited').length;
+          const waiting = residents.filter(r => !['active', 'invited'].includes(r.account_status) && r.email).length;
+          const draft = resSettingsDraft || resSettings;
+          const changed = resSettingsDraft && (resSettingsDraft.front_desk_email !== resSettings.front_desk_email || resSettingsDraft.front_desk_phone !== resSettings.front_desk_phone);
+          const smallBtn = { minHeight:40, padding:'0 14px', borderRadius:10, fontFamily:INTER, fontSize:13, fontWeight:700, cursor:'pointer', display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7 };
+          return (
+            <section data-testid="resident-app-card" aria-labelledby="resident-app-title" style={{ ...glassCard, padding:isMobile?16:20, marginBottom:20 }}>
+              <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+                <div>
+                  <h2 id="resident-app-title" style={{ fontWeight:700, color:TEXT, fontSize:17, margin:0 }}>Resident app</h2>
+                  <p style={{ fontSize:13, color:MUTED, margin:'4px 0 0', lineHeight:1.5, maxWidth:520 }}>Residents send noise complaints, work orders and reports from their phone. Each one lands on the desk's To do with the time it came in.</p>
+                </div>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {[['Joined', joined, GREEN], ['Invited', invited, ORANGE], ['Not invited', waiting, MUTED]].map(([label, value, color]) => (
+                    <span key={label} style={{ padding:'6px 10px', borderRadius:999, background:CARD2, border:`1px solid ${BORDER}`, fontSize:12, color:TEXT, fontWeight:650 }}><strong style={{ color }}>{value}</strong> {label}</span>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'1fr 1fr auto', gap:10, marginTop:16, alignItems:'end' }}>
+                <label style={{ display:'flex', flexDirection:'column', gap:6, fontSize:12, fontWeight:700, color:TEXT }}>Front desk email
+                  <input value={draft.front_desk_email} onChange={e => setResSettingsDraft({ ...draft, front_desk_email:e.target.value })} type="email" placeholder="frontdesk@yourbuilding.com" data-testid="front-desk-email"
+                    style={{ minHeight:42, padding:'0 12px', border:`1px solid ${BORDER}`, borderRadius:10, background:CARD2, color:TEXT, fontFamily:INTER, fontSize:14, outline:'none' }} />
+                </label>
+                <label style={{ display:'flex', flexDirection:'column', gap:6, fontSize:12, fontWeight:700, color:TEXT }}>Front desk phone
+                  <input value={draft.front_desk_phone} onChange={e => setResSettingsDraft({ ...draft, front_desk_phone:e.target.value })} type="tel" placeholder="(555) 000-0000"
+                    style={{ minHeight:42, padding:'0 12px', border:`1px solid ${BORDER}`, borderRadius:10, background:CARD2, color:TEXT, fontFamily:INTER, fontSize:14, outline:'none' }} />
+                </label>
+                <button type="button" onClick={saveResidentSettings} disabled={!changed || resBusy === 'settings'} style={{ ...smallBtn, minHeight:42, border:0, background:changed ? TEXT : CARD2, color:changed ? 'white' : MUTED, cursor:changed ? 'pointer' : 'default' }}>{resBusy === 'settings' ? 'Saving…' : 'Save'}</button>
+              </div>
+              <p style={{ fontSize:12, color:MUTED, margin:'6px 0 0' }}>Residents email or call the desk with these. There is no chat, so the desk isn't flooded with messages. Left empty, your own email is used.</p>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:14, paddingTop:14, borderTop:`1px solid ${BORDER}` }}>
+                <button type="button" onClick={inviteAllResidents} disabled={!waiting || resBusy === 'all'} data-testid="invite-all-residents" style={{ ...smallBtn, border:0, background:waiting ? BLUE : CARD2, color:waiting ? 'white' : MUTED, cursor:waiting ? 'pointer' : 'default' }}><Send size={15} />{resBusy === 'all' ? 'Sending…' : `Invite all not yet invited${waiting ? ` (${waiting})` : ''}`}</button>
+                <button type="button" onClick={() => resImportRef.current?.click()} disabled={resBusy === 'import'} style={{ ...smallBtn, border:`1px solid ${BORDER}`, background:CARD, color:TEXT }}><Upload size={15} />{resBusy === 'import' ? 'Importing…' : 'Import from a spreadsheet (CSV)'}</button>
+                <input ref={resImportRef} type="file" accept=".csv,text/csv" onChange={e => importResidentCsv(e.target.files?.[0])} style={{ display:'none' }} data-testid="resident-import-input" />
+              </div>
+            </section>
+          );
+        })()}
+
         {/* Section header — exact "Past Reports" pattern */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -1143,7 +1307,13 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
 
                   {/* Content — flex:1, matches incident card info block */}
                   <div style={{ flex:1, minWidth:0 }}>
-                    <p style={{ fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.name}</p>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                      <p style={{ fontWeight:700, color:TEXT, fontSize:16, margin:'0 0 2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.name}</p>
+                      {(() => {
+                        const st = { active:['Joined', GREEN], invited:['Invited', ORANGE], expired:['Invite expired', RED] }[r.account_status] || [r.email ? 'Not invited' : 'No email yet', MUTED];
+                        return <span data-testid="resident-account-status" style={{ flexShrink:0, padding:'3px 8px', borderRadius:999, fontSize:11, fontWeight:700, color:st[1], background:`${st[1]}14` }}>{st[0]}</span>;
+                      })()}
+                    </div>
                     <div style={{ display:'flex', gap:7, flexWrap:'wrap', marginTop:4, minWidth:0 }}>
                       {r.phone && <span style={{ fontSize:12, color:MUTED }}>{r.phone}</span>}
                       {r.email && <span style={{ fontSize:12, color:MUTED }}>· {r.email}</span>}
@@ -1155,11 +1325,32 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
                         style={{ padding:'6px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, cursor:'pointer', fontFamily:INTER, fontSize:12, fontWeight:600, color:TEXT }}>
                         Edit
                       </button>
-                      <button onClick={() => deleteResident(r.resident_id)}
+                      {r.account_status !== 'active' && r.email && (
+                        <button onClick={() => inviteResident(r)} disabled={resBusy === r.resident_id} data-testid="invite-resident"
+                          style={{ padding:'6px 12px', background:BLUE, border:0, borderRadius:8, cursor:'pointer', fontFamily:INTER, fontSize:12, fontWeight:700, color:'white' }}>
+                          {resBusy === r.resident_id ? 'Sending…' : r.account_status === 'invited' || r.account_status === 'expired' ? 'Resend invite' : 'Invite'}
+                        </button>
+                      )}
+                      {r.account_status === 'invited' && (
+                        <button onClick={() => cancelResidentInvite(r)} disabled={resBusy === r.resident_id}
+                          style={{ padding:'6px 12px', background:CARD2, border:`1px solid ${BORDER}`, borderRadius:8, cursor:'pointer', fontFamily:INTER, fontSize:12, fontWeight:600, color:TEXT }}>
+                          Cancel invite
+                        </button>
+                      )}
+                      <button onClick={() => setResConfirm(r)}
                         style={{ padding:'6px 12px', background:'rgba(255,59,48,0.08)', border:`1px solid rgba(255,59,48,0.20)`, borderRadius:8, cursor:'pointer', fontFamily:INTER, fontSize:12, fontWeight:600, color:RED }}>
                         Remove
                       </button>
                     </div>
+                    {resConfirm?.resident_id === r.resident_id && (
+                      <div role="alertdialog" aria-label={`Remove ${r.name}`} style={{ marginTop:10, padding:'12px 14px', borderRadius:12, background:'rgba(255,59,48,0.06)', border:'1px solid rgba(255,59,48,0.20)' }}>
+                        <p style={{ margin:0, fontSize:13, color:TEXT, lineHeight:1.5 }}>Remove {r.name} from Unit {r.unit}?{r.account_status === 'active' ? ' They will be signed out of the resident app.' : ''} Requests they sent stay on record.</p>
+                        <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                          <button onClick={() => deleteResident(r.resident_id)} style={{ minHeight:36, padding:'0 14px', border:0, borderRadius:8, background:RED, color:'white', fontFamily:INTER, fontSize:12, fontWeight:700, cursor:'pointer' }}>Remove</button>
+                          <button onClick={() => setResConfirm(null)} style={{ minHeight:36, padding:'0 14px', border:`1px solid ${BORDER}`, borderRadius:8, background:CARD, color:TEXT, fontFamily:INTER, fontSize:12, fontWeight:600, cursor:'pointer' }}>Keep</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Unit badge — exact severity badge pill pattern */}
@@ -2100,7 +2291,7 @@ export const ManagerDashboard = ({ onRoleSwitch, onSignOut, authUser }) => {
   };
 
   const renderTasks = () => {
-    const managerTasks = tasks.filter(t => !t.createdByType || t.createdByType === 'manager');
+    const managerTasks = tasks.filter(t => !t.createdByType || isDeskWork(t));
     const isOverdue = t => t.status !== 'declined' && (t.status === 'overdue' || t.isOverdue || (t.dueAt && new Date(t.dueAt) < new Date() && t.status !== 'completed'));
     const counts = {
       overdue: managerTasks.filter(isOverdue).length,

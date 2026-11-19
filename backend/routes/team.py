@@ -110,7 +110,8 @@ async def list_concierges(request: Request, session_token: Optional[str] = Cooki
             d['created_at'] = d['created_at'].isoformat()
 
     invites = await db.invitations.find(
-        {'manager_id': session['user_id'], 'status': 'pending', 'expires_at': {'$gt': datetime.now(timezone.utc)}},
+        {'manager_id': session['user_id'], 'status': 'pending', 'expires_at': {'$gt': datetime.now(timezone.utc)},
+         'kind': {'$ne': 'resident'}},
         {'_id': 0, 'token_hash': 0},
     ).to_list(200)
     for inv in invites:
@@ -196,7 +197,7 @@ async def remove_concierge(concierge_id: str, request: Request, session_token: O
     # stop this email from being invited again later.
     await db.sessions.delete_many({'user_id': concierge_id, 'user_type': 'concierge'})
     await db.password_resets.delete_many({'user_id': concierge_id, 'user_type': 'concierge'})
-    await db.invitations.delete_many({'manager_id': session['user_id'], 'email': con['email']})
+    await db.invitations.delete_many({'manager_id': session['user_id'], 'email': con['email'], 'kind': {'$ne': 'resident'}})
 
     return {'message': 'Concierge removed.'}
 
@@ -210,7 +211,7 @@ async def cancel_concierge_invitation(invitation_id: str, request: Request, sess
         raise HTTPException(403, 'Manager access required.')
 
     result = await db.invitations.delete_one(
-        {'invitation_id': invitation_id, 'manager_id': session['user_id'], 'status': 'pending'}
+        {'invitation_id': invitation_id, 'manager_id': session['user_id'], 'status': 'pending', 'kind': {'$ne': 'resident'}}
     )
     if result.deleted_count == 0:
         raise HTTPException(404, 'Invitation not found.')
@@ -240,7 +241,7 @@ async def create_concierge_invitation(data: CreateInvitationRequest, request: Re
         raise HTTPException(409, 'That is your own manager email. Use a different address for the concierge.')
 
     now = datetime.now(timezone.utc)
-    if await db.invitations.find_one({'email': email, 'status': 'pending', 'expires_at': {'$gt': now}}):
+    if await db.invitations.find_one({'email': email, 'status': 'pending', 'expires_at': {'$gt': now}, 'kind': {'$ne': 'resident'}}):
         raise HTTPException(409, 'An active invitation already exists for this email.')
 
     inv_id    = f'inv_{uuid.uuid4().hex[:12]}'

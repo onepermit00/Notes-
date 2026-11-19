@@ -8,6 +8,7 @@ import { SignUp } from './components/SignUp';
 import { AuthSupportPage } from './components/AuthSupportPage';
 import { ManagerDashboard } from './components/ManagerDashboard';
 import { CaregiverDashboard } from './components/CaregiverDashboard';
+import { ResidentApp } from './components/resident/ResidentApp';
 import { PublicLayout } from './components/layouts/PublicLayout';
 import { AppLayout } from './components/layouts/AppLayout';
 import { Metadata } from './components/pages/PublicPlaceholderPage';
@@ -59,6 +60,7 @@ function DashboardRoute() {
   const initialRole = user?.user_type === 'manager' ? UserRole.MANAGER : UserRole.CONCIERGE;
   const [currentRole, setCurrentRole] = useState(initialRole);
   const handleSignOut = async () => { await signOut(); navigate('/', { replace: true }); };
+  if (user?.user_type === 'resident') return <><Metadata title="Your building" description="Send requests to your building's front desk and follow them." /><ResidentApp user={user} onSignOut={handleSignOut} /></>;
   return <><Metadata title="Property workspace" description="Your property’s tasks, procedures, activity, and operational history." /><SharedDataProvider>{currentRole === UserRole.MANAGER ? <ManagerDashboard onRoleSwitch={setCurrentRole} onSignOut={handleSignOut} authUser={user} /> : <CaregiverDashboard onSignOut={handleSignOut} onViewCalendar={() => navigate('/app/calendar')} authUser={user} />}</SharedDataProvider></>;
 }
 
